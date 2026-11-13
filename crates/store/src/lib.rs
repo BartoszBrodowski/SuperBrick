@@ -785,7 +785,7 @@ impl Store {
     // ---- export and maintenance --------------------------------------------------------------
     /// The branch's working tree as LDraw bytes (an MPD when it has submodels).
     pub fn export_ldr(&self, branch: &str) -> Result<Vec<u8>> {
-        Ok(self.load(branch)?.1.doc.to_bytes())
+        Ok(engine::export_bytes(&self.load(branch)?.1))
     }
     /// Drop checkpoint commits the retention policy no longer keeps, then unreferenced trees and
     /// blobs. Returns how many rows went.

@@ -126,7 +126,16 @@ fn dispatch(argv: &[String]) -> Result<i32, String> {
             return Err(format!("{} exists (pass --force to overwrite)", out.display()));
         }
         let branch = flag(argv, &["--branch"]).unwrap_or("main");
-        std::fs::write(&out, store.export_ldr(branch)?).map_err(|e| e.to_string())?;
+        // With --user NAME (an agent), export what that agent sees: the model with its drafts.
+        let bytes = match flag(argv, &["--user"]) {
+            Some(user) if user != crate::HUMAN && branch == "main" => {
+                drop(store);
+                let lib = std::sync::Arc::new(ldraw::Library::open_default().map_err(|e| e.to_string())?);
+                crate::Session::open(&path, user, lib)?.export()?
+            }
+            _ => store.export_ldr(branch)?,
+        };
+        std::fs::write(&out, bytes).map_err(|e| e.to_string())?;
         println!("{}", json!({"exported": out}));
         Ok(0)
     } else {
@@ -383,8 +392,21 @@ fn tool_list() -> Value {
                     "project".into(),
                     json!({"type": "string", "description": "Path of the .sb project (default: the one opened last)."}),
                 );
+                if t.name == "project" {
+                    // `open` is handled by the MCP server itself (it picks the project for later calls).
+                    props.insert("path".into(), json!({"type": "string", "description": "open: the .sb file to open or create."}));
+                    props.insert("create".into(), json!({"type": "boolean", "description": "open: create the project if it does not exist."}));
+                    props.insert("import".into(), json!({"type": "string", "description": "open with create: an .ldr/.mpd model to start from."}));
+                    if let Some(actions) = props.get_mut("action").and_then(|a| a.get_mut("enum")).and_then(Value::as_array_mut) {
+                        actions.insert(0, json!("open"));
+                    }
+                    if let Some(text) = props.get_mut("action").and_then(|a| a.get_mut("description")) {
+                        *text = json!(format!("open: pick the project for later calls (path, create, import). {}", text.as_str().unwrap_or("")));
+                    }
+                }
             }
-            json!({"name": t.name, "description": t.summary, "inputSchema": schema})
+            let summary = if t.name == "project" { format!("Open or create a project, then: {}", t.summary) } else { t.summary.to_string() };
+            json!({"name": t.name, "description": summary, "inputSchema": schema})
         })
         .collect();
     json!({ "tools": tools })

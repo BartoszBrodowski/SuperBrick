@@ -18,7 +18,7 @@ pub fn schema() -> Value {
             "near": {"type": "object", "description": "Parts whose centre is within radius of a point: {at:[x,y,z], radius}",
                      "properties": {"at": {"type": "array"}, "radius": {"type": "number"}}},
             "color": {"type": "integer", "description": "Only parts of this colour."},
-            "part": {"type": "string", "description": "Only parts whose number contains this (\"3001\", \"slope\" matches descriptions too)."},
+            "part": {"type": ["string", "array"], "description": "Only parts whose number contains this (or any of a list) (\"3001\", \"slope\" matches descriptions too)."},
             "connected": {"type": "string", "enum": ["studs", "rigid", "touching"],
                           "description": "Grow from the parts so far: everything stud-connected (\"studs\"), everything that moves with them without bending a hinge (\"rigid\"), or every part touching them, repeatedly (\"touching\")."},
             "add": ids_prop("Union with these"),
@@ -97,14 +97,21 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
         how.push(format!("colour {c}"));
         set = Some(hit);
     }
-    if let Some(q) = args::str_arg(args, "part") {
-        let q = q.trim_end_matches(".dat").to_ascii_lowercase();
+    let queries: Vec<String> = match args.get("part") {
+        Some(Value::String(q)) => vec![q.clone()],
+        Some(Value::Array(a)) => a.iter().map(|v| v.as_str().map(str::to_string).ok_or("part: a part number or a list of them")).collect::<std::result::Result<_, _>>()?,
+        Some(Value::Null) | None => Vec::new(),
+        Some(_) => return Err("part: a part number or a list of them".into()),
+    };
+    if !queries.is_empty() {
+        let qs: Vec<String> = queries.iter().map(|q| q.trim_end_matches(".dat").to_ascii_lowercase()).collect();
+        let q = qs.join("|");
         let base: Vec<Id> = set.clone().map(|s| s.into_iter().collect()).unwrap_or_else(|| in_file.clone());
         let mut hit = BTreeSet::new();
         for id in base {
             let name = view.parts[&id].name.to_ascii_lowercase();
-            let matches = name.contains(&q)
-                || s.lib.description(&view.parts[&id].name).to_ascii_lowercase().contains(&q);
+            let desc = s.lib.description(&view.parts[&id].name).to_ascii_lowercase();
+            let matches = qs.iter().any(|q| name.contains(q.as_str()) || desc.contains(q.as_str()));
             if matches {
                 hit.insert(id);
             }

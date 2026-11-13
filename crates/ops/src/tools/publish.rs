@@ -48,7 +48,22 @@ fn jobs_dir(s: &Session) -> PathBuf {
     std::env::temp_dir().join("superbrick-jobs").join(format!("{tag:016x}"))
 }
 
+/// Jobs this process started. A finished child stays a zombie (and `kill -0` still succeeds)
+/// until it is reaped, so a long-lived MCP server must reap its own children to see them end.
+static CHILDREN: std::sync::Mutex<Vec<std::process::Child>> = std::sync::Mutex::new(Vec::new());
+
 fn alive(pid: u64) -> bool {
+    if let Ok(mut kids) = CHILDREN.lock() {
+        if let Some(k) = kids.iter().position(|c| c.id() as u64 == pid) {
+            return match kids[k].try_wait() {
+                Ok(None) => true,
+                _ => {
+                    kids.remove(k);
+                    false
+                }
+            };
+        }
+    }
     Command::new("kill")
         .args(["-0", &pid.to_string()])
         .stderr(Stdio::null())
@@ -82,7 +97,11 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply, String> {
     }
     let id = id_n;
     let ldr = dir.join(format!("{id}.ldr"));
-    std::fs::write(&ldr, s.store.export_ldr(&s.branch)?).map_err(|e| e.to_string())?;
+    // An agent publishes what it sees: the model with its pending drafts.
+    if s.view().parts.is_empty() {
+        return Err("the model has no parts yet (nothing accepted or drafted)".into());
+    }
+    std::fs::write(&ldr, s.export()?).map_err(|e| e.to_string())?;
     let out = dir.join(&id);
     let log = dir.join(format!("{id}.log"));
     let log_file = std::fs::File::create(&log).map_err(|e| e.to_string())?;
@@ -112,6 +131,9 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply, String> {
         "id": id, "kind": kind, "user": s.user, "tree": tree, "pid": child.id(),
         "out": out, "log": log, "started": now(), "state": "running",
     });
+    if let Ok(mut kids) = CHILDREN.lock() {
+        kids.push(child);
+    }
     s.store.set_pref("project", &format!("job:{id}"), &record)?;
     check(s, &id, wait_arg(args))
 }

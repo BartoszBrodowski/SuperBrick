@@ -7,6 +7,7 @@ use engine::connectors::Endpoint;
 use engine::drafts::DraftTx;
 use engine::{Cmd, Id, Model, PartSpec};
 use glam::{DMat3, DVec3};
+use std::collections::BTreeSet;
 use serde_json::{json, Value};
 
 pub fn schema() -> Value {
@@ -25,10 +26,13 @@ pub fn schema() -> Value {
 - remove: {ids}. paint: {ids, color}.
 - connect: {ids, source:{part,leaf?,index?}, target:{part,leaf?,index?}, pose?} joins connector to connector (see project inspect).
 - hinge: {part, angle, joint?, axis?:0, detach?:[joint ids]} turns the part's rigid chunk about a hinge/turntable/ball joint.
-- group / subbuild: {ids, name}. hide / lock: {ids, value?:true}.",
+- group / subbuild: {ids, name}. hide / lock: {ids, value?:true}.
+- step: {label?} ends the construction step here (`0 STEP`). restep: {ids, after} moves parts to the end of the step that part `after` is in. add and place also take after:<part id> to put the new parts in that part's (earlier) step.
+color is an LDraw number or a name (\"red\", \"light bluish gray\", \"lbg\").",
                 "items": {"type": "object", "required": ["op"]}},
             "label": {"type": "string", "description": "Short description shown with the proposal (\"left wing root\")."},
             "dry_run": {"type": "boolean", "description": "Check and picture the result without proposing it."},
+            "step": {"type": ["boolean", "string"], "description": "End a construction step after this batch (`0 STEP` in the LDraw, labelled with the edit's label, or this text). Use one edit per instruction step."},
             "units": units_prop(),
             "file": {"type": "integer", "description": "Model file index (0 = main)."},
             "views": views_prop(),
@@ -52,7 +56,17 @@ fn default_colour(s: &Session) -> i32 {
 fn colour_arg(v: &Value, fallback: i32) -> Result<i32> {
     match v.get("color").or_else(|| v.get("colour")) {
         None | Some(Value::Null) => Ok(fallback),
-        Some(c) => c.as_i64().map(|c| c as i32).ok_or_else(|| "color must be an LDraw colour code (number)".into()),
+        Some(Value::String(name)) => colour_code(name),
+        Some(c) => c.as_i64().map(|c| c as i32).ok_or_else(|| "color must be an LDraw colour number or name".into()),
+    }
+}
+
+/// A colour by LDraw number ("71"), name ("light bluish gray", "pearl gold") or short form ("lbg").
+pub(crate) fn colour_code(name: &str) -> Result<i32> {
+    static COLOURS: std::sync::OnceLock<Option<ldraw::Colors>> = std::sync::OnceLock::new();
+    match COLOURS.get_or_init(|| ldraw::Library::open_default().ok().map(|l| l.colors.clone())) {
+        Some(c) => c.code(name),
+        None => name.trim().parse().map_err(|_| format!("unknown colour {name:?}; use an LDraw colour number")),
     }
 }
 
@@ -129,6 +143,8 @@ fn endpoint(v: &Value) -> Result<Endpoint> {
 struct Done {
     kind: String,
     note: Option<String>,
+    /// A group made by this op: its name and parts (kept as a named selection too).
+    group: Option<(String, Vec<Id>)>,
 }
 
 /// Resolve an op's ids against the transaction's current model.
@@ -147,11 +163,33 @@ fn centre(s: &Ctx, model: &Model, ids: &[Id]) -> DVec3 {
     }
 }
 
+/// The `step` argument of an edit: true (use the edit's label), a label, or false/absent.
+fn step_label(v: Option<&Value>, label: &str) -> Result<Option<Option<String>>> {
+    Ok(match v {
+        None | Some(Value::Null) | Some(Value::Bool(false)) => None,
+        Some(Value::Bool(true)) => Some((!label.is_empty()).then(|| label.to_string())),
+        Some(Value::String(s)) => Some(Some(s.clone())),
+        Some(_) => return Err("step: true (label it with the edit's label) or a label".into()),
+    })
+}
+
 /// Turn one op into commands and apply them inside the transaction.
 fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, colour: i32) -> Result<Done> {
     let kind = args::str_arg(op, "op").ok_or("each op needs \"op\" (add, place, move, ...)")?.to_ascii_lowercase();
     let free = op.get("free").and_then(Value::as_bool).unwrap_or(false);
     let mut note = None;
+    let mut group = None;
+    // `after`: the parts this op adds join the construction step of that part (their lines go
+    // right after its line), instead of the step being built at the end of the file.
+    let anchor = match op.get("after") {
+        Some(v) if kind == "add" || kind == "place" => {
+            let ids = s.resolve(tx.model(), &args::id_refs(v)?, file)?;
+            Some(*ids.last().ok_or("after: no such part")?)
+        }
+        Some(_) => return Err("\"after\" only applies to add and place (use op restep to move existing parts)".into()),
+        None => None,
+    };
+    let before: BTreeSet<Id> = if anchor.is_some() { tx.model().parts.keys().copied().collect() } else { BTreeSet::new() };
     match kind.as_str() {
         "add" => {
             let parts = match (op.get("ldraw"), op.get("parts").and_then(Value::as_array)) {
@@ -289,6 +327,7 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
         "group" => {
             let ids = op_ids(s, tx.model(), op, file)?;
             let name = args::str_arg(op, "name").ok_or("group needs \"name\"")?.to_string();
+            group = Some((name.clone(), ids.clone()));
             tx.apply(Cmd::Group { ids, name })?;
         }
         "subbuild" | "make_subbuild" | "submodel" => {
@@ -306,9 +345,27 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
             let direction = args::axis(op.get("direction").ok_or("nudge needs \"direction\"")?)?;
             tx.apply(Cmd::Nudge { ids, direction, normal: false })?;
         }
+        "step" => {
+            let label = args::str_arg(op, "label").map(str::to_string);
+            tx.apply(Cmd::Step { file, label })?;
+        }
+        "restep" => {
+            let ids = op_ids(s, tx.model(), op, file)?;
+            let after = op.get("after").ok_or("restep needs \"after\": the part whose step the parts join")?;
+            let after = *s.resolve(tx.model(), &args::id_refs(after)?, file)?.last().ok_or("after: no such part")?;
+            let v = tx.apply(Cmd::Restep { ids, after })?;
+            note = Some(format!("now in step {}", v["step"]));
+        }
         other => return Err(format!("unknown op {other:?}")),
     }
-    Ok(Done { kind, note })
+    if let Some(after) = anchor {
+        let new: Vec<Id> = tx.model().parts.keys().copied().filter(|id| !before.contains(id)).collect();
+        if !new.is_empty() {
+            let v = tx.apply(Cmd::Restep { ids: new, after })?;
+            note = Some(format!("{}moved to the end of step {} (the step of #{after})", note.map(|n| format!("{n}, ")).unwrap_or_default(), v["step"]));
+        }
+    }
+    Ok(Done { kind, note, group })
 }
 
 pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
@@ -340,8 +397,22 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
         let Session { engine, store, lib, user: who, last, .. } = &mut *s;
         let ctx = Ctx { lib: &*lib, store: &*store, user: who.as_str(), last: last.as_slice() };
         let result = engine.propose_with(&user, turn, &label, dry, |tx| {
+            // Inside a batch, "last" means what the earlier ops of this batch made or changed.
+            let mut batch_last: Vec<Id> = Vec::new();
             for (i, op) in ops.iter().enumerate() {
-                match apply_op(&ctx, tx, op, file, units, colour) {
+                let before: std::collections::HashMap<Id, u64> =
+                    tx.model().parts.iter().map(|(id, p)| (*id, p.content_hash())).collect();
+                let c = Ctx { last: if batch_last.is_empty() { ctx.last } else { &batch_last }, ..ctx };
+                let applied = apply_op(&c, tx, op, file, units, colour);
+                if applied.is_ok() {
+                    let changed: Vec<Id> = tx.model().parts.iter()
+                        .filter(|(id, p)| before.get(*id) != Some(&p.content_hash()))
+                        .map(|(id, _)| *id).collect();
+                    if !changed.is_empty() {
+                        batch_last = changed;
+                    }
+                }
+                match applied {
                     Ok(d) => done.push(d),
                     Err(e) => {
                         failed = Some(i);
@@ -349,6 +420,10 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
                         return Err(if ops.len() > 1 { format!("op {} ({kind}): {e}", i + 1) } else { e });
                     }
                 }
+            }
+            // `step`: close the batch as one construction step (`0 STEP`, labelled).
+            if let Some(label) = step_label(args.get("step"), &label)? {
+                tx.apply(Cmd::Step { file, label })?;
             }
             Ok(())
         });
@@ -375,6 +450,12 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
         }
         if summary.is_empty() {
             summary.push("no change".into());
+        }
+        if !dry {
+            // A group's name also becomes a named selection, so it works as `ids` everywhere.
+            for (name, ids) in done.iter().filter_map(|d| d.group.as_ref()) {
+                s.store.create_selection(&user, Some(name), file, ids, Some(&json!({"group": name})))?;
+            }
         }
         let notes: Vec<String> = done.iter().filter_map(|d| d.note.as_ref().map(|n| format!("{}: {n}", d.kind))).collect();
         let mut text;

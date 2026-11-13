@@ -191,6 +191,15 @@ impl Session {
     }
 
     /// The model as this user sees it: the shared model plus the user's pending drafts.
+    /// LDraw for export: the shared model for the human, the model with your pending drafts for
+    /// an agent.
+    pub fn export(&mut self) -> std::result::Result<Vec<u8>, String> {
+        if self.is_human() {
+            self.store.export_ldr(&self.branch)
+        } else {
+            Ok(engine::export_bytes(&self.view()))
+        }
+    }
     pub fn view(&mut self) -> Model {
         if self.is_human() {
             self.engine.model.clone()
@@ -257,6 +266,7 @@ impl Session {
 }
 
 /// The parts of a session that tools read while the engine is busy in a transaction.
+#[derive(Clone, Copy)]
 pub struct Ctx<'a> {
     pub lib: &'a Arc<Library>,
     pub store: &'a Store,

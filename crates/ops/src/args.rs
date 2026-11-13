@@ -11,7 +11,7 @@
 //!   edit changed) or `"all"`; lists may mix them.
 use engine::Id;
 use glam::{DMat3, DVec3};
-use serde_json::Value;
+use serde_json::{json, Value};
 
 pub type Result<T> = std::result::Result<T, String>;
 
@@ -139,6 +139,11 @@ pub fn rotation(v: &Value) -> Result<DMat3> {
         return Ok(m);
     }
     let s = v.as_str().ok_or("rot must be 9 numbers or a shorthand such as \"yaw90\"")?;
+    // "0 0 1 1 0 0 0 1 0" (as copied from an LDraw line) is the same as the array form.
+    let nums: Vec<&str> = s.split(|c: char| c.is_whitespace() || c == ',').filter(|t| !t.is_empty()).collect();
+    if nums.len() == 9 && nums.iter().all(|t| t.parse::<f64>().is_ok()) {
+        return rotation(&Value::Array(nums.iter().map(|t| json!(t.parse::<f64>().unwrap())).collect()));
+    }
     shorthand(s)
 }
 

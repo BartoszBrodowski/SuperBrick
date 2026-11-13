@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 
 const ACTIONS: &[&str] = &[
     "info", "parts", "inspect", "drafts", "accept", "reject", "withdraw", "log", "branches", "branch", "restore",
-    "checkpoint", "export", "selections", "forget", "prefs", "set", "assets", "save_asset", "colours",
+    "checkpoint", "export", "selections", "forget", "prefs", "set", "assets", "save_asset", "colours", "inventory",
 ];
 
 pub fn schema() -> Value {
@@ -17,7 +17,8 @@ pub fn schema() -> Value {
         "type": "object",
         "properties": {
             "action": {"type": "string", "enum": ACTIONS,
-                "description": "info: summary. parts: list parts (ids/box, offset, limit). inspect: a part's connectors and size (id or part number), with a labelled picture. drafts: pending proposals. accept (human only) / reject / withdraw: drafts by id. log: versions. branches / branch (create, name, from). restore: a version (human). checkpoint: save a version now (human). export: LDraw to a path. selections / forget (a selection). prefs / set (key, value). assets / save_asset (id, path). colours: common colours."},
+                "description": "info: summary. parts: list parts (ids/box, offset, limit). inspect: a part's connectors and size (id or part number), with a labelled picture. drafts: pending proposals. accept (human only) / reject / withdraw: drafts by id. log: versions. branches / branch (create, name, from). restore: a version (human). checkpoint: save a version now (human). export: LDraw to a path. selections / forget (a selection). prefs / set (key, value). assets / save_asset (id, path). colours: common colours. inventory: the model's parts counted by part and colour; with against (a set number, a booklet_inventory.json path or a [{part, color, qty}] list) also what is missing, extra or in the wrong colour."},
+            "against": {"description": "inventory: a set number (\"40809\"), a path to a JSON file {parts:[{part, color, qty}]} or such a list."},
             "ids": ids_prop("Parts (parts, inspect) or draft ids (accept, reject, withdraw)"),
             "part": {"type": "string", "description": "Part number for inspect."},
             "box": {"type": "object", "description": "Region for parts: {min, max}."},
@@ -43,6 +44,7 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
     let action = args::str_arg(args, "action").ok_or("project needs an action")?;
     match action {
         "info" => info(s),
+        "inventory" => inventory(s, args),
         "parts" => parts(s, args),
         "inspect" => inspect(s, args),
         "drafts" => drafts(s),
@@ -96,7 +98,7 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
         }
         "export" => {
             let path = args::str_arg(args, "path").ok_or("export needs a path (.ldr or .mpd)")?;
-            let bytes = if s.is_human() { s.store.export_ldr(&s.branch)? } else { s.view().doc.to_bytes() };
+            let bytes = s.export()?;
             std::fs::write(path, &bytes).map_err(|e| format!("{path}: {e}"))?;
             let what = if s.is_human() { "the shared model" } else { "the model with your pending drafts" };
             Ok(Reply::ok(format!("Wrote {what} to {path} ({} bytes).", bytes.len()), json!({"path": path, "bytes": bytes.len()})))
@@ -384,7 +386,7 @@ fn decide(s: &mut Session, args: &Value, action: &str) -> Result<Reply> {
         Some(Value::Number(n)) => vec![n.as_u64().ok_or("draft ids are numbers")?],
         Some(Value::Array(a)) => a.iter().map(|v| v.as_u64().ok_or_else(|| "draft ids are numbers".to_string())).collect::<Result<_>>()?,
         Some(Value::String(s)) if s == "all" => Vec::new(),
-        None => Vec::new(),
+        None => return Err(format!("{action} needs \"ids\": draft ids (a number or a list) or \"all\"")),
         _ => return Err("ids: draft ids (number or list) or \"all\"".into()),
     };
     let user = s.user.clone();
@@ -450,4 +452,118 @@ fn decide(s: &mut Session, args: &Value, action: &str) -> Result<Reply> {
             Ok(Reply::ok(text, json!({"done": mine, "blocked": blocked})))
         }
     }
+}
+
+type Counts = std::collections::BTreeMap<(String, i32), u32>;
+
+/// Part number without ".dat", after following the library's "~Moved to" redirections (3023 -> 3023b).
+fn part_key(lib: &ldraw::Library, name: &str) -> String {
+    let n = lib.canonical_part(name.trim()).to_lowercase();
+    n.strip_suffix(".dat").unwrap_or(&n).to_string()
+}
+
+/// "a; b; c" with at most `max` items, then "… and N more".
+fn capped(items: Vec<String>, max: usize) -> String {
+    let n = items.len();
+    let mut t = items.into_iter().take(max).collect::<Vec<_>>().join("; ");
+    if n > max {
+        t.push_str(&format!("; … and {} more (all in data)", n - max));
+    }
+    t
+}
+
+fn counts_from(lib: &ldraw::Library, list: &[Value]) -> Result<Counts> {
+    let mut want = Counts::new();
+    for v in list {
+        let part = v.get("part").and_then(Value::as_str).ok_or("each inventory entry needs \"part\"")?;
+        let color = v.get("color").and_then(Value::as_i64).ok_or("each inventory entry needs a numeric \"color\"")? as i32;
+        let qty = v.get("qty").or_else(|| v.get("quantity")).and_then(Value::as_u64).unwrap_or(1) as u32;
+        *want.entry((part_key(lib, part), color)).or_default() += qty;
+    }
+    Ok(want)
+}
+
+/// The model's parts by part and colour, optionally checked against a set or a parts list.
+fn inventory(s: &mut Session, args: &Value) -> Result<Reply> {
+    let view = s.view();
+    let file = file_arg(&view, args)?;
+    let mut have = Counts::new();
+    for p in view.flat(file) {
+        *have.entry((part_key(&s.lib, &p.name), p.color.0)).or_default() += 1;
+    }
+    let total: u32 = have.values().sum();
+    let line = |(p, c): &(String, i32), n: u32| format!("{n}× {p} {} ({c})", colour_name(&s.lib, *c));
+    let rows = |m: &Counts| m.iter().map(|((p, c), n)| json!({"part": p, "color": c, "qty": n})).collect::<Vec<_>>();
+    let Some(against) = args.get("against") else {
+        let lines: Vec<String> = have.iter().map(|(k, n)| line(k, *n)).collect();
+        return Ok(Reply::ok(
+            format!("{total} pieces in {} kinds: {}.", have.len(), capped(lines, 60)),
+            json!({"pieces": total, "parts": rows(&have)}),
+        ));
+    };
+    let (want, source) = match against {
+        Value::Array(list) => (counts_from(&s.lib, list)?, "the given list".to_string()),
+        Value::Object(o) => (counts_from(&s.lib, o.get("parts").and_then(Value::as_array).ok_or("against: {parts: [...]}")?)?, "the given list".to_string()),
+        Value::String(t) if t.ends_with(".json") => {
+            let j: Value = serde_json::from_slice(&std::fs::read(t).map_err(|e| format!("{t}: {e}"))?).map_err(|e| format!("{t}: {e}"))?;
+            let list = j.get("parts").and_then(Value::as_array).or_else(|| j.as_array()).ok_or(format!("{t}: expected {{\"parts\": [...]}}"))?;
+            (counts_from(&s.lib, list)?, t.clone())
+        }
+        Value::String(t) => {
+            let table = search::sets::Sets::get().ok_or("the set table (search data out/sets.bin) is not installed")?;
+            let inv = table.inventory(t).ok_or(format!("no set \"{t}\""))?;
+            let mut want = Counts::new();
+            for r in inv.rows.iter().filter(|r| !r.spare) {
+                if let (Some(p), Some(c)) = (&r.item.part, r.item.color) {
+                    *want.entry((part_key(&s.lib, p), c)).or_default() += r.qty;
+                }
+            }
+            (want, format!("set {} \"{}\"", inv.set, inv.name))
+        }
+        _ => return Err("against: a set number, a .json path or a list of {part, color, qty}".into()),
+    };
+    let mut missing = Counts::new();
+    let mut extra = Counts::new();
+    let mut matched = 0;
+    for (k, &n) in &want {
+        let h = have.get(k).copied().unwrap_or(0);
+        matched += n.min(h);
+        if n > h {
+            missing.insert(k.clone(), n - h);
+        }
+    }
+    for (k, &h) in &have {
+        let n = want.get(k).copied().unwrap_or(0);
+        if h > n {
+            extra.insert(k.clone(), h - n);
+        }
+    }
+    // Pair up the same part in another colour, and a printed/variant part for its base shape.
+    let mut hints = Vec::new();
+    for ((p, c), n) in &missing {
+        for ((q, d), m) in &extra {
+            if q == p && d != c {
+                hints.push(format!("{p}: {m} in {} ({d}) where the list has {n} in {} ({c})", colour_name(&s.lib, *d), colour_name(&s.lib, *c)));
+            } else if q != p && d == c && (q.starts_with(p.as_str()) || p.starts_with(q.as_str())) {
+                hints.push(format!("{q} ({m}) may stand for {p} ({n}) in {}", colour_name(&s.lib, *c)));
+            }
+        }
+    }
+    let want_total: u32 = want.values().sum();
+    let mut text = format!("{total} pieces in the model, {want_total} in {source}: {matched} match.");
+    if missing.is_empty() && extra.is_empty() {
+        text.push_str(" Everything matches.");
+    } else {
+        if !missing.is_empty() {
+            text.push_str(&format!(" Missing ({}): {}.", missing.values().sum::<u32>(), capped(missing.iter().map(|(k, n)| line(k, *n)).collect(), 40)));
+        }
+        if !extra.is_empty() {
+            text.push_str(&format!(" Extra ({}): {}.", extra.values().sum::<u32>(), capped(extra.iter().map(|(k, n)| line(k, *n)).collect(), 40)));
+        }
+        if !hints.is_empty() {
+            text.push_str(&format!(" Likely the same piece: {}.", capped(hints.clone(), 20)));
+        }
+    }
+    Ok(Reply::ok(text, json!({"pieces": total, "expected": want_total, "matched": matched,
+                              "missing": rows(&missing), "extra": rows(&extra), "hints": hints})))
 }

@@ -1,6 +1,7 @@
 pub mod catalog;
 pub mod embed;
 pub mod search;
+pub mod sets;
 pub mod text;
 
 pub use search::{Hit, Searcher, Weights};
@@ -81,6 +82,21 @@ impl Searcher {
         let color = filters.color.or(info.color);
         let exact = self.exact_matches(query);
         hits.retain(|h| exact.contains(&h.idx) || allowed(&self.cat.parts[h.idx], filters, color));
+        // LEGO element IDs ("4142155") name a part in a colour: put those parts first.
+        let mut lead = Vec::new();
+        if sets::element_tokens(query).next().is_some()
+            && let Some(table) = sets::Sets::get()
+        {
+            for e in table.elements_in(query) {
+                if let Some(i) = e.part.as_deref().and_then(|p| self.exact_matches(p).first().copied())
+                    && !lead.contains(&i)
+                {
+                    lead.push(i);
+                }
+            }
+        }
+        hits.retain(|h| !lead.contains(&h.idx));
+        hits.splice(0..0, lead.into_iter().map(|idx| Hit { idx, score: f32::MAX }));
         hits.truncate(limit);
         (hits, info)
     }

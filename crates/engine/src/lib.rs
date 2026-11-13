@@ -142,11 +142,21 @@ pub enum Cmd {
         ids: Vec<Id>,
         value: bool,
     },
+    /// End the current construction step: appends `0 STEP` to the file, after an optional
+    /// `0 // label` comment.
+    Step {
+        file: usize,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        label: Option<String>,
+    },
+    /// Move parts' lines to just after another part's line in the same file, so they join its
+    /// construction step (the order of `ids` is kept).
+    Restep { ids: Vec<Id>, after: Id },
 }
 impl Cmd {
     pub fn ids(&self) -> &[Id] {
         match self {
-            Cmd::Add { .. } => &[],
+            Cmd::Add { .. } | Cmd::Step { .. } => &[],
             Cmd::Snap { ids, .. }
             | Cmd::Mirror { ids, .. }
             | Cmd::Connect { ids, .. }
@@ -161,7 +171,8 @@ impl Cmd {
             | Cmd::MakeSubbuild { ids, .. }
             | Cmd::Select { ids }
             | Cmd::Hide { ids, .. }
-            | Cmd::Lock { ids, .. } => ids,
+            | Cmd::Lock { ids, .. }
+            | Cmd::Restep { ids, .. } => ids,
         }
     }
     /// Every existing part a command names: moving ids, connector endpoints, pivots.
@@ -180,6 +191,9 @@ impl Cmd {
             }
             Cmd::Articulate { clicked, .. } => {
                 out.insert(*clicked);
+            }
+            Cmd::Restep { after, .. } => {
+                out.insert(*after);
             }
             _ => {}
         }
@@ -445,6 +459,40 @@ impl Model {
         }
         Ok(at)
     }
+    /// Insert a line at `at` in a model file, shifting the parts after it.
+    fn insert_line(&mut self, file: usize, at: usize, line: Line) {
+        self.doc.files[file].lines.insert(at, line);
+        for p in self.parts.values_mut().filter(|p| p.file == file && p.line >= at) {
+            p.line += 1;
+        }
+    }
+    /// Remove the line at `at` (which holds no tracked part), shifting the parts after it.
+    fn remove_line(&mut self, file: usize, at: usize) -> Line {
+        let line = self.doc.files[file].lines.remove(at);
+        for p in self.parts.values_mut().filter(|p| p.file == file && p.line > at) {
+            p.line -= 1;
+        }
+        line
+    }
+    /// Recompute every part's construction step in a file from its `0 STEP` lines.
+    fn restep(&mut self, file: usize) {
+        let steps: HashMap<usize, u32> = self.doc.files[file].parts().map(|(l, _, s)| (l, s)).collect();
+        for p in self.parts.values_mut().filter(|p| p.file == file) {
+            if let Some(s) = steps.get(&p.line) {
+                p.step = *s;
+            }
+        }
+    }
+}
+
+/// The model as LDraw for export: the placeholders removed parts leave behind (`0 // removed`,
+/// kept so line numbers stay stable while editing) are dropped.
+pub fn export_bytes(model: &Model) -> Vec<u8> {
+    let mut doc = model.doc.clone();
+    for f in &mut doc.files {
+        f.lines.retain(|l| l.text.trim() != "0 // removed");
+    }
+    doc.to_bytes()
 }
 
 #[derive(Clone)]
@@ -866,6 +914,53 @@ impl Engine {
                     self.model.selection.remove(id);
                 }
                 json!({"removed":ids})
+            }
+            Cmd::Step { file, label } => {
+                let f = self.model.doc.files.get(file).ok_or("unknown model")?;
+                if f.kind != FileKind::Model {
+                    return Err("cannot edit embedded data".into());
+                }
+                if let Some(label) = label.as_deref().map(str::trim).filter(|l| !l.is_empty()) {
+                    if label.chars().any(char::is_control) {
+                        return Err("step label must be one line".into());
+                    }
+                    self.model.append(file, Line::new(&format!("0 // {label}"), self.model.doc.eol))?;
+                }
+                let at = self.model.append(file, Line::new("0 STEP", self.model.doc.eol))?;
+                self.model.restep(file);
+                json!({"step_line": at})
+            }
+            Cmd::Restep { ids, after } => {
+                let file = self.model.parts.get(&after).ok_or_else(|| format!("unknown part #{after}"))?.file;
+                if ids.contains(&after) {
+                    return Err("a part cannot be moved after itself".into());
+                }
+                if ids.iter().any(|id| self.model.parts[id].file != file) {
+                    return Err("restep: all parts must be in the same model file as the anchor".into());
+                }
+                for (k, id) in ids.iter().enumerate() {
+                    let from = self.model.parts[id].line;
+                    // Detach the line: park the part on a placeholder, then drop the placeholder.
+                    let line = std::mem::replace(&mut self.model.doc.files[file].lines[from], Line::new("0", self.model.doc.eol));
+                    self.model.parts.get_mut(id).unwrap().line = 0; // parked; at >= 1 below, so the shifts skip it
+                    self.model.remove_line(file, from);
+                    // The first part goes to the end of the anchor's step (just before its `0 STEP`,
+                    // outside any group block); the rest follow it in order.
+                    let at = if k == 0 {
+                        let lines = &self.model.doc.files[file].lines;
+                        let from = self.model.parts[&after].line + 1;
+                        (from..lines.len())
+                            .find(|&i| matches!(lines[i].kind, ldraw::LineKind::Step | ldraw::LineKind::RotStep))
+                            .unwrap_or(lines.len())
+                    } else {
+                        self.model.parts[&ids[k - 1]].line + 1
+                    };
+                    self.model.insert_line(file, at, line);
+                    self.model.parts.get_mut(id).unwrap().line = at;
+                    changed.push(*id);
+                }
+                self.model.restep(file);
+                json!({"after": after, "step": self.model.parts[&after].step})
             }
             Cmd::Select { ids } => {
                 self.model.selection = ids.into_iter().collect();

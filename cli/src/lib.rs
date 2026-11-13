@@ -24,6 +24,7 @@ const USAGE: &str = "usage:
   sb-dev parity MODEL                  compare native statuses/groups/link types with Python; fail on differences
   sb-dev search QUERY...               local part search
   sb-dev search-eval                    evaluate the unchanged search golden corpus
+  sb-dev search-sets [REBRICKABLE_DIR]  build out/sets.bin (element IDs, set inventories)
   sb-dev commands                      shared UI/MCP command registry
   sb-dev apply MODEL --ops JSON --out NEWFILE  explicit user transactions; refuses existing output
   sb-dev roundtrip <files|dirs>...     check that .ldr/.mpd files re-save byte-identical, and re-parse after reformatting
@@ -37,7 +38,7 @@ const USAGE: &str = "usage:
 /// Development subcommands `sb` hands to [`run`].
 pub const SUBCOMMANDS: &[&str] = &[
     "stats", "roundtrip", "flatten", "mesh", "synth", "render", "relbench", "validate", "parity",
-    "search", "search-eval", "search-bench", "commands", "apply", "mcp-stdio",
+    "search", "search-eval", "search-bench", "search-sets", "commands", "apply", "mcp-stdio",
 ];
 
 /// Whether `sb` should hand these arguments to [`run`] rather than open the editor.
@@ -61,6 +62,7 @@ pub fn run(args: &[String]) -> ExitCode {
         Some("search") => product::search(rest),
         Some("search-eval") => product::search_eval(),
         Some("search-bench") => search_bench::run(rest),
+        Some("search-sets") => search_sets(rest),
         Some("commands") => product::commands(),
         Some("apply") => product::apply(rest),
         Some("mcp-stdio") => Err("mcp-stdio was removed: use `sb mcp --user NAME [PROJECT.sb]`".into()),
@@ -626,6 +628,30 @@ fn cmd_render(args: &[String]) -> Res<bool> {
     println!(
         "process start to first frame on screen-ready pixels: {:.0} ms",
         first_total.unwrap_or(0.0)
+    );
+    Ok(true)
+}
+
+/// Build out/sets.bin (element IDs and set inventories) from Rebrickable's CSV dumps.
+fn search_sets(args: &[String]) -> Result<bool, Box<dyn std::error::Error>> {
+    let data = search::data_dir();
+    let rb = args
+        .first()
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| data.join("data/rebrickable"));
+    let t = std::time::Instant::now();
+    let lib = ldraw::Library::open_default().map_err(|e| e.to_string())?;
+    let cat: search::catalog::Catalog =
+        serde_json::from_slice(&std::fs::read(data.join("out/catalog.json"))?)?;
+    let (bytes, stats) = search::sets::build(&lib, &rb, &cat)?;
+    let out = data.join("out/sets.bin");
+    std::fs::write(&out, &bytes)?;
+    println!("{}", serde_json::to_string_pretty(&stats)?);
+    println!(
+        "{}: {:.1} MB in {:.1} s",
+        out.display(),
+        bytes.len() as f64 / 1e6,
+        t.elapsed().as_secs_f64()
     );
     Ok(true)
 }

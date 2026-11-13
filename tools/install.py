@@ -66,7 +66,7 @@ def main():
     print(f"Installed {command}\nRun: sb [project.sb | model.ldr]  (an old bin/cad, if any, is left alone)\nThe LDraw library: LeoCAD's, or run `sb setup --library` once.")
 
 
-SEARCH_ASSETS = ["out/catalog.json", "out/emb-potion-base-8m.bin"] + [
+SEARCH_ASSETS = ["out/catalog.json", "out/emb-potion-base-8m.bin", "out/sets.bin"] + [
     f"models/potion-base-8m/{name}" for name in ["config.json", "model.safetensors", "tokenizer.json"]
 ]
 BENCH_FILES = ["physics.py", "snaps.py", "ldraw.py", "raster.py", "render.py"]

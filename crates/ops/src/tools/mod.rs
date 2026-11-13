@@ -72,7 +72,31 @@ pub fn describe(tool: &str) -> Option<Value> {
     TOOLS.iter().find(|t| t.name == tool).map(|t| (t.schema)())
 }
 
+/// Refuse arguments the tool doesn't know, and flags given a non-boolean, instead of silently
+/// ignoring them.
+fn check_args(tool: &str, args: &Value) -> Result<()> {
+    let Some(t) = TOOLS.iter().find(|t| t.name == tool) else { return Ok(()) };
+    let schema = (t.schema)();
+    let Some(props) = schema.get("properties").and_then(Value::as_object) else { return Ok(()) };
+    let Some(given) = args.as_object() else { return Err(format!("{tool}: arguments must be a JSON object")) };
+    for (k, v) in given {
+        if k == "project" {
+            continue;
+        }
+        let Some(p) = props.get(k) else {
+            let mut known: Vec<&str> = props.keys().map(String::as_str).collect();
+            known.sort();
+            return Err(format!("{tool}: unknown argument \"{k}\" (it takes: {})", known.join(", ")));
+        };
+        if p.get("type").and_then(Value::as_str) == Some("boolean") && !v.is_boolean() && !v.is_null() {
+            return Err(format!("{tool}: \"{k}\" is true or false (got {v})"));
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn run(s: &mut Session, tool: &str, args: &Value) -> Result<Reply> {
+    check_args(tool, args)?;
     match tool {
         "edit" => edit::run(s, args),
         "where" => where_::run(s, args),

@@ -63,7 +63,7 @@ pub struct Catalog {
     pub stats: serde_json::Value,
 }
 
-fn csv_rows(
+pub(crate) fn csv_rows(
     dir: &Path,
     name: &str,
 ) -> Result<
@@ -100,6 +100,135 @@ pub fn color_words(s: &str) -> Vec<String> {
         .filter(|w| !w.is_empty())
         .map(str::to_string)
         .collect()
+}
+
+/// Rebrickable colour id → LDraw code: by name, else by identical RGB and transparency.
+/// Also returns how many matched by name, by RGB, and the names that did not match.
+pub(crate) fn rb_colours(
+    lib: &Library,
+    rb_dir: &Path,
+) -> Result<(HashMap<i32, i32>, usize, usize, Vec<String>), Box<dyn Error>> {
+    let mut ld_by_name: HashMap<String, i32> = HashMap::new();
+    for (code, c) in &lib.colors.by_code {
+        ld_by_name.entry(norm_color(&c.ldraw_name)).or_insert(*code);
+        ld_by_name.entry(norm_color(&c.name)).or_insert(*code);
+    }
+    let (cols, mut r) = csv_rows(rb_dir, "colors")?;
+    let mut rb_color: HashMap<i32, i32> = HashMap::new();
+    let (mut by_name, mut by_rgb, mut unmapped) = (0, 0, Vec::new());
+    for rec in r.records() {
+        let rec = rec?;
+        let id: i32 = rec[cols["id"]].parse()?;
+        let name = &rec[cols["name"]];
+        let trans = &rec[cols["is_trans"]] == "True";
+        if let Some(&code) = ld_by_name.get(&norm_color(name)) {
+            rb_color.insert(id, code);
+            by_name += 1;
+            continue;
+        }
+        let rgb = u32::from_str_radix(&rec[cols["rgb"]], 16).unwrap_or(u32::MAX);
+        let hit = lib.colors.by_code.values().find(|c| {
+            let v = ((c.rgb[0] as u32) << 16) | ((c.rgb[1] as u32) << 8) | c.rgb[2] as u32;
+            v == rgb && (c.alpha < 255) == trans
+        });
+        match hit {
+            Some(c) => {
+                rb_color.insert(id, c.code);
+                by_rgb += 1;
+            }
+            None => unmapped.push(name.to_string()),
+        }
+    }
+    Ok((rb_color, by_name, by_rgb, unmapped))
+}
+
+/// Rebrickable part relationships: mould/alternate pairs (both ways) and print → base part.
+pub(crate) type Relationships = (HashMap<String, Vec<String>>, HashMap<String, String>);
+
+pub(crate) fn relationships(rb_dir: &Path) -> Result<Relationships, Box<dyn Error>> {
+    let (cols, mut r) = csv_rows(rb_dir, "part_relationships")?;
+    let mut mold: HashMap<String, Vec<String>> = HashMap::new();
+    let mut print_parent: HashMap<String, String> = HashMap::new();
+    for rec in r.records() {
+        let rec = rec?;
+        let (ty, child, parent) = (
+            &rec[cols["rel_type"]],
+            rec[cols["child_part_num"]].to_lowercase(),
+            rec[cols["parent_part_num"]].to_lowercase(),
+        );
+        match ty {
+            "M" | "A" => {
+                mold.entry(child.clone()).or_default().push(parent.clone());
+                mold.entry(parent).or_default().push(child);
+            }
+            "P" | "T" => {
+                print_parent.insert(child, parent);
+            }
+            _ => {}
+        }
+    }
+    Ok((mold, print_parent))
+}
+
+/// "3070b" → "3070": a trailing mould letter.
+pub(crate) fn strip_letter(p: &str) -> Option<String> {
+    let s = p.trim_end_matches(|c: char| c.is_ascii_alphabetic());
+    (s.len() < p.len() && !s.is_empty()).then(|| s.to_string())
+}
+
+/// Maps Rebrickable part numbers onto catalogue parts (LDraw), following "~Moved to" chains.
+pub(crate) struct Shapes<'a> {
+    pub by_id: &'a HashMap<String, usize>,
+    pub parts: &'a [Part],
+    pub mold: &'a HashMap<String, Vec<String>>,
+}
+
+impl Shapes<'_> {
+    fn resolve_moved(&self, id: &str) -> Option<usize> {
+        let mut cur = *self.by_id.get(id)?;
+        for _ in 0..8 {
+            match &self.parts[cur].moved_to {
+                Some(m) => cur = *self.by_id.get(m.as_str())?,
+                None => return Some(cur),
+            }
+        }
+        None
+    }
+
+    /// The LDraw part for a Rebrickable part number (lower case), and how it was found.
+    pub fn map(&self, p: &str) -> Option<(usize, &'static str)> {
+        if let Some(i) = self.by_id.get(p) {
+            return self
+                .resolve_moved(p)
+                .map(|j| (j, if *i == j { "exact" } else { "moved" }));
+        }
+        if let Some(s) = strip_letter(p)
+            && let Some(j) = self.resolve_moved(&s)
+        {
+            return Some((j, "mould letter"));
+        }
+        for m in self.mold.get(p).into_iter().flatten() {
+            if let Some(j) = self.resolve_moved(m) {
+                return Some((j, "mould/alternate rel"));
+            }
+        }
+        None
+    }
+
+    /// Like `map`, falling back to the unprinted base part of a print (third value: printed).
+    pub fn map_or_print(
+        &self,
+        p: &str,
+        print_parent: &HashMap<String, String>,
+    ) -> (Option<usize>, &'static str, bool) {
+        match self.map(p) {
+            Some((j, st)) => (Some(j), st, false),
+            None => match print_parent.get(p).and_then(|par| self.map(par)) {
+                Some((j, _)) => (Some(j), "print → base shape", true),
+                None => (None, "unmapped", false),
+            },
+        }
+    }
 }
 
 pub fn build(lib: &Library, rb_dir: &Path) -> Result<Catalog, Box<dyn Error>> {
@@ -162,50 +291,7 @@ pub fn build(lib: &Library, rb_dir: &Path) -> Result<Catalog, Box<dyn Error>> {
         .map(|(i, p)| (p.id.clone(), i))
         .collect();
 
-    // Follow LDraw "~Moved to" chains to the part that is actually drawn.
-    let resolve_moved = |id: &str| -> Option<usize> {
-        let mut cur = *by_id.get(id)?;
-        for _ in 0..8 {
-            match &parts[cur].moved_to {
-                Some(m) => cur = *by_id.get(m.as_str())?,
-                None => return Some(cur),
-            }
-        }
-        None
-    };
-
-    // Rebrickable colours → LDraw codes: by name, else by identical RGB and transparency.
-    let mut ld_by_name: HashMap<String, i32> = HashMap::new();
-    for (code, c) in &lib.colors.by_code {
-        ld_by_name.entry(norm_color(&c.ldraw_name)).or_insert(*code);
-        ld_by_name.entry(norm_color(&c.name)).or_insert(*code);
-    }
-    let (cols, mut r) = csv_rows(rb_dir, "colors")?;
-    let mut rb_color: HashMap<i32, i32> = HashMap::new();
-    let (mut by_name, mut by_rgb, mut unmapped_colors) = (0, 0, Vec::new());
-    for rec in r.records() {
-        let rec = rec?;
-        let id: i32 = rec[cols["id"]].parse()?;
-        let name = &rec[cols["name"]];
-        let trans = &rec[cols["is_trans"]] == "True";
-        if let Some(&code) = ld_by_name.get(&norm_color(name)) {
-            rb_color.insert(id, code);
-            by_name += 1;
-            continue;
-        }
-        let rgb = u32::from_str_radix(&rec[cols["rgb"]], 16).unwrap_or(u32::MAX);
-        let hit = lib.colors.by_code.values().find(|c| {
-            let v = ((c.rgb[0] as u32) << 16) | ((c.rgb[1] as u32) << 8) | c.rgb[2] as u32;
-            v == rgb && (c.alpha < 255) == trans
-        });
-        match hit {
-            Some(c) => {
-                rb_color.insert(id, c.code);
-                by_rgb += 1;
-            }
-            None => unmapped_colors.push(name.to_string()),
-        }
-    }
+    let (rb_color, by_name, by_rgb, unmapped_colors) = rb_colours(lib, rb_dir)?;
 
     let (cols, mut r) = csv_rows(rb_dir, "part_categories")?;
     let mut cats: HashMap<String, String> = HashMap::new();
@@ -226,27 +312,7 @@ pub fn build(lib: &Library, rb_dir: &Path) -> Result<Catalog, Box<dyn Error>> {
             (rec[cols["name"]].to_string(), cat),
         );
     }
-    let (cols, mut r) = csv_rows(rb_dir, "part_relationships")?;
-    let mut mold: HashMap<String, Vec<String>> = HashMap::new();
-    let mut print_parent: HashMap<String, String> = HashMap::new();
-    for rec in r.records() {
-        let rec = rec?;
-        let (ty, child, parent) = (
-            &rec[cols["rel_type"]],
-            rec[cols["child_part_num"]].to_lowercase(),
-            rec[cols["parent_part_num"]].to_lowercase(),
-        );
-        match ty {
-            "M" | "A" => {
-                mold.entry(child.clone()).or_default().push(parent.clone());
-                mold.entry(parent).or_default().push(child);
-            }
-            "P" | "T" => {
-                print_parent.insert(child, parent);
-            }
-            _ => {}
-        }
-    }
+    let (mold, print_parent) = relationships(rb_dir)?;
     let t_inv = Instant::now();
     let (cols, mut r) = csv_rows(rb_dir, "inventory_parts")?;
     let (pc, cc) = (cols["part_num"], cols["color_id"]);
@@ -262,39 +328,14 @@ pub fn build(lib: &Library, rb_dir: &Path) -> Result<Catalog, Box<dyn Error>> {
     let inv_ms = t_inv.elapsed().as_secs_f64() * 1e3;
 
     // Rebrickable part → LDraw part, in stages; the stage says how much to trust it.
-    let strip_letter = |p: &str| -> Option<String> {
-        let s = p.trim_end_matches(|c: char| c.is_ascii_alphabetic());
-        (s.len() < p.len() && !s.is_empty()).then(|| s.to_string())
-    };
-    let map_shape = |p: &str| -> Option<(usize, &'static str)> {
-        if let Some(i) = by_id.get(p) {
-            return resolve_moved(p).map(|j| (j, if *i == j { "exact" } else { "moved" }));
-        }
-        if let Some(s) = strip_letter(p)
-            && let Some(j) = resolve_moved(&s)
-        {
-            return Some((j, "mould letter"));
-        }
-        for m in mold.get(p).into_iter().flatten() {
-            if let Some(j) = resolve_moved(m) {
-                return Some((j, "mould/alternate rel"));
-            }
-        }
-        None
-    };
+    let shapes = Shapes { by_id: &by_id, parts: &parts, mold: &mold };
     let mut stage_rows: HashMap<&'static str, u64> = HashMap::new();
     let mut stage_parts: HashMap<&'static str, u64> = HashMap::new();
     let mut colors: Vec<HashSet<i32>> = vec![HashSet::new(); parts.len()];
     let mut pops = vec![(0u32, 0u32); parts.len()];
     let total_rows: u64 = usage.values().map(|u| u.0 as u64).sum();
     for (p, (n, cs)) in &usage {
-        let (target, stage, printed) = match map_shape(p) {
-            Some((j, st)) => (Some(j), st, false),
-            None => match print_parent.get(p).and_then(|par| map_shape(par)) {
-                Some((j, _)) => (Some(j), "print → base shape", true),
-                None => (None, "unmapped", false),
-            },
-        };
+        let (target, stage, printed) = shapes.map_or_print(p, &print_parent);
         *stage_rows.entry(stage).or_default() += *n as u64;
         *stage_parts.entry(stage).or_default() += 1;
         if let Some(j) = target {
