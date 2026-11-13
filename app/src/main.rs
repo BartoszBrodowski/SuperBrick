@@ -10,6 +10,7 @@ mod home;
 mod interaction;
 mod lasso;
 mod mechanical;
+mod open_files;
 mod panels;
 mod placement_worker;
 mod project;
@@ -124,6 +125,7 @@ fn main() -> eframe::Result {
         wgpu_options: wgpu_config(),
         ..Default::default()
     };
+    open_files::install();
     eframe::run_native(
         ldraw::APP_NAME,
         options,

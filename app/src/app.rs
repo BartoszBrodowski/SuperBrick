@@ -733,7 +733,12 @@ impl App {
             home: args.file.is_none(),
             home_ui: Default::default(),
         };
-        if let Some(path) = args.file.clone() {
+        crate::open_files::set_context(&cc.egui_ctx);
+        crate::open_files::reinstall();
+        // Launched by opening a file in Finder: the request arrives as an event, not an argument.
+        let requested = args.file.clone().or_else(|| crate::open_files::take().pop());
+        if let Some(path) = requested {
+            st.home = false;
             st.open(path, &cc.egui_ctx);
         }
         let mut dock = DockState::new(vec![Tab::View(0)]);
@@ -1255,6 +1260,9 @@ impl eframe::App for App {
         }
         if !self.st.home {
             self.shortcuts(&ctx);
+        }
+        if let Some(path) = crate::open_files::take().pop() {
+            self.st.open(path, &ctx);
         }
         if self.args.window_shot.is_some() {
             let image = ctx.input(|i| {

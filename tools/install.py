@@ -117,6 +117,39 @@ def build_app(root, binary, share, folder, python):
         "NSSupportsAutomaticGraphicsSwitching": True,
         # Finder launches get a bare environment: point the helpers at the Python that has numpy and PIL.
         "LSEnvironment": {"SB_PYTHON": python},
+        # Finder: .sb projects belong to SuperBrick; LDraw files can be opened with it.
+        "CFBundleDocumentTypes": [
+            {
+                "CFBundleTypeName": "SuperBrick Project",
+                "CFBundleTypeRole": "Editor",
+                "LSHandlerRank": "Owner",
+                "LSItemContentTypes": ["app.superbrick.project"],
+                "CFBundleTypeIconFile": "SuperBrick",
+            },
+            {
+                "CFBundleTypeName": "LDraw Model",
+                "CFBundleTypeRole": "Editor",
+                "LSHandlerRank": "Alternate",
+                "LSItemContentTypes": ["org.ldraw.model"],
+            },
+        ],
+        "UTExportedTypeDeclarations": [
+            {
+                "UTTypeIdentifier": "app.superbrick.project",
+                "UTTypeDescription": "SuperBrick Project",
+                "UTTypeConformsTo": ["public.data", "public.content"],
+                "UTTypeIconFile": "SuperBrick",
+                "UTTypeTagSpecification": {"public.filename-extension": ["sb"]},
+            }
+        ],
+        "UTImportedTypeDeclarations": [
+            {
+                "UTTypeIdentifier": "org.ldraw.model",
+                "UTTypeDescription": "LDraw Model",
+                "UTTypeConformsTo": ["public.plain-text"],
+                "UTTypeTagSpecification": {"public.filename-extension": ["ldr", "mpd"]},
+            }
+        ],
     }
     with open(contents / "Info.plist", "wb") as f:
         plistlib.dump(info, f)

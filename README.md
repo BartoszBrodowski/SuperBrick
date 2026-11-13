@@ -152,7 +152,8 @@ python3 tools/install.py --app    # also /Applications/SuperBrick.app
 
 With `--app`, `SuperBrick.app` carries its own copy of the assets and `~/.local/bin/sb` becomes a
 small launcher for the app's binary (so terminal launches show SuperBrick's name and icon in the
-Dock). Without it, this installs the real native executable as `~/.local/bin/sb` (plus `sb-dev`) and offline search assets into
+Dock). The app owns the `.sb` type, so double-clicking a project in Finder opens it, and it is
+offered under Open With for `.ldr`/`.mpd`. Without it, this installs the real native executable as `~/.local/bin/sb` (plus `sb-dev`) and offline search assets into
 `~/.local/share/superbrick/search`. With `~/.local/bin` on PATH, run from **any directory**:
 
 ```sh
