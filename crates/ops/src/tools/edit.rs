@@ -343,7 +343,7 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
         "nudge" => {
             let ids = op_ids(s, tx.model(), op, file)?;
             let direction = args::axis(op.get("direction").ok_or("nudge needs \"direction\"")?)?;
-            tx.apply(Cmd::Nudge { ids, direction, normal: false })?;
+            tx.apply(Cmd::Nudge { ids, direction, normal: false, alt: None })?;
         }
         "step" => {
             let label = args::str_arg(op, "label").map(str::to_string);

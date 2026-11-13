@@ -1236,6 +1236,11 @@ impl App {
                             ids: ids.clone(),
                             direction: v * 20.0,
                             normal: false,
+                            alt: match key {
+                                Key::ArrowUp => Some(glam::DVec3::NEG_Y * 20.0),
+                                Key::ArrowDown => Some(glam::DVec3::Y * 20.0),
+                                _ => None,
+                            },
                         });
                     } else {
                         let pivot = ids

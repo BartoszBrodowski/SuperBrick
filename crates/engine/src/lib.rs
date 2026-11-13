@@ -101,6 +101,10 @@ pub enum Cmd {
         direction: DVec3,
         #[serde(default)]
         normal: bool,
+        /// Used instead of `direction` when the engaged surface is not
+        /// horizontal (e.g. a sideways connection): lets "up" slide up the wall.
+        #[serde(default)]
+        alt: Option<DVec3>,
     },
     Rotate {
         ids: Vec<Id>,
@@ -860,7 +864,8 @@ impl Engine {
                 ids,
                 direction,
                 normal,
-            } => self.nudge(ids, direction, normal)?,
+                alt,
+            } => self.nudge(ids, direction, normal, alt)?,
             Cmd::Rotate {
                 ids,
                 axis,

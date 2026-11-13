@@ -645,6 +645,7 @@ impl Engine {
         ids: Vec<Id>,
         direction: DVec3,
         normal: bool,
+        alt: Option<DVec3>,
     ) -> Result<serde_json::Value> {
         if ids.is_empty() || !direction.is_finite() || direction.length() < 1e-6 {
             return Err("select parts and a nudge direction".into());
@@ -687,6 +688,10 @@ impl Engine {
         }
         let anchored = !normals.is_empty();
         let surface = normals.first().copied().unwrap_or(DVec3::NEG_Y);
+        let direction = match alt {
+            Some(a) if !normal && a.is_finite() && surface.y.abs() < 0.7 => a,
+            _ => direction,
+        };
         let mut axis = direction - surface * surface.dot(direction);
         let pitch = if normal {
             axis = surface * direction.dot(DVec3::NEG_Y).signum();

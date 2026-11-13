@@ -48,6 +48,8 @@ struct MoveDrag {
     anchor: PartSpec,
     ground_offset: DVec3,
     surface_offset: DVec3,
+    /// Height of the grabbed point above the piece's lowest point.
+    grab_height: f64,
     revision: u64,
 }
 struct Preview {
@@ -215,15 +217,21 @@ impl Interaction {
                             .input(|i| i.pointer.press_origin())
                             .unwrap_or(pos.unwrap_or(rect.center()));
                         let ray = screen_ray(&l.cam, rect, origin);
-                        let ground_offset =
-                            floor_hit(ray, l.floor_y as f64).unwrap_or(flat.pos) - flat.pos;
-                        let surface_offset =
-                            mesh_hit(input.lib, flat, ray).unwrap_or(flat.pos) - flat.pos;
+                        // The point grabbed on the piece itself: it stays under the
+                        // cursor (in plan) wherever the piece is dragged.
+                        let grab = mesh_hit(input.lib, flat, ray)
+                            .or_else(|| floor_hit(ray, l.floor_y as f64))
+                            .unwrap_or(flat.pos);
+                        let ground_offset = grab - flat.pos;
+                        let surface_offset = ground_offset;
+                        let bottom = lib_bottom(input.lib, flat).unwrap_or(grab.y);
+                        let grab_height = (bottom - grab.y).max(0.0);
                         self.moving = Some(MoveDrag {
                             ids,
                             anchor: spec(flat),
                             ground_offset,
                             surface_offset,
+                            grab_height,
                             revision: input.snapshot.revision,
                         });
                     }
@@ -269,7 +277,8 @@ impl Interaction {
                 .and_then(|n| l.flat.get(n))
                 .and_then(|p| mesh_hit(input.lib, p, ray));
             let ground = hit.is_none();
-            if let Some(mut near) = hit.or_else(|| floor_hit(ray, l.floor_y as f64)) {
+            let plane = l.floor_y as f64 - self.moving.as_ref().map_or(0.0, |d| d.grab_height);
+            if let Some(mut near) = hit.or_else(|| floor_hit(ray, plane)) {
                 let facing = (l.cam.eye() - l.cam.target).as_dvec3().normalize();
                 let (key, base, geometry) = if let Some(d) = &self.moving {
                     let offset = if ground {
@@ -683,6 +692,14 @@ fn floor_hit((origin, direction): (DVec3, DVec3), floor: f64) -> Option<DVec3> {
     }
     let t = (floor - origin.y) / direction.y;
     (t >= 0.0).then_some(origin + direction * t)
+}
+fn lib_bottom(lib: &Library, flat: &FlatPart) -> Option<f64> {
+    let mesh = lib.mesh(&flat.name, ldraw::Lod::Low).ok()?;
+    mesh.tris
+        .iter()
+        .flatten()
+        .map(|v| (flat.rot * v.as_dvec3() + flat.pos).y)
+        .max_by(f64::total_cmp)
 }
 fn mesh_hit(lib: &Library, flat: &FlatPart, (origin, direction): (DVec3, DVec3)) -> Option<DVec3> {
     let mesh = lib.mesh(&flat.name, ldraw::Lod::Low).ok()?;
@@ -1243,7 +1260,7 @@ mod tests {
         let piece = h.screen(part.pos + DVec3::new(0., 12., 0.));
         let camera = (h.loaded.cam.yaw, h.loaded.cam.pitch);
         h.pointer(piece, Some(true));
-        let grab = ground_hit(screen_ray(&h.loaded.cam, rect(), piece)).unwrap();
+        let grab = mesh_hit(&h.lib, &part, screen_ray(&h.loaded.cam, rect(), piece)).unwrap();
         let destination = h.screen(grab + DVec3::new(120., 0., 80.));
         h.pointer(destination, None);
         assert!(

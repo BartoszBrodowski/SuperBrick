@@ -499,6 +499,7 @@ fn geometric_snap_and_nudge_follow_a_vertical_stud_surface() {
         ids: vec![id],
         direction,
         normal: false,
+        alt: None,
     })
     .unwrap();
     assert!((e.model.parts[&id].pos - before - direction * 20.0).length() < 1e-6);
