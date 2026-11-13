@@ -16,10 +16,27 @@ back after every call. You accept or reject each draft in the app.
 > don't use it to certify a build legal. See [IMPLEMENTATION.md](IMPLEMENTATION.md) for what is
 > verified and what is left.
 
-## Quick start
+## Download
+
+**[Download the latest SuperBrick for Mac](https://github.com/levtechs/SuperBrick/releases/latest)**
+(`SuperBrick-…-macOS-arm64.dmg`; Apple silicon, macOS 12 or later).
+
+1. Open the disk image and drag **SuperBrick** onto **Applications**.
+2. Open SuperBrick. The app is free but not registered with Apple, so the first time macOS says
+   it can't verify it: click **Done**, then go to **System Settings → Privacy & Security** and
+   click **Open Anyway** next to the SuperBrick message. You only do this once.
+3. On first launch SuperBrick downloads the LDraw parts library (about 147 MB, from ldraw.org).
+   If your Mac has no Python with NumPy and Pillow, it also offers to install its own copy, used
+   by Connect, Hinge, instruction booklets and studio renders.
+
+Everything SuperBrick downloads lives in `~/Library/Application Support/SuperBrick`; delete that
+folder and the app to remove it completely.
+
+## Build from source
 
 ```sh
 python3 tools/install.py --app     # builds release, installs SuperBrick.app and the `sb` command
+python3 tools/release.py           # builds the downloadable dist/SuperBrick-VERSION-macOS-arm64.dmg
 ```
 
 Then open **SuperBrick** from Applications, Spotlight or Launchpad. The start page lists your
@@ -34,8 +51,9 @@ sb my-build.sb              # open a project
 sb my-build.sb export -o my-build.ldr
 ```
 
-**Requirements:** Rust (stable), the LeoCAD LDraw parts library (or `BENCH_LDRAW_ZIP`), Python 3
-with `numpy` and `Pillow` (`SB_PYTHON` picks the interpreter), and the data the installer copies:
+**Requirements to build:** Rust (stable), an LDraw parts library (LeoCAD's, `SB_LDRAW_ZIP`, or
+`sb setup --library`), Python 3 with `numpy` and `Pillow` (`SB_PYTHON` picks the interpreter, or
+`sb setup --python`), and the data the installer copies:
 the part-search catalogue and models in `spikes/search/{out,models}` (not in git; see
 [spikes/search/FINDINGS.md](spikes/search/FINDINGS.md)) plus the sibling `../bench-next` and
 `../data-next` folders (connector shadow library).

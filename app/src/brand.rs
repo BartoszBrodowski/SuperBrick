@@ -25,31 +25,33 @@ fn texture(ctx: &egui::Context, name: &'static str, bytes: &'static [u8]) -> Opt
     Some(t)
 }
 
-fn image(ui: &mut egui::Ui, name: &'static str, bytes: &'static [u8], height: f32) -> egui::Response {
+fn image(ui: &mut egui::Ui, name: &'static str, bytes: &'static [u8], height: f32, sense: egui::Sense) -> egui::Response {
     match texture(ui.ctx(), name, bytes) {
         Some(t) => {
             let [w, h] = t.size();
             let size = egui::vec2(height * w as f32 / h as f32, height);
-            ui.add(egui::Image::new((t.id(), size)))
+            ui.add(egui::Image::new((t.id(), size)).sense(sense))
         }
-        None => ui.strong(ldraw::APP_NAME),
+        None => ui.add(egui::Label::new(egui::RichText::new(ldraw::APP_NAME).strong()).sense(sense)),
     }
 }
 
 /// The full "SuperBrick" wordmark (mark plus name), `height` points tall.
 pub fn wordmark(ui: &mut egui::Ui, height: f32) -> egui::Response {
     if ui.visuals().dark_mode {
-        image(ui, "wordmark", WORDMARK, height)
+        image(ui, "wordmark", WORDMARK, height, egui::Sense::hover())
     } else {
-        image(ui, "wordmark-light", WORDMARK_LIGHT, height)
+        image(ui, "wordmark-light", WORDMARK_LIGHT, height, egui::Sense::hover())
     }
 }
 
 /// The compact toolbar logo (drawn for a dark toolbar).
+/// The toolbar logo; clickable (it takes the window back to the start page).
 pub fn toolbar(ui: &mut egui::Ui) -> egui::Response {
-    if ui.visuals().dark_mode {
-        image(ui, "toolbar", TOOLBAR, 22.0)
+    let r = if ui.visuals().dark_mode {
+        image(ui, "toolbar", TOOLBAR, 22.0, egui::Sense::click())
     } else {
-        image(ui, "wordmark-light", WORDMARK_LIGHT, 22.0)
-    }
+        image(ui, "wordmark-light", WORDMARK_LIGHT, 22.0, egui::Sense::click())
+    };
+    r.on_hover_cursor(egui::CursorIcon::PointingHand)
 }

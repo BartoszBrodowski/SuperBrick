@@ -83,12 +83,7 @@ fn resources() -> (PathBuf, PathBuf) {
 fn cache_directory() -> PathBuf {
     ldraw::app_env("PUBLICATION_CACHE")
         .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            std::env::var_os("HOME")
-                .map(PathBuf::from)
-                .unwrap_or_else(std::env::temp_dir)
-                .join("Library/Caches/cad/publications")
-        })
+        .unwrap_or_else(|| ldraw::runtime::cache_dir().join("publications"))
 }
 
 pub fn generate_cli(args: &[String]) -> Result<(), String> {
@@ -157,9 +152,8 @@ pub fn generate_cli(args: &[String]) -> Result<(), String> {
     )
     .map_err(|e| e.to_string())?;
     let mut child =
-        Command::new(ldraw::app_env("PYTHON").unwrap_or_else(|| "python3".into()))
+        ldraw::runtime::python_command()?
             .args(["-u", "-c", include_str!("publication.py")])
-            .env("PYTHONDONTWRITEBYTECODE", "1")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
@@ -290,9 +284,8 @@ fn start(
             .map_err(|e| e.to_string())?;
             let log = std::fs::File::create(out.join("worker.log")).map_err(|e| e.to_string())?;
             let mut child =
-                Command::new(ldraw::app_env("PYTHON").unwrap_or_else(|| "python3".into()))
+                ldraw::runtime::python_command()?
                     .args(["-u", "-c", include_str!("publication.py")])
-                    .env("PYTHONDONTWRITEBYTECODE", "1")
                     .stdin(Stdio::piped())
                     .stdout(Stdio::piped())
                     .stderr(Stdio::from(log))

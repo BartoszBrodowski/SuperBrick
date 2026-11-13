@@ -39,7 +39,7 @@ fn positionals(argv: &[String]) -> Vec<&str> {
 /// Whether these arguments are for the project front end (not the GUI or dev commands).
 pub fn handles(argv: &[String]) -> bool {
     let first = argv.first().map(String::as_str).unwrap_or("");
-    if matches!(first, "mcp" | "tools") || argv.iter().any(|a| a == "--new") {
+    if matches!(first, "mcp" | "tools" | "setup") || argv.iter().any(|a| a == "--new") {
         return true;
     }
     let project = first.ends_with(".sb");
@@ -67,10 +67,43 @@ fn library() -> Result<Arc<Library>, String> {
     Library::open_default().map(Arc::new).map_err(|e| format!("could not open the LDraw library: {e}"))
 }
 
+/// `sb setup [--library] [--python]`: report, or install, what SuperBrick downloads on first run.
+fn setup(argv: &[String]) -> Result<i32, String> {
+    use ldraw::runtime;
+    let want_library = argv.iter().any(|a| a == "--library" || a == "--all");
+    let want_python = argv.iter().any(|a| a == "--python" || a == "--all");
+    // --force installs SuperBrick's own copy even when one is already found.
+    let force = argv.iter().any(|a| a == "--force");
+    let mut report = |p: runtime::Progress| {
+        if let Some(f) = p.fraction() {
+            eprint!("\r{} {:>3.0}%   ", p.step, f * 100.0);
+        } else {
+            eprint!("\r{}   ", p.step);
+        }
+    };
+    if want_library && (force || runtime::library_zip().is_none()) {
+        let path = runtime::install_library(&mut report)?;
+        eprintln!("\nLDraw library: {}", path.display());
+    }
+    if want_python && (force || runtime::python().is_none()) {
+        let path = runtime::install_python(&mut report)?;
+        eprintln!("\nPython: {}", path.display());
+    }
+    let library = runtime::library_zip();
+    let python = runtime::python();
+    println!("LDraw library: {}", library.as_ref().map_or("missing (sb setup --library)".into(), |p| p.display().to_string()));
+    println!("Python (NumPy + Pillow): {}", python.as_ref().map_or("missing (sb setup --python; only needed by connect, hinge, instructions, studio)".into(), |p| p.display().to_string()));
+    println!("Support folder: {}", runtime::support_dir().display());
+    Ok(if library.is_some() { 0 } else { 1 })
+}
+
 fn dispatch(argv: &[String]) -> Result<i32, String> {
     let first = argv.first().map(String::as_str).unwrap_or("");
     if first == "tools" {
         return Ok(tools_help(argv.get(1).map(String::as_str)));
+    }
+    if first == "setup" {
+        return setup(argv);
     }
     if first == "mcp" {
         let user = flag(argv, &["--user"]).ok_or(NEED_USER)?;

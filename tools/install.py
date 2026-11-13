@@ -38,39 +38,18 @@ def main():
     command = prefix / "bin/sb"
     if os.path.lexists(command) and not args.force:
         parser.error(f"{command} already exists; inspect it first, then use --force to update")
-    source = root / "spikes/search"
-    assets = ["out/catalog.json", "out/emb-potion-base-8m.bin"] + [
-        f"models/potion-base-8m/{name}"
-        for name in ["config.json", "model.safetensors", "tokenizer.json"]
-    ]
-    for asset in assets:
-        if not (source / asset).is_file():
-            parser.error(f"missing search asset: {source / asset}")
-    bench = root.parent / "bench-next"
-    shadow = root.parent / "data-next/ldcad_shadow/LDCadShadowLibrary-main"
+    try:
+        check_sources(root)
+    except FileNotFoundError as e:
+        parser.error(str(e))
     python = os.environ.get("SB_PYTHON", os.environ.get("CAD_PYTHON", "python3"))
     subprocess.run([python, "-c", "import numpy; from PIL import Image"], check=True)
     python = subprocess.check_output([python, "-c", "import sys; print(sys.executable)"], text=True).strip()
-    if not shadow.is_dir():
-        parser.error(f"missing connector shadow library: {shadow}")
     subprocess.run(["cargo", "build", "--release", "-p", "cad-app", "-p", "cad-cli"], cwd=root, check=True)
     metadata = json.loads(subprocess.check_output(
         ["cargo", "metadata", "--no-deps", "--format-version", "1"], cwd=root
     ))
-    for asset in assets:
-        atomic_copy(source / asset, prefix / "share/superbrick/search" / asset)
-    connector_target = prefix / "share/superbrick/connectors"
-    with tempfile.TemporaryDirectory(prefix="sb-ray-build-") as build:
-        library=Path(build)/"studio_rays.dylib"
-        subprocess.run(["clang++","-O3","-std=c++17","-dynamiclib","-pthread",str(root/"app/src/studio_rays.cpp"),"-o",str(library)],check=True)
-        atomic_copy(library,connector_target/"studio_rays.dylib")
-    for name in ["physics.py", "snaps.py", "ldraw.py", "raster.py", "render.py"]:
-        atomic_copy(bench / name, connector_target / "bench" / name)
-    atomic_copy(root / "app/src/cad_contact_policy.py", connector_target / "bench/cad_contact_policy.py")
-    for folder, destination in [(bench / "shadow_extra", connector_target / "bench/shadow_extra"), (shadow, connector_target / "shadow")]:
-        for path in folder.rglob("*"):
-            if path.is_file() and ".git" not in path.parts:
-                atomic_copy(path, destination / path.relative_to(folder))
+    stage_share(root, prefix / "share/superbrick")
     release = Path(metadata["target_directory"]) / "release"
     atomic_copy(release / "sb-dev", prefix / "bin/sb-dev")
     if args.app:
@@ -84,15 +63,65 @@ def main():
         print(f"Installed {app} (open it from Applications, Spotlight or Launchpad)")
     else:
         atomic_copy(release / "sb", command)
-    print(f"Installed {command}\nRun: sb [project.sb | model.ldr]  (an old bin/cad, if any, is left alone)\nRequires the installed LeoCAD LDraw library (or BENCH_LDRAW_ZIP).")
+    print(f"Installed {command}\nRun: sb [project.sb | model.ldr]  (an old bin/cad, if any, is left alone)\nThe LDraw library: LeoCAD's, or run `sb setup --library` once.")
 
 
-def build_app(root, binary, share, folder, python):
-    """Assemble SuperBrick.app in a temporary folder, then swap it into place."""
+SEARCH_ASSETS = ["out/catalog.json", "out/emb-potion-base-8m.bin"] + [
+    f"models/potion-base-8m/{name}" for name in ["config.json", "model.safetensors", "tokenizer.json"]
+]
+BENCH_FILES = ["physics.py", "snaps.py", "ldraw.py", "raster.py", "render.py"]
+
+
+def sources(root):
+    return {
+        "search": root / "spikes/search",
+        "bench": root.parent / "bench-next",
+        "shadow": root.parent / "data-next/ldcad_shadow/LDCadShadowLibrary-main",
+    }
+
+
+def check_sources(root):
+    found = sources(root)
+    for asset in SEARCH_ASSETS:
+        if not (found["search"] / asset).is_file():
+            raise FileNotFoundError(f"missing search asset: {found['search'] / asset}")
+    if not found["shadow"].is_dir():
+        raise FileNotFoundError(f"missing connector shadow library: {found['shadow']}")
+    for name in BENCH_FILES:
+        if not (found["bench"] / name).is_file():
+            raise FileNotFoundError(f"missing connector helper: {found['bench'] / name}")
+
+
+def stage_share(root, share, min_macos=None):
+    """Copy the search assets and connector helpers into SHARE (share/superbrick)."""
+    found = sources(root)
+    for asset in SEARCH_ASSETS:
+        atomic_copy(found["search"] / asset, share / "search" / asset)
+    connector_target = share / "connectors"
+    with tempfile.TemporaryDirectory(prefix="sb-ray-build-") as build:
+        library = Path(build) / "studio_rays.dylib"
+        command = ["clang++", "-O3", "-std=c++17", "-dynamiclib", "-pthread", "-install_name", "@loader_path/studio_rays.dylib"]
+        if min_macos:
+            command += [f"-mmacosx-version-min={min_macos}", "-arch", "arm64"]
+        subprocess.run(command + [str(root / "app/src/studio_rays.cpp"), "-o", str(library)], check=True)
+        atomic_copy(library, connector_target / "studio_rays.dylib")
+    for name in BENCH_FILES:
+        atomic_copy(found["bench"] / name, connector_target / "bench" / name)
+    atomic_copy(root / "app/src/cad_contact_policy.py", connector_target / "bench/cad_contact_policy.py")
+    for folder, destination in [(found["bench"] / "shadow_extra", connector_target / "bench/shadow_extra"), (found["shadow"], connector_target / "shadow")]:
+        for path in folder.rglob("*"):
+            if path.is_file() and ".git" not in path.parts and "__pycache__" not in path.parts:
+                atomic_copy(path, destination / path.relative_to(folder))
+
+
+def build_app(root, binary, share, folder, python=None, register=True, version="0.1.0", extra=None):
+    """Assemble SuperBrick.app in a temporary folder, then swap it into place.
+
+    PYTHON pins the helpers to that interpreter (a local install); without it the app finds or
+    installs one itself (a release). EXTRA maps bundle-relative paths to files to add."""
     import sys
     if sys.platform != "darwin":
         raise SystemExit("--app builds a macOS bundle")
-    version = "0.1.0"
     target = folder / "SuperBrick.app"
     folder.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=".SuperBrick-", dir=folder)) / "SuperBrick.app"
@@ -115,8 +144,6 @@ def build_app(root, binary, share, folder, python):
         "LSApplicationCategoryType": "public.app-category.graphics-design",
         "NSHighResolutionCapable": True,
         "NSSupportsAutomaticGraphicsSwitching": True,
-        # Finder launches get a bare environment: point the helpers at the Python that has numpy and PIL.
-        "LSEnvironment": {"SB_PYTHON": python},
         # Finder: .sb projects belong to SuperBrick; LDraw files can be opened with it.
         "CFBundleDocumentTypes": [
             {
@@ -151,6 +178,12 @@ def build_app(root, binary, share, folder, python):
             }
         ],
     }
+    if python:
+        # Finder launches get a bare environment: point the helpers at the Python that has numpy and PIL.
+        info["LSEnvironment"] = {"SB_PYTHON": python}
+    for relative, source in (extra or {}).items():
+        (contents / relative).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, contents / relative)
     with open(contents / "Info.plist", "wb") as f:
         plistlib.dump(info, f)
     subprocess.run(["codesign", "--force", "--deep", "--sign", "-", str(staging)], check=True)
@@ -159,6 +192,8 @@ def build_app(root, binary, share, folder, python):
         os.replace(target, old)
     os.replace(staging, target)
     shutil.rmtree(staging.parent, ignore_errors=True)
+    if not register:
+        return target
     lsregister = "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
     if os.path.exists(lsregister):
         subprocess.run([lsregister, "-f", str(target)], check=False)

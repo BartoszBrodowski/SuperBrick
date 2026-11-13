@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use std::{
     io::{BufRead, BufReader, Write},
     path::PathBuf,
-    process::{Child, ChildStdin, ChildStdout, Command, Stdio},
+    process::{Child, ChildStdin, ChildStdout, Stdio},
     sync::{Mutex, OnceLock},
 };
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -79,18 +79,17 @@ fn start() -> Result<Backend> {
             root.join("data-next/ldcad_shadow/LDCadShadowLibrary-main"),
         )
     };
-    let mut child = Command::new(ldraw::app_env("PYTHON").unwrap_or("python3".into()))
+    let mut child = ldraw::runtime::python_command()?
         .arg("-u")
         .arg("-c")
         .arg(include_str!("connectors.py"))
         .arg(bench)
         .arg(shadow)
-        .env("PYTHONDONTWRITEBYTECODE", "1")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .spawn()
-        .map_err(|e| format!("Connector backend needs Python + NumPy: {e}"))?;
+        .map_err(|e| format!("Connector backend {}: {e}", ldraw::runtime::NEEDS_PYTHON))?;
     Ok(Backend {
         input: child.stdin.take().unwrap(),
         output: BufReader::new(child.stdout.take().unwrap()),

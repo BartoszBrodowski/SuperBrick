@@ -22,7 +22,7 @@ pub const DEFAULT_ZIP: &str = "/Applications/LeoCAD.app/Contents/Resources/libra
 pub enum Error {
     #[error(transparent)]
     Io(#[from] io::Error),
-    #[error("LDraw library zip not found: {0} (set BENCH_LDRAW_ZIP)")]
+    #[error("LDraw parts library not found at {0}: open SuperBrick once to download it, install LeoCAD, or set SB_LDRAW_ZIP")]
     NoZip(PathBuf),
     #[error("LDraw extra folder not found: {0}")]
     NoExtra(PathBuf),
@@ -91,7 +91,7 @@ impl Library {
     /// Open the library the way `get_library()` does: `$BENCH_LDRAW_ZIP` (else LeoCAD's library.bin)
     /// plus the folders in `$BENCH_LDRAW_EXTRA` (separated by `:`).
     pub fn open_default() -> Result<Library> {
-        let zip = std::env::var("BENCH_LDRAW_ZIP").unwrap_or_else(|_| DEFAULT_ZIP.to_string());
+        let zip = crate::runtime::library_zip().unwrap_or_else(crate::runtime::downloaded_library);
         let extra: Vec<PathBuf> = std::env::var("BENCH_LDRAW_EXTRA")
             .unwrap_or_default()
             .split(':')

@@ -2,7 +2,6 @@ use crate::Res;
 use serde_json::{Value, json};
 use std::{
     path::{Path, PathBuf},
-    process::Command,
     time::Instant,
 };
 fn native(path: &Path) -> Res<engine::validation::Report> {
@@ -28,7 +27,7 @@ pub fn parity(args: &[String]) -> Res<bool> {
     let path = Path::new(args.first().ok_or("MODEL required")?).canonicalize()?;
     let ours = serde_json::to_value(native(&path)?)?;
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let mut cmd = Command::new(ldraw::app_env("PYTHON").and_then(|v| v.into_string().ok()).unwrap_or("python3".into()));
+    let mut cmd = ldraw::runtime::python_command()?;
     cmd.arg(root.join("bench-next/validate.py"))
         .arg(&path)
         .arg("--json");

@@ -17,3 +17,4 @@ tools/golden/out/
 *.sb
 *.sb-wal
 *.sb-shm
+dist/

@@ -14,6 +14,7 @@ mod open_files;
 mod panels;
 mod placement_worker;
 mod project;
+mod setup;
 mod publication;
 mod suppliers;
 mod view;
@@ -89,7 +90,7 @@ fn main() -> eframe::Result {
             "Headless: sb MODEL --generate-instructions [--output NEW_DIRECTORY] [--image-size 512] [--high-quality] [--plan-only]"
         );
         println!(
-            "sb [FILE.sb|FILE.ldr|FILE.mpd]\n\nOpen a LEGO model in SuperBrick, or start a new model.\nRelative paths are resolved from your current directory.\n\nProjects (.sb) and agents:\n  sb --new NAME [--import MODEL.ldr]           Create NAME.sb\n  sb P.sb --user NAME --op '{{\"tool\":...}}'      Run a tool (or: sb P.sb --user NAME TOOL 'JSON')\n  sb P.sb --user NAME --ops @ops.json          Run several tools in order\n  sb P.sb export [-o OUT.ldr]                  Write the model as LDraw\n  sb mcp --user NAME [P.sb]                    MCP server for AI agents (stdio)\n  sb tools [TOOL]                              Describe the tools\n  (--user human changes the model directly; any other name proposes drafts)\n\n  --suppliers    Open the full-build parts list and supplier exports\n  --help, -h     Show this help\n  --version      Show version\n\nDevelopment commands: sb {{stats|validate|search|render|apply|...}} (same as sb-dev)"
+            "sb [FILE.sb|FILE.ldr|FILE.mpd]\n\nOpen a LEGO model in SuperBrick, or start a new model.\nRelative paths are resolved from your current directory.\n\nProjects (.sb) and agents:\n  sb --new NAME [--import MODEL.ldr]           Create NAME.sb\n  sb P.sb --user NAME --op '{{\"tool\":...}}'      Run a tool (or: sb P.sb --user NAME TOOL 'JSON')\n  sb P.sb --user NAME --ops @ops.json          Run several tools in order\n  sb P.sb export [-o OUT.ldr]                  Write the model as LDraw\n  sb mcp --user NAME [P.sb]                    MCP server for AI agents (stdio)\n  sb tools [TOOL]                              Describe the tools\n  sb setup [--library] [--python]              Check or download the parts library / Python helpers\n  (--user human changes the model directly; any other name proposes drafts)\n\n  --suppliers    Open the full-build parts list and supplier exports\n  --help, -h     Show this help\n  --version      Show version\n\nDevelopment commands: sb {{stats|validate|search|render|apply|...}} (same as sb-dev)"
         );
         return Ok(());
     }
@@ -126,6 +127,15 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
     open_files::install();
+    if ldraw::runtime::library_zip().is_none() {
+        let mut options = options;
+        options.viewport = options.viewport.with_inner_size([760.0, 520.0]);
+        return eframe::run_native(
+            ldraw::APP_NAME,
+            options,
+            Box::new(|cc| Ok(Box::new(setup::Setup::new(cc)))),
+        );
+    }
     eframe::run_native(
         ldraw::APP_NAME,
         options,

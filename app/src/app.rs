@@ -115,6 +115,7 @@ pub struct App {
     last_frame: Instant,
     closing: bool,
     recovery: crate::autosave::Recovery,
+    python: crate::setup::PythonOffer,
 }
 #[cfg(test)]
 mod copy_tests {
@@ -393,6 +394,22 @@ impl State {
             Ok(()) => format!("Exported {}", path.display()),
             Err(e) => format!("export failed: {e}"),
         };
+    }
+    /// Save, then show the start page (the model stays loaded behind it). A project saves
+    /// a version; a changed LDraw model is written back (an untitled one asks where), and
+    /// cancelling that dialog keeps the editor open.
+    pub fn go_home(&mut self) {
+        let project = self.link.is_some();
+        if project || self.snapshot.revision != self.snapshot.saved_revision {
+            self.save(false);
+            self.snapshot = self.handle.snapshot();
+            if !project && self.snapshot.revision != self.snapshot.saved_revision {
+                return;
+            }
+        }
+        self.home = true;
+        self.message = "Ready".into();
+        self.home_ui.refresh();
     }
     /// Close the open project: final publish, checkpoint, lease and unused ids given back.
     pub fn close_project(&mut self) {
@@ -783,6 +800,7 @@ impl App {
             last_frame: Instant::now(),
             closing: false,
             recovery: Default::default(),
+            python: Default::default(),
         }
     }
     fn tick(&mut self, ctx: &egui::Context) {
@@ -968,18 +986,13 @@ impl App {
     fn toolbar(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
         ui.horizontal_wrapped(|ui| {
-            crate::brand::toolbar(ui);
+            if crate::brand::toolbar(ui).on_hover_text("Save and go to the start page").clicked() {
+                self.st.go_home();
+            }
             ui.add_space(6.0);
             let shortcut = |m: egui::Modifiers, k: egui::Key| ctx.format_shortcut(&egui::KeyboardShortcut::new(m, k));
             ui.menu_button("File", |ui| {
                 ui.set_min_width(210.0);
-                if ui.button("Home").on_hover_text("Start page with recent projects").clicked() {
-                    self.st.home = true;
-                    self.st.message = "Ready".into();
-                    self.st.home_ui.refresh();
-                    ui.close();
-                }
-                ui.separator();
                 if ui.button("New project…").clicked() {
                     ui.close();
                     self.st.new_project_dialog(&ctx);
@@ -1017,6 +1030,10 @@ impl App {
                 if ui.button("Export LDraw…").clicked() {
                     ui.close();
                     self.st.export_ldraw();
+                }
+                if ui.button("Install Python components…").on_hover_text("Needed by Connect, Hinge, instructions and studio renders").clicked() {
+                    ui.close();
+                    self.python.ask();
                 }
                 ui.separator();
                 if ui.button("Recover…").on_hover_text("Open a recovery copy; use Save as to restore your project").clicked() {
@@ -1253,6 +1270,9 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.tick(&ctx);
+        if let Some(message) = self.python.show(&ctx, &self.st.message) {
+            self.st.message = message;
+        }
         if self.st.link.is_none() {
             if let Some(message) = self.recovery.tick(&self.st.snapshot) {
                 self.st.message = message;

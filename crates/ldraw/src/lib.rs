@@ -12,6 +12,7 @@ pub mod library;
 pub mod mesh;
 pub mod model;
 pub mod num;
+pub mod runtime;
 pub mod zipfs;
 
 pub use color::{Color, ColorDef, Colors, Finish};
