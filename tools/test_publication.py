@@ -122,6 +122,44 @@ class PublicationTests(unittest.TestCase):
         return [ldraw.Ref('3005.dat',4,np.array([0.,0.,0.]),np.eye(3)),
                  ldraw.Ref('3005.dat',1,np.array([0.,-24.,0.]),np.eye(3))]
 
+    def test_base_goes_down_first_and_each_course_is_finished_before_the_next(self):
+        # A running-bond wall: each upper brick straddles two lower ones.
+        quarter=np.array([[0.,0.,1.],[0.,1.,0.],[-1.,0.,0.]])
+        refs=[ldraw.Ref('3001.dat',4,np.array([x,-32.,0.]),quarter) for x in (-60.,-20.,20.,60.)]
+        refs+=[ldraw.Ref('3001.dat',1,np.array([x,-56.,0.]),quarter) for x in (-40.,0.,40.)]
+        refs.append(ldraw.Ref('3035.dat',7,np.array([0.,-8.,0.]),np.eye(3)))
+        steps,issues,_=publication.assembly_plan(refs,self.lib)
+        self.assertFalse(issues,issues)
+        order=[i for s in steps if s['kind']=='part' for i in s['added']]
+        self.assertEqual(order[0],7,order)
+        self.assertEqual(sorted(order[1:5]),[0,1,2,3],order)
+
+    def test_repeated_subbuilds_match_rigidly_but_not_their_mirror_image(self):
+        def copy(R,t,x=30.):
+            parts=[(np.eye(3),np.zeros(3),'3001.dat'),(np.eye(3),np.array([x,-8.,10.]),'3024.dat')]
+            return [ldraw.Ref(name,4,R@pos+t,R@rot) for rot,pos,name in parts]
+        quarter=np.array([[0.,0.,1.],[0.,1.,0.],[-1.,0.,0.]])
+        refs=copy(np.eye(3),np.zeros(3))+copy(quarter,np.array([200.,0.,0.]))+copy(np.eye(3),np.array([0.,0.,200.]),x=-30.)
+        congruence=publication.Congruence(refs,self.lib)
+        found=congruence.match([0,1],[2,3])
+        self.assertIsNotNone(found)
+        self.assertEqual(found[0],{0:2,1:3})
+        self.assertIsNone(congruence.match([0,1],[4,5]))
+
+    def test_repeated_subbuild_is_shown_once_and_attached_together(self):
+        def copy(t):return [ldraw.Ref('3001.dat',4,np.array([0.,-32.,0.])+t,np.eye(3)),ldraw.Ref('3024.dat',1,np.array([30.,-40.,10.])+t,np.eye(3))]
+        refs=[ldraw.Ref('3035.dat',7,np.array([0.,-8.,0.]),np.eye(3))]+copy(np.array([0.,0.,-40.]))+copy(np.array([0.,0.,40.]))
+        down=[0,1,0];part=lambda g,visible,added,d:dict(kind='part',group=g,visible=visible,added=added,direction=d,staging_distance=8)
+        steps=[part(1,[0],[0],None),part(2,[1],[1],None),part(2,[1,2],[2],down),dict(kind='join',group=1,visible=[0,1,2],added=[1,2],direction=down,staging_distance=8),
+            part(3,[3],[3],None),part(3,[3,4],[4],down),dict(kind='join',group=1,visible=[0,1,2,3,4],added=[3,4],direction=down,staging_distance=8)]
+        shared=publication.share_repeated_subbuilds(steps,refs,self.lib)
+        self.assertEqual(len(shared),4,shared)
+        self.assertEqual([s.get('copies',1) for s in shared],[1,2,2,1])
+        join=shared[-1]
+        self.assertEqual(len(join['attachments']),2)
+        self.assertEqual(sorted(join['added']),[1,2,3,4])
+        self.assertEqual(join['copy_range'],[1,2])
+
     def test_native_raster_matches_reference_coverage_depth_and_visibility(self):
         import render,raster
         previous=render.rasterize

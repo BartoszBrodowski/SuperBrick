@@ -116,9 +116,32 @@ fn find_python() -> Option<PathBuf> {
     candidates.into_iter().filter(|p| p.is_file()).find(|p| usable(p))
 }
 
-/// Whether this Python can import what the helpers need (checked with a timeout).
+/// Whether `python` is the copy SuperBrick installed into Application Support.
+/// (Or the one it is unpacking into `python-staging` while installing.)
+fn is_managed(python: &Path) -> bool {
+    let support = support_dir();
+    [support.join("python"), support.join("python-staging")].iter().any(|root| {
+        python.starts_with(root)
+            || python.canonicalize().ok().zip(root.canonicalize().ok()).is_some_and(|(p, r)| p.starts_with(r))
+    })
+}
+
+/// A bare command for `python` with the environment every helper runs under. Only SuperBrick's
+/// own Python ignores the user site-packages: a Homebrew or framework Python often has Pillow or
+/// NumPy installed there (`pip install --user`), and hiding them would break the helpers.
+fn python_base(python: &Path) -> Command {
+    let mut cmd = Command::new(python);
+    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
+    if is_managed(python) {
+        cmd.env("PYTHONNOUSERSITE", "1");
+    }
+    cmd
+}
+
+/// Whether this Python can import what the helpers need (checked with a timeout), under the same
+/// environment `python_command` gives the helpers.
 pub fn usable(python: &Path) -> bool {
-    let Ok(mut child) = Command::new(python)
+    let Ok(mut child) = python_base(python)
         .args(["-c", PYTHON_PROBE])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -146,9 +169,7 @@ pub fn python_command() -> Result<Command, String> {
     let python = python().ok_or_else(|| {
         format!("This tool {NEEDS_PYTHON}. Open SuperBrick and choose File → Install Python components, or set SB_PYTHON.")
     })?;
-    let mut cmd = Command::new(python);
-    cmd.env("PYTHONDONTWRITEBYTECODE", "1");
-    cmd.env("PYTHONNOUSERSITE", "1");
+    let mut cmd = python_base(&python);
     if let Some(zip) = library_zip() {
         cmd.env("BENCH_LDRAW_ZIP", zip);
     }
@@ -283,6 +304,13 @@ mod tests {
         assert_eq!(Progress::default().fraction(), None);
         assert_eq!(Progress { done: 5, total: 10, ..Default::default() }.fraction(), Some(0.5));
         assert_eq!(Progress { done: 20, total: 10, ..Default::default() }.fraction(), Some(1.0));
+    }
+
+    #[test]
+    fn only_the_managed_python_ignores_user_site() {
+        let has = |cmd: &Command| cmd.get_envs().any(|(k, v)| k == "PYTHONNOUSERSITE" && v.is_some());
+        assert!(has(&python_base(&managed_python())));
+        assert!(!has(&python_base(Path::new("/opt/homebrew/bin/python3"))));
     }
 
     #[test]

@@ -189,8 +189,110 @@ def studio(refs, lib, out, size=1024, az=-35, el=28, samples=4, scene=None):
     Image.fromarray(np.uint8(np.clip(image,0,1).reshape(size,size,3)**(1/2.2)*255)).save(out)
 
 
+def cull_stud_tests(physics):
+    """Exact stud-cylinder occupancy, testing only studs near the queried points.
+
+    The bench loops over every stud of a part for each query; a 32x32
+    baseplate has 1024, which dominated planning time."""
+    Shape=physics.Shape
+    if getattr(Shape.inside,'_culled',False):return
+    original=Shape.inside
+    def inside(self,P,studs=True,shrink=0.0):
+        if not studs or len(self.studs)<=16:return original(self,P,studs,shrink)
+        out=original(self,P,False,shrink);P=physics._f(P)
+        if len(P)==0:return out
+        S=np.asarray(self.studs,dtype=float);D=np.asarray(self.sdir,dtype=float)
+        reach=physics.STUD_H+physics.STUD_R+1
+        near=np.all((S>=P.min(0)-reach)&(S<=P.max(0)+reach),axis=1)
+        for s,d in zip(S[near],D[near]):
+            q=P-s;t=q@d;r2=(q*q).sum(1)-t*t
+            out|=(t>physics.EPS)&(t<physics.STUD_H-physics.EPS)&(r2<(physics.STUD_R-physics.EPS)**2)
+        return out
+    inside._culled=True;Shape.inside=inside
+
+
+REPEAT_LIMIT=240
+
+
+class Congruence:
+    """Proper rigid matches between sets of placed parts.
+
+    Two sets are the same build when one rotation and translation carries
+    every part onto a part of the same name and colour with identical
+    geometry. Only proper rotations are tried, so a mirror-image copy matches
+    only when the parts' own symmetry makes it the same build."""
+    def __init__(self,refs,lib,tolerance=.35):
+        import itertools
+        self.refs=refs;self.lib=lib;self.tolerance=tolerance;self.shapes={};self.cache={}
+        rotations=[]
+        for perm in itertools.permutations(range(3)):
+            for signs in itertools.product((1.,-1.),repeat=3):
+                m=np.zeros((3,3))
+                for row,(col,sign) in enumerate(zip(perm,signs)):m[row,col]=sign
+                if np.linalg.det(m)>0:rotations.append(m)
+        self.CUBE=rotations
+    def kind(self,ids):
+        return tuple(sorted((self.refs[i].name,int(self.refs[i].color)) for i in ids))
+    def shape(self,name):
+        if name not in self.shapes:
+            try:g=self.lib.geom(name,'low');v=g.tris.reshape(-1,3)
+            except KeyError:v=np.zeros((0,3))
+            v=np.unique(np.round(v,3),axis=0) if len(v) else np.zeros((1,3))
+            try:
+                from scipy.spatial import cKDTree
+                tree=cKDTree(v)
+            except ImportError:
+                class tree:
+                    def query(points,v=v):
+                        return np.array([np.min(np.linalg.norm(v-q,axis=1)) for q in points]),None
+            self.shapes[name]=(v,v.mean(0),tree)
+        return self.shapes[name]
+    def center(self,i):
+        p=self.refs[i];return p.rot@self.shape(p.name)[1]+p.pos
+    def same_shape(self,i,j,R,t):
+        """Part i carried by (R,t) occupies exactly part j's geometry."""
+        a,b=self.refs[i],self.refs[j];v,_,_=self.shape(a.name);_,_,tree=self.shape(b.name)
+        local=((v@a.rot.T+a.pos)@R.T+t-b.pos)@b.rot
+        return bool(np.max(tree.query(local)[0])<=self.tolerance)
+    def match(self,A,B):
+        """Return ({a: b}, R, t) carrying the parts A onto B, or None."""
+        A,B=list(A),list(B)
+        if len(A)!=len(B) or self.kind(A)!=self.kind(B):return None
+        key=(tuple(sorted(A)),tuple(sorted(B)))
+        if key in self.cache:return self.cache[key]
+        from collections import Counter
+        name=lambda i:(self.refs[i].name,int(self.refs[i].color))
+        counts=Counter(name(i) for i in A)
+        a=min(A,key=lambda i:(counts[name(i)],-len(self.shape(self.refs[i].name)[0]),i))
+        centers={j:self.center(j) for j in B};result=None
+        for b in [j for j in B if name(j)==name(a)]:
+            tried=[]
+            for G in self.CUBE:
+                R=self.refs[b].rot@G@self.refs[a].rot.T
+                if any(np.allclose(R,x,atol=1e-4) for x in tried):continue
+                tried.append(R);t=centers[b]-R@self.center(a)
+                if not self.same_shape(a,b,R,t):continue
+                mapping={};used=set();ok=True
+                for i in sorted(A,key=lambda i:i!=a):
+                    target=R@self.center(i)+t
+                    found=[j for j in B if j not in used and name(j)==name(i) and np.linalg.norm(centers[j]-target)<=self.tolerance*2]
+                    found=[j for j in found if self.same_shape(i,j,R,t)]
+                    if not found:ok=False;break
+                    mapping[i]=found[0];used.add(found[0])
+                if ok:result=(mapping,R,t);break
+            if result:break
+        self.cache[key]=result
+        return result
+
+
+class Contact:
+    """A placement against touching parts where no connector was recognised."""
+    type='contact';axis=None;male=None;ia=None;ib=None
+
+
 def assembly_plan(refs, lib, warnings=None):
     import physics, snaps
+    cull_stud_tests(physics)
     try:
         from cad_contact_policy import contact_review, blocking_relation, review_reason, refine_relation, curved_clip_matches
     except ModuleNotFoundError:
@@ -217,16 +319,34 @@ def assembly_plan(refs, lib, warnings=None):
     if errors: return [],errors,[]
     # A set can contain independent accessories or an unseated subassembly.
     # Plan each connected component; never invent a joining operation.
+    def connection_components():
+        adjacency={i:set() for i in range(len(refs))}
+        for a,b in links:adjacency[a].add(b);adjacency[b].add(a)
+        unseen=set(adjacency);found=[]
+        while unseen:
+            reached={min(unseen)};pending=list(reached)
+            while pending:
+                for j in adjacency[pending.pop()]:
+                    if j not in reached:reached.add(j);pending.append(j)
+            unseen-=reached;found.append(sorted(reached))
+        return sorted(found,key=lambda c:(-len(c),min(c)))
+    components=connection_components()
+    if len(components)>1:
+        # A small piece with no recognised connector that is wedged against
+        # the model (a tile on offset SNOT edges, an arch resting on bricks)
+        # is placed by contact; it is not a separate accessory.
+        main=set(components[0]);placed=[]
+        for component in components[1:]:
+            if len(component)>4:continue
+            touching=[(i,j) for i in component for j in main if not (np.any(bodies[i].flo>bodies[j].fhi+.5) or np.any(bodies[j].flo>bodies[i].fhi+.5))]
+            touching=[(i,j) for i,j in touching if (lambda rel:rel is not None and rel.contact)(physics.relation(bodies[i],bodies[j]))]
+            for i,j in touching:links[tuple(sorted((i,j)))]=[Contact()]
+            if touching:placed+=component
+        if placed:
+            warnings.append('No connector was recognised for '+', '.join(f'piece {i+1} ({refs[i].name})' for i in sorted(placed))+('; it is placed against the parts it touches. Check that it is held' if len(placed)==1 else '; they are placed against the parts they touch. Check that they are held')+' in the finished model.')
+            components=connection_components()
     adjacency={i:set() for i in range(len(refs))}
     for a,b in links:adjacency[a].add(b);adjacency[b].add(a)
-    unseen=set(adjacency);components=[]
-    while unseen:
-        reached={min(unseen)};pending=list(reached)
-        while pending:
-            for j in adjacency[pending.pop()]:
-                if j not in reached:reached.add(j);pending.append(j)
-        unseen-=reached;components.append(sorted(reached))
-    components.sort(key=lambda c:(-len(c),min(c)))
     if len(components)>1:
         warnings.append(f'The saved model has {len(components)} independent connection components (sizes '+', '.join(str(len(c)) for c in components)+'). These are built separately; no unconfirmed joining step is invented. Check intended joints before treating this as one connected assembly.')
         steps=[];groups=[]
@@ -255,105 +375,237 @@ def assembly_plan(refs, lib, warnings=None):
     for i in range(len(refs)): groups.setdefault(root(i),[]).append(i)
     groups=sorted(groups.values(),key=lambda g:(-max(bodies[i].fhi[1] for i in g),min(g)))
     sweep_cache={};clearances={};partials={};blocked_by={}
+    LO=np.stack([b.flo for b in bodies]);HI=np.stack([b.fhi for b in bodies])
+    partners={i:[] for i in range(len(refs))}
+    for (a,b),ms in links.items():
+        for m in ms:partners[a].append((b,a,b,m));partners[b].append((a,a,b,m))
+    joints=any(m.type in ('hinge','ball','turntable') for ms in links.values() for m in ms)
+    def unit_vector(v):
+        v=np.asarray(v,dtype=float);return v/np.linalg.norm(v)
+    def dkey(direction):return tuple(round(float(x),6)+0. for x in direction)
+    def staging(parts,withdraw):return clearances.get((tuple(sorted(parts)),dkey(withdraw)))
+    def up_of(ids):
+        # A subbuild is laid flat on its own stud axis: the direction its
+        # internal studs point, not necessarily world up.
+        ids=set(ids);votes=np.zeros(3)
+        for i in ids:
+            for j,a,b,m in partners[i]:
+                if j not in ids or i!=a or m.type not in ('stud','tube') or m.axis is None:continue
+                male,female=(a,b) if m.male=='a' else (b,a)
+                axis=unit_vector(m.axis);sign=np.sign(float(axis@(refs[female].pos-refs[male].pos))) or 1.
+                votes+=sign*axis
+        return unit_vector(votes) if np.linalg.norm(votes)>1e-6 else np.array([0.,-1.,0.])
+    def base_of(ids):
+        """The piece laid down first: the largest piece at the bottom."""
+        ids=list(ids);up=up_of(ids)
+        corners=lambda i:np.array([[x,y,z] for x in (LO[i,0],HI[i,0]) for y in (LO[i,1],HI[i,1]) for z in (LO[i,2],HI[i,2])])
+        height={i:float(np.min(corners(i)@up)) for i in ids};bottom=min(height.values())
+        def footprint(i):
+            size=HI[i]-LO[i];return float(np.prod(size)/max(float(abs(size@up)),1.))
+        return max((i for i in ids if height[i]<=bottom+8),key=lambda i:(round(footprint(i),3),-i))
+    # A press-fit cylinder (stud, pin, axle, bar) only lets go along its axis.
+    AXIAL=('stud','side-stud','tube','pin-hole','axle-hole','axle-axlehole','bar')
+    def withdrawal_directions(moving,fixed):
+        boundary=[(a,b,m) for i in moving for j,a,b,m in partners[i] if fixed[j]]
+        if not boundary:return []
+        axial=[unit_vector(m.axis) for a,b,m in boundary if m.type in AXIAL and m.axis is not None and np.linalg.norm(m.axis)>1e-8]
+        if axial:
+            if any(abs(float(axial[0]@v))<.999 for v in axial[1:]):return []
+            candidates=[axial[0],-axial[0]]
+        else:
+            candidates=[]
+            for a,b,m in boundary:
+                if m.type=='contact':
+                    candidates+=[np.array(v,dtype=float) for v in ((0,-1,0),(0,1,0),(1,0,0),(-1,0,0),(0,0,1),(0,0,-1))];continue
+                # Clip openings are radial to their bar axis. Explore the
+                # actual connector frames as well as the joint axis.
+                axes=([m.axis] if m.axis is not None else [])+[bodies[a].conns[m.ia].frame[:,k] for k in range(3)]+[bodies[b].conns[m.ib].frame[:,k] for k in range(3)]
+                candidates+=[s*np.asarray(x,dtype=float) for x in axes for s in (1,-1)]
+        directions=[]
+        for d in candidates:
+            if np.linalg.norm(d)<1e-8:continue
+            d=unit_vector(d)
+            if not any(float(d@v)>.999 for v in directions):directions.append(d)
+        directions.sort(key=lambda d:round(float(d[1]),6))  # prefer lifting off upward
+        return directions
+    def sweep(moving,direction,fixed,distance):
+        """Bounded 4-LDU sampled withdrawal; not a continuous collision proof."""
+        key_d=dkey(direction);shift=4.
+        for shift in np.arange(4,distance+4,4):
+            touching=False
+            for i in moving:
+                lo=LO[i]+direction*shift;hi=HI[i]+direction*shift
+                nearby=np.flatnonzero(fixed&np.all(lo<=HI+1,axis=1)&np.all(LO<=hi+1,axis=1));moved=None
+                for j in nearby:
+                    key=(i,int(j),key_d,float(shift))
+                    if key not in sweep_cache:
+                        if moved is None:moved=physics.Body(bodies[i].shape,refs[i].rot,refs[i].pos+direction*shift)
+                        rel=physics.relation(moved,bodies[j])
+                        if rel and rel.overlap>=physics.COLLIDE_MIN:
+                            rel=refine_relation(moved,bodies[j],rel,physics.COLLIDE_MIN)
+                        # Intermediate withdrawal need not remain seated.
+                        obstructs=bool(rel and (rel.overlap>=physics.COLLIDE_MIN or any('not pressed home' not in c.reason for c in rel.conflicts)))
+                        why=(f'overlap {rel.overlap:.3f} LDU³' if rel.overlap>=physics.COLLIDE_MIN else '; '.join(c.reason for c in rel.conflicts)) if obstructs else ''
+                        if len(sweep_cache)>400000:sweep_cache.clear()
+                        sweep_cache[key]=(obstructs,why,bool(rel and rel.contact))
+                    obstructs,why,touch=sweep_cache[key];touching|=touch
+                    if obstructs:return False,float(shift),int(j),f'piece {i+1} ({refs[i].name}) against {j+1} ({refs[j].name}) at {shift:g} LDU withdrawal: {why}'
+            # Insertion starts from a nearby free staging pose, not at
+            # infinity through unrelated parts of the model.
+            if not touching and shift>=8:break
+        return True,float(shift),None,''
+    def articulation(nodes,neighbors):
+        cuts=set();entered={};low={};clock=0
+        for start in sorted(nodes):
+            if start in entered:continue
+            entered[start]=low[start]=clock;clock+=1;children=0
+            stack=[(start,None,iter(sorted(neighbors[start]&nodes)))]
+            while stack:
+                u,parent,pending=stack[-1];advanced=False
+                for v in pending:
+                    if v==parent:continue
+                    if v in entered:low[u]=min(low[u],entered[v]);continue
+                    entered[v]=low[v]=clock;clock+=1
+                    if u==start:children+=1
+                    stack.append((v,u,iter(sorted(neighbors[v]&nodes))));advanced=True;break
+                if advanced:continue
+                stack.pop()
+                if parent is not None:
+                    low[parent]=min(low[parent],low[u])
+                    if parent!=start and low[u]>=entered[parent]:cuts.add(parent)
+            if children>1:cuts.add(start)
+        return cuts
     # Reverse disassembly verifies sampled straight-line insertion clearance.
-    def peel(units, scope):
-        remaining=set(range(len(units))); reverse=[]; blocked=[]
+    # When single pieces lock each other, a connected cluster is lifted out
+    # together and becomes its own checked subbuild.
+    def peel(units,scope,root=None,build=None):
+        units=[tuple(sorted(u)) for u in units]
         owner={i:u for u,unit in enumerate(units) for i in unit}
         neighbors={u:{owner[j] for i in unit for j in adjacency[i] if j in owner and owner[j]!=u} for u,unit in enumerate(units)}
         centers={u:np.mean([refs[i].pos for i in unit],axis=0) for u,unit in enumerate(units)}
-        while len(remaining)>1:
-            cuts=set();seen={};low={};clock=[0]
-            def visit(u,parent=None):
-                seen[u]=low[u]=clock[0];clock[0]+=1;children=0
+        tops={u:min(float(LO[i,1]) for i in unit) for u,unit in enumerate(units)}
+        present=np.zeros(len(refs),dtype=bool);present[list(owner)]=True
+        everything=list(owner);distance=float(np.max(HI[everything].max(0)-LO[everything].min(0)))+40
+        remaining=set(range(len(units)));reverse=[];blocked=[];legal={};last=None
+        # Which units sit on the studs of which: courses are finished before
+        # the next one starts, so in reverse the uncovered units go first.
+        up=up_of(everything);covers={u:set() for u in range(len(units))}
+        for u,unit in enumerate(units):
+            for i in unit:
+                for j,a,b,m in partners[i]:
+                    if j not in owner or owner[j]==u or m.type not in ('stud','tube') or m.axis is None:continue
+                    if (a if m.male=='a' else b)==i and abs(float(unit_vector(m.axis)@up))>.9:covers[u].add(owner[j])
+        # Units in one course: same top height and touching side by side.
+        ulo=np.array([LO[list(unit)].min(0) for unit in units]);uhi=np.array([HI[list(unit)].max(0) for unit in units])
+        top=np.maximum(ulo*up,uhi*up).sum(1)
+        touching=np.all((ulo[:,None]<=uhi[None]+1.)&(ulo[None]<=uhi[:,None]+1.),axis=2)&(np.abs(top[:,None]-top[None])<=1.)
+        np.fill_diagonal(touching,False);course={u:set(np.flatnonzero(touching[u]).tolist()) for u in range(len(units))}
+        def clear(moving,direction,fixed,obstructions):
+            path=(moving,dkey(direction))
+            if path in legal:return True,None
+            cached=blocked_by.get(path)
+            if cached is not None and fixed[cached[0]]:
+                if len(obstructions)<3:obstructions.append(cached[1])
+                return False,cached[0]
+            ok,shift,j,detail=sweep(moving,direction,fixed,distance)
+            if ok:legal[path]=shift;clearances[path]=shift;return True,None
+            blocked_by[path]=(j,detail)
+            if len(obstructions)<3:obstructions.append(detail)
+            return False,j
+        def attempt(moving,obstructions):
+            fixed=present.copy();fixed[list(moving)]=False
+            for direction in withdrawal_directions(moving,fixed):
+                if clear(moving,direction,fixed,obstructions)[0]:return direction
+            return None
+        def priority(u):
+            if last is None:return (False,bool(covers[u]&remaining),False,0,0.,len(units[u]),tops[u],units[u][0])
+            members,center=last;distance=float(np.linalg.norm(centers[u]-center))
+            region=0 if neighbors[u]&members else 1 if distance<=80 else 2
+            along=not any(u in course[m] for m in members)
+            return (region>1 and along,bool(covers[u]&remaining),along,region,round(distance,4),len(units[u]),tops[u],units[u][0])
+        def pieces(nodes):
+            found=[];todo=set(nodes)
+            while todo:
+                seed=min(todo);reached={seed};stack=[seed]
+                while stack:
+                    for v in neighbors[stack.pop()]&todo:
+                        if v not in reached:reached.add(v);stack.append(v)
+                todo-=reached;found.append(reached)
+            return found
+        def route(cluster,target):
+            previous={u:None for u in cluster};queue=sorted(cluster)
+            for u in queue:
+                if u==target:break
                 for v in sorted(neighbors[u]&remaining):
-                    if v==parent:continue
-                    if v in seen:low[u]=min(low[u],seen[v]);continue
-                    children+=1;visit(v,u);low[u]=min(low[u],low[v])
-                    if parent is not None and low[v]>=seen[u]:cuts.add(u)
-                if parent is None and children>1:cuts.add(u)
-            visit(min(remaining))
-            choices=[];obstructions=[]
-            def priority(u):
-                if not reverse:return (0,0,len(units[u]),min(bodies[i].flo[1] for i in units[u]),min(units[u]))
-                previous=reverse[-1][0];distance=float(np.linalg.norm(centers[u]-centers[previous]))
-                region=0 if u in neighbors[previous] else 1 if distance<=80 else 2
-                return (region,round(distance,4),len(units[u]),min(bodies[i].flo[1] for i in units[u]),min(units[u]))
-            for u in sorted(remaining,key=priority):
-                if u in cuts:continue
-                moving=set(units[u]); fixed=set().union(*(set(units[v]) for v in remaining if v!=u))
-                # A reverse removal must not leave a collection of disconnected fragments.
-                fixed_ids=np.array(sorted(fixed),dtype=np.int64)
-                fixed_lo=np.stack([bodies[j].flo for j in fixed_ids])
-                fixed_hi=np.stack([bodies[j].fhi for j in fixed_ids])
-                boundary=[(a,b,m) for (a,b),mm in links.items() if (a in moving and b in fixed) or (b in moving and a in fixed) for m in mm]
-                if not boundary: continue
+                    if v not in previous:previous[v]=u;queue.append(v)
+            path=set();node=target if target in previous else None
+            while node is not None and node not in cluster:path.add(node);node=previous[node]
+            return path
+        def extract(order,obstructions):
+            cap=min(len(remaining)-1,64);tried=set();scratch=[]
+            for u in order[:40]:
+                if u==root:continue
+                fixed=present.copy();fixed[list(units[u])]=False
+                axes=[unit_vector(m.axis) for i in units[u] for j,a,b,m in partners[i] if fixed[j] and m.axis is not None and np.linalg.norm(m.axis)>1e-8]
                 directions=[]
-                for a,b,m in boundary:
-                    # Clip openings are radial to their bar axis. Explore the
-                    # actual connector frames as well as the joint axis.
-                    axes=[m.axis]+[bodies[a].conns[m.ia].frame[:,k] for k in range(3)]+[bodies[b].conns[m.ib].frame[:,k] for k in range(3)]
-                    for d in [sign*axis for axis in axes if axis is not None for sign in (1,-1)]:
-                        if np.linalg.norm(d)<1e-8:continue
-                        d=np.asarray(d)/np.linalg.norm(d)
-                        if not any(np.dot(d,v)>.999 for v in directions): directions.append(np.array(d))
-                for direction in directions:
-                    pathkey=(tuple(sorted(moving)),tuple(direction))
-                    cached=blocked_by.get(pathkey)
-                    if cached is not None and cached[0] in fixed:
-                        if len(obstructions)<3:obstructions.append(cached[1])
-                        continue
-                    allids=moving|fixed
-                    distance=max(np.max(np.stack([bodies[i].fhi for i in allids]),axis=0)-np.min(np.stack([bodies[i].flo for i in allids]),axis=0))+40
-                    legal=True
-                    # Bounded 4-LDU sampling, not a continuous collision proof or stability test.
-                    for shift in np.arange(4,distance+4,4):
-                        still_touching=False
-                        for i in moving:
-                            moved=physics.Body(bodies[i].shape,refs[i].rot,refs[i].pos+direction*shift)
-                            nearby=fixed_ids[np.all(moved.flo<=fixed_hi+1,axis=1)&np.all(fixed_lo<=moved.fhi+1,axis=1)]
-                            for j in nearby:
-                                key=(i,int(j),tuple(direction),float(shift))
-                                if key not in sweep_cache:
-                                    rel=physics.relation(moved,bodies[j])
-                                    if rel and rel.overlap>=physics.COLLIDE_MIN:
-                                        rel=refine_relation(moved,bodies[j],rel,physics.COLLIDE_MIN)
-                                    # Intermediate withdrawal need not remain seated.
-                                    obstructs=bool(rel and (rel.overlap>=physics.COLLIDE_MIN or any('not pressed home' not in c.reason for c in rel.conflicts)))
-                                    why=(f'overlap {rel.overlap:.3f} LDU³' if rel.overlap>=physics.COLLIDE_MIN else '; '.join(c.reason for c in rel.conflicts)) if obstructs else ''
-                                    if len(sweep_cache)>100000:sweep_cache.clear()
-                                    sweep_cache[key]=(obstructs,why,bool(rel and rel.contact))
-                                obstructs,why,touching=sweep_cache[key]
-                                still_touching |= touching
-                                if obstructs:
-                                    legal=False
-                                    detail=f'piece {i+1} ({refs[i].name}) against {j+1} ({refs[j].name}) at {shift:g} LDU withdrawal: {why}'
-                                    blocked_by[pathkey]=(int(j),detail)
-                                    if len(obstructions)<3:obstructions.append(detail)
-                                    break
-                            if not legal: break
-                        if not legal: break
-                        # Insertion starts from a nearby free staging pose, not
-                        # at infinity through unrelated parts of the model.
-                        # Keep sampling until the unit is detached and clear.
-                        if not still_touching and shift>=8:break
-                    if legal:
-                        clearances[(tuple(sorted(moving)),tuple(direction))]=float(shift)
-                        # Prefer easy, small removals; deterministic ties and directions.
-                        choices.append((len(moving),min(bodies[i].flo[1] for i in moving),min(moving),u,direction));break
-                if choices:break
-            if not choices:
+                for d in withdrawal_directions(units[u],fixed)+[s*x for x in axes for s in (1,-1)]+[np.array([0.,-1.,0.])]:
+                    if not any(float(d@v)>.999 for v in directions):directions.append(d)
+                for direction in directions[:4]:
+                    cluster={u}
+                    for _ in range(32):
+                        rest=remaining-cluster
+                        if not rest:break
+                        parts=pieces(rest)
+                        if len(parts)>1:
+                            # Fragments hanging only from the cluster travel with it.
+                            keep=next((p for p in parts if root in p),None) if root is not None else None
+                            keep=keep or max(parts,key=lambda p:(sum(len(units[v]) for v in p),-min(p)))
+                            cluster=remaining-keep
+                        if (root is not None and root in cluster) or len(cluster)>cap:break
+                        key=(frozenset(cluster),dkey(direction))
+                        if key in tried:break
+                        tried.add(key)
+                        moving=tuple(sorted(i for v in cluster for i in units[v]))
+                        fixed=present.copy();fixed[list(moving)]=False
+                        ok,j=clear(moving,direction,fixed,scratch)
+                        if ok:
+                            if build(moving):return tuple(sorted(cluster)),direction
+                            break
+                        if j is None or owner[j]==root:break
+                        grown=route(cluster,owner[j])
+                        if not grown:break
+                        cluster|=grown
+            return None
+        while len(remaining)>1:
+            cuts=articulation(remaining,neighbors)
+            order=sorted(remaining,key=priority);obstructions=[];chosen=None
+            for u in order:
+                if u in cuts or u==root:continue
+                direction=attempt(units[u],obstructions)
+                if direction is not None:chosen=((u,),direction);break
+            if chosen is None and root in remaining and root not in cuts:
+                direction=attempt(units[root],obstructions)
+                if direction is not None:chosen=((root,),direction)
+            if chosen is None and build is not None:chosen=extract(order,obstructions)
+            if chosen is None:
                 details=(' Observed obstructions: '+'; '.join(obstructions)) if obstructions else ' Removing a candidate would split the remaining assembly, or no usable boundary connector was found.'
                 blocked.append(f'{scope}: no checked straight insertion sequence; hinge/clip flexibility, loops or manual repositioning may be needed.'+details);break
-            _,_,_,u,direction=min(choices,key=lambda c:c[:4]);remaining.remove(u);reverse.append((u,direction))
+            members,direction=chosen;remaining-=set(members)
+            for u in members:present[list(units[u])]=False
+            reverse.append((members[0] if len(members)==1 else members,direction))
+            last=(set(members),np.mean([centers[u] for u in members],axis=0))
             progress(f'Planning {scope}: {len(remaining)} units remain')
         if blocked:
-            partials[tuple(tuple(u) for u in units)]=(sorted(remaining),reverse.copy())
+            partials[tuple(units)]=(sorted(remaining),reverse.copy())
             return [],blocked
         first=next(iter(remaining)); return [(first,None)]+list(reversed(reverse)),[]
-    grouporder,issues=peel(groups,'assembly') if len(groups)>1 else ([(0,None)],[])
+    base=base_of(range(len(refs)))
+    if not joints and len(groups)>1:
+        grouporder,issues=peel(groups,'assembly',root=next(k for k,g in enumerate(groups) if base in g))
+    else:grouporder,issues=[(0,None)],[]
     # Failed predefined chunks are handled by the connected partition search
     # below, rather than replaying almost the same ordering for every chunk.
-    planned_groups=[];failed_cores={};solved_cores={}
+    planned_groups=[];failed_cores={};solved_cores={};solved_shapes={};congruence=Congruence(refs,lib)
     def connected(ids):
         if not ids:return False
         seen={min(ids)};pending=list(seen)
@@ -367,10 +619,56 @@ def assembly_plan(refs, lib, warnings=None):
             pages,cached_groups,gid=solved_cores[signature]
             planned_groups.extend(cached_groups)
             return [dict(s,group=s['group']+offset) for s in pages],[],gid+offset
+        kind=congruence.kind(group) if 1<len(group)<=REPEAT_LIMIT else None
+        for other in solved_shapes.get(kind,[]):
+            # A rigid copy of an already planned subbuild reuses its plan:
+            # its internal sweeps are the same motions carried by (R,t).
+            found=congruence.match(other,group)
+            if not found:continue
+            mapping,R,_=found;pages,cached_groups,gid=solved_cores[other]
+            carry=lambda ids:[mapping[i] for i in ids]
+            planned_groups.extend([carry(g) for g in cached_groups])
+            copied=[]
+            for page in pages:
+                page=dict(page,group=page['group']+offset,visible=carry(page['visible']),added=carry(page['added']))
+                if page.get('direction') is not None:page['direction']=(R@np.asarray(page['direction'],dtype=float)).tolist()
+                copied.append(page)
+            solved_cores[signature]=([dict(s,group=s['group']-offset) for s in copied],planned_groups[offset:].copy(),gid)
+            return copied,[],gid+offset
         pages,issues,gid=construct_uncached(group,depth)
         if not issues:
             solved_cores[signature]=([dict(s,group=s['group']-offset) for s in pages],planned_groups[offset:].copy(),gid-offset)
+            if kind is not None:solved_shapes.setdefault(kind,[]).append(signature)
         return pages,issues,gid
+    def buildable(parts,depth):
+        if depth>=9:return False
+        checkpoint=len(planned_groups)
+        _,failed,_=construct(sorted(parts),depth+1)
+        del planned_groups[checkpoint:]
+        return not failed
+    def assemble(group,order,depth,core=None):
+        """Pages for a checked order; clusters become nested subbuilds."""
+        checkpoint=len(planned_groups);children={}
+        for item,withdraw in order:
+            if isinstance(item,tuple):
+                parts=sorted(group[u] for u in item)
+                childpages,failed,cgid=construct(parts,depth+1)
+                if failed:
+                    del planned_groups[checkpoint:];return None,failed
+                children[item]=(childpages,cgid,parts)
+        planned_groups.append(group);gid=len(planned_groups)
+        pages=list(core[0]) if core else [];built=list(core[1]) if core else []
+        for item,withdraw in order:
+            if isinstance(item,tuple):
+                childpages,cgid,parts=children[item];pages+=childpages;built+=parts
+                pages.append(dict(kind='join',group=cgid,visible=built.copy(),added=parts,
+                    direction=(-withdraw).tolist(),staging_distance=staging(parts,withdraw)))
+            else:
+                added=[group[item]];built+=added
+                pages.append(dict(kind='part',group=gid,visible=built.copy(),added=added,
+                    direction=None if withdraw is None else (-withdraw).tolist(),
+                    staging_distance=None if withdraw is None else staging(added,withdraw)))
+        return pages,[]
     def construct_uncached(group,depth=0):
         signature=tuple(sorted(group))
         if signature in failed_cores:return [],failed_cores[signature],None
@@ -389,27 +687,23 @@ def assembly_plan(refs, lib, warnings=None):
             for a in sorted(branches,key=lambda s:(len(s),min(s))):
                 b=ids-a
                 if min(len(a),len(b))<2 or not connected(b):continue
-                a,b=sorted(a),sorted(b);order,blocked=peel([a,b],f'completed articulated branch {len(a)} + {len(b)}')
+                a,b=sorted(a),sorted(b);order,blocked=peel([a,b],f'completed articulated branch {len(a)} + {len(b)}',root=1)
                 if blocked:continue
                 checkpoint=len(planned_groups);pages=[];previous=[];ok=True
                 for number,(unit,withdraw) in enumerate(order):
                     child=[a,b][unit];childpages,blocked,gid=construct(child,depth+1)
                     if blocked:ok=False;break
                     pages+=childpages
-                    if number:pages.append(dict(kind='join',group=gid,visible=previous+child,added=child,direction=(-withdraw).tolist(),staging_distance=clearances.get((tuple(child),tuple(withdraw))),completed_branch=True))
+                    if number:pages.append(dict(kind='join',group=gid,visible=previous+child,added=child,direction=(-withdraw).tolist(),staging_distance=staging(child,withdraw),completed_branch=True))
                     previous+=child
                 if ok:
                     planned_groups.append(group);return pages,[],len(planned_groups)
                 del planned_groups[checkpoint:]
-        internal,issues=peel([[i] for i in group],f'subbuild ({len(group)} pieces)') if len(group)>1 else ([(0,None)],[])
+        root=group.index(base_of(group)) if len(group)>1 else None
+        internal,issues=peel([[i] for i in group],f'subbuild ({len(group)} pieces)',root=root,build=lambda parts:buildable(parts,depth)) if len(group)>1 else ([(0,None)],[])
         if not issues:
-            planned_groups.append(group);gid=len(planned_groups);built=[];pages=[]
-            for unit,withdraw in internal:
-                added=[group[unit]];built+=added
-                pages.append(dict(kind='part',group=gid,visible=built.copy(),added=added,
-                    direction=None if withdraw is None else (-withdraw).tolist(),
-                    staging_distance=None if withdraw is None else clearances.get((tuple(added),tuple(withdraw)))))
-            return pages,[],gid
+            pages,issues=assemble(group,internal,depth)
+            if not issues:return pages,[],len(planned_groups)
         if depth>=10:return [],issues,None
         remaining,removed=partials.get(tuple((i,) for i in group),([],[]))
         if removed:
@@ -417,15 +711,12 @@ def assembly_plan(refs, lib, warnings=None):
             # than repeatedly replanning hundreds of unobstructed outer parts.
             core=[group[u] for u in remaining]
             pages,failed,_=construct(core,depth+1)
+            if not failed:
+                pages,failed=assemble(group,list(reversed(removed)),depth,core=(pages,core))
             if failed:
                 failed_cores[signature]=failed
                 return [],failed,None
-            planned_groups.append(group);gid=len(planned_groups);built=core.copy()
-            for unit,withdraw in reversed(removed):
-                added=[group[unit]];built+=added
-                pages.append(dict(kind='part',group=gid,visible=built.copy(),added=added,
-                    direction=(-withdraw).tolist(),staging_distance=clearances.get((tuple(added),tuple(withdraw)))))
-            return pages,[],gid
+            return pages,[],len(planned_groups)
         # A stud-connected shell need not be one indivisible subbuild. Search
         # connected halves and small graph neighbourhoods, then actually verify
         # the completed halves can mate before recursively constructing them.
@@ -496,7 +787,7 @@ def assembly_plan(refs, lib, warnings=None):
                 if failed:ok=False;break
                 pages+=part_pages
                 if number:pages.append(dict(kind='join',group=gid,visible=previous+child,added=child,
-                    direction=(-withdraw).tolist(),staging_distance=clearances.get((tuple(sorted(child)),tuple(withdraw)))))
+                    direction=(-withdraw).tolist(),staging_distance=staging(child,withdraw)))
                 previous+=child
             if ok:
                 planned_groups.append(group)
@@ -504,7 +795,7 @@ def assembly_plan(refs, lib, warnings=None):
             del planned_groups[checkpoint:]
         failed_cores[signature]=issues
         return [],issues,None
-    if issues or any(m.type in ('hinge','ball','turntable') for ms in links.values() for m in ms):
+    if issues or joints:
         pages,failed,_=construct(list(range(len(refs))))
         return pages,failed,planned_groups if not failed else groups
     steps=[]
@@ -515,7 +806,7 @@ def assembly_plan(refs, lib, warnings=None):
         if sequence:
             previous=[i for g,_ in grouporder[:sequence] for i in groups[g]]
             steps.append(dict(kind='join',group=gid,visible=previous+group,added=group,
-                direction=(-direction).tolist(),staging_distance=clearances.get((tuple(sorted(group)),tuple(direction)))))
+                direction=(-direction).tolist(),staging_distance=staging(group,direction)))
     return steps,[],planned_groups
 
 
@@ -634,6 +925,72 @@ def merge_repeated_steps(steps,refs):
     return result
 
 
+def share_repeated_subbuilds(steps,refs,lib):
+    """Show a subbuild that is built two or more times once, with ×N.
+
+    A block is the run of steps that builds one subbuild before its join (or
+    one independent component). Rigidly congruent blocks become one block
+    with copies=N; their joins stay in order and merge into one operation
+    when the copies attach one after another at matching or mirrored places."""
+    steps=[dict(s) for s in steps];congruence=Congruence(refs,lib);blocks=[]
+    for k,s in enumerate(steps):
+        if s['kind']!='join':continue
+        child=set(s['added']);start=k;made=set()
+        while start>0 and made!=child and set(steps[start-1]['added'])<=child and set(steps[start-1]['visible'])<=child:
+            start-=1;made|=set(steps[start]['added'])
+        if made==child and 1<len(child)<=REPEAT_LIMIT:blocks.append((start,k,sorted(child),k))
+    components={}
+    for k,s in enumerate(steps):
+        if s.get('component') is not None:components.setdefault(s['component'],[]).append(k)
+    if len(components)>1:
+        for ks in components.values():
+            parts=sorted({i for k in ks for i in steps[k]['added']})
+            if ks==list(range(ks[0],ks[-1]+1)) and 1<len(parts)<=REPEAT_LIMIT:blocks.append((ks[0],ks[-1]+1,parts,None))
+    removed=set();classes=[]
+    for start,end,parts,join in sorted(blocks,key=lambda b:(-(b[1]-b[0]),b[0])):
+        if any(k in removed for k in range(start,end)):continue
+        for cls in classes:
+            if not any(k in range(cls['start'],cls['end']) for k in range(start,end)) and congruence.match(cls['parts'],parts):
+                removed.update(range(start,end));cls['copies'].append((parts,join));break
+        else:classes.append(dict(start=start,end=end,parts=parts,copies=[(parts,join)]))
+    copies=[1]*len(steps);joins={}
+    for number,cls in enumerate(classes):
+        n=len(cls['copies'])
+        if n<2:continue
+        for k in range(cls['start'],cls['end']):copies[k]*=n
+        for copy,(parts,join) in enumerate(cls['copies'],1):
+            if join is not None:joins[join]=(number,copy,n)
+    result=[]
+    for k,s in enumerate(steps):
+        if k in removed:continue
+        if copies[k]>1:s['copies']=copies[k]
+        if k in joins:
+            number,copy,n=joins[k];s.update(repeat_class=number,copy=copy,of=n)
+            s['attachments']=[dict(added=list(s['added']),direction=s.get('direction'),staging_distance=s.get('staging_distance'))]
+            previous=result[-1] if result else None
+            if previous is not None and previous.get('repeat_class')==number and len(previous['attachments'])<8 and similar_places(previous,s,refs):
+                previous['attachments']+=s['attachments'];previous['added']=previous['added']+s['added']
+                previous['visible']=list(s['visible']);previous['copy_range']=[previous.get('copy',1),copy]
+                continue
+        result.append(s)
+    return result
+
+
+def similar_places(first,second,refs):
+    """Two attachments are alike when their insertion directions agree
+    within about 30° (a fan of fingers), or are mirror images across the
+    plane between the two copies (left and right)."""
+    a,b=first['attachments'][0]['direction'],second['attachments'][0]['direction']
+    if a is None or b is None:return a is None and b is None
+    a,b=np.asarray(a,dtype=float),np.asarray(b,dtype=float)
+    if float(a@b)>.85:return True
+    ca=np.mean([refs[i].pos for i in first['attachments'][0]['added']],axis=0);cb=np.mean([refs[i].pos for i in second['attachments'][0]['added']],axis=0)
+    n=cb-ca
+    if np.linalg.norm(n)<1e-6:return False
+    n=n/np.linalg.norm(n);mirrored=a-2*(a@n)*n
+    return float(mirrored@b)>.85
+
+
 def instructions(refs,lib,out,size,plan_only=False):
     import render,ldraw,physics
     progress('Checking connectors and planning reverse assembly')
@@ -643,6 +1000,7 @@ def instructions(refs,lib,out,size,plan_only=False):
         steps,groups=finish_subbuilds_before_attachment(steps,groups,refs)
         steps,groups=collapse_single_piece_subbuilds(steps,groups)
         steps=merge_repeated_steps(steps,refs)
+        steps=share_repeated_subbuilds(steps,refs,lib)
     (out/'plan.json').write_text(json.dumps(dict(steps=steps,issues=issues,warnings=warnings,groups=groups,
         final_pose_check_passed=bool(groups),assembly_path_found=not issues,
         checks='Full final-pose relation; 4 LDU sampled straight withdrawal/insertion. No continuous swept-volume, hand access, gravity/stability or flexible hinge-path proof.'),indent=2))
@@ -707,7 +1065,8 @@ class InstructionViews:
             p=self.refs[i];self.world[i]=self.lib.geom(p.name,'low').tris@p.rot.T+p.pos
         return self.world[i]
 
-    def choose(self,visible,added,fit):
+    def scorer(self,visible,added,fit):
+        """(fraction, pixels) of the added pieces left uncovered in a view."""
         import render,ldraw
         pieces=[self.triangles(i) for i in visible]
         triangles=np.concatenate(pieces);flags=np.concatenate([np.full(len(t),i in added) for i,t in zip(visible,pieces)])
@@ -724,6 +1083,13 @@ class InstructionViews:
             alone,_,_=render.rasterize(t[flags],256,256)
             fraction=seen/max(len(np.unique(alone)),1)
             return fraction,seen
+        return score
+
+    def score_without(self,view,visible,added,fit):
+        return self.scorer(visible,added,fit)(view)[0]
+
+    def choose(self,visible,added,fit):
+        score=self.scorer(visible,added,fit)
         initial=score(self.previous) if self.previous in self.VIEWS else (0,0)
         if initial[0]>=.72 and initial[1]>=12:return self.previous,False,initial[0]
         # Keep visible depth on every page: no front/side/top orthographic
@@ -732,6 +1098,57 @@ class InstructionViews:
         ranked=[(score(v),-i,v) for i,v in enumerate(dict.fromkeys(candidates))]
         best=max(ranked,key=lambda x:(round(x[0][0],2),x[0][1],x[1]));view=best[2];changed=view!=self.previous;self.previous=view
         return view,changed,best[0][0]
+
+    def occluders(self,view,visible,added,fit,minimum=3):
+        """Pieces in front of the added pieces in this view, most covering first."""
+        import render,ldraw
+        visible=list(visible);pieces=[self.triangles(i) for i in visible]
+        triangles=np.concatenate(pieces);owners=np.concatenate([np.full(len(t),i) for i,t in zip(visible,pieces)])
+        flags=np.isin(owners,list(added))
+        fitpoints=np.concatenate([self.triangles(i).reshape(-1,3) for i in fit])
+        r,u,c=render.camera_basis(*view);projection=np.stack([r,-u,-c])@ldraw.LDRAW_TO_BUILDER
+        points=fitpoints@projection.T;origin,distance=perspective_frame(points);points=perspective_points(points,origin,distance)
+        lo,hi=points.min(0),points.max(0);scale=224/max(float(hi[0]-lo[0]),float(hi[1]-lo[1]),1e-6);center=(lo+hi)/2
+        t=perspective_points(triangles@projection.T,origin,distance);t[:,:,:2]=(t[:,:,:2]-center[:2])*scale+128
+        pixels,depth,ids=render.rasterize(t,256,256)
+        z=np.full(256*256,np.inf);np.minimum.at(z,pixels,depth)
+        front=depth<=z[pixels]+1e-9;winners=np.full(256*256,-1,dtype=np.int64);winners[pixels[front]]=ids[front]
+        where,_,_=render.rasterize(t[flags],256,256);where=np.unique(where)
+        hidden=winners[where];hidden=hidden[(hidden>=0)]
+        hidden=owners[hidden][~flags[hidden]]
+        names,counts=np.unique(hidden,return_counts=True)
+        return [int(i) for i,n in sorted(zip(names,counts),key=lambda x:-x[1]) if n>=minimum]
+
+
+def framing(refs,lib,steps,assemblies,minimum=80.,growth=2.):
+    """Pieces each step's camera is fitted to.
+
+    Within one assembly the zoom is held steady and only steps out when the
+    build has grown to about twice the size it had when that zoom was set, so
+    a first small piece is not a speck in a frame sized for the finished
+    subbuild and the camera does not creep on every page."""
+    bounds={}
+    def extent(ids):
+        lo=np.full(3,np.inf);hi=np.full(3,-np.inf)
+        for i in ids:
+            if i not in bounds:
+                p=refs[i];v=lib.geom(p.name,'low').tris.reshape(-1,3)@p.rot.T+p.pos
+                bounds[i]=(v.min(0),v.max(0)) if len(v) else (p.pos,p.pos)
+            lo=np.minimum(lo,bounds[i][0]);hi=np.maximum(hi,bounds[i][1])
+        return max(float(np.linalg.norm(hi-lo)),minimum)
+    fits=[None]*len(steps);k=0
+    while k<len(steps):
+        run=k
+        while run+1<len(steps) and assemblies[run+1] is assemblies[k]:run+=1
+        start=k
+        while start<=run:
+            limit=growth*extent(steps[start]['visible']);end=start
+            while end<run and extent(steps[end+1]['visible'])<=limit:end+=1
+            shown=sorted(set(steps[end]['visible'])&assemblies[start] or steps[end]['visible'])
+            for t in range(start,end+1):fits[t]=shown
+            start=end+1
+        k=run+1
+    return fits
 
 
 def render_instructions(refs,lib,out,size,steps,groups,warnings):
@@ -743,33 +1160,63 @@ def render_instructions(refs,lib,out,size,steps,groups,warnings):
     pages=['<section><h1>Build instructions</h1><img src="cover.png"><p>Page 0 · '+str(len(refs))+' pieces</p><p>Draft: sampled insertion checks; review physical access and stability before sharing.</p></section>']
     if warnings:pages[0]=pages[0].replace('</section>','<h2>Assembly notes — review before building</h2><ul>'+''.join('<li>'+html.escape(w)+'</li>' for w in warnings)+'</ul></section>')
     page_info=[];viewers={};display_frames={};render.HIGHLIGHT_RGB=(220,40,30)
+    group_sets=[set(g) for g in groups]
+    def first_piece(members):
+        # The piece laid down first in this assembly: its frame is the build frame.
+        for s in steps:
+            if s['added'] and set(s['added'])<=members:return s['added'][0]
+        return min(members)
+    main_builds=[g for g in group_sets if not any(g<h for h in group_sets)];numbers={};anchors={}
+    world_anchors={first_piece(g) for g in main_builds}
+    def assembly(step):
+        if step['kind']=='part':return group_sets[step['group']-1]
+        # A join is shown in the frame of the assembly it completes.
+        shown=set(step['visible']);holders=[g for g in group_sets if shown<=g]
+        return min(holders,key=len) if holders else set(range(len(refs)))
+    assemblies=[assembly(s) for s in steps]
+    fits=framing(refs,lib,steps,assemblies)
     for index,step in enumerate(steps,1):
         progress(f'Illustrating step {index}/{len(steps)}')
         name=f'step-{index:04}.png'
-        fit_ids=groups[step['group']-1] if step['kind']=='part' else list(range(len(refs)))
-        key=('part',step['group']) if step['kind']=='part' else ('join',0)
+        members=assemblies[index-1];fit_ids=fits[index-1]
+        anchor_id=first_piece(members);key=('frame',anchor_id)
         if key not in display_frames:
-            # Standalone subbuilds are built flat in their own frame, not held
-            # at the final articulated pose throughout their construction.
-            anchor=refs[fit_ids[0]]
-            frame=anchor.rot.T if step['kind']=='part' else np.eye(3)
-            origin=anchor.pos if step['kind']=='part' else np.zeros(3)
+            # Subbuilds are built flat in the frame of their first piece, not
+            # held at the final articulated pose throughout their construction;
+            # the finished model keeps the orientation it was designed in.
+            anchor=refs[anchor_id]
+            if anchor_id in world_anchors:frame=np.eye(3);origin=np.zeros(3)
+            else:frame=anchor.rot.T;origin=anchor.pos
             display=[ldraw.Ref(p.name,p.color,frame@(p.pos-origin),frame@p.rot) for p in refs]
             display_frames[key]=(display,frame,origin);viewers[key]=InstructionViews(display,lib)
         display,frame,origin=display_frames[key];views=viewers[key]
         selected=[ldraw.Ref(display[i].name,display[i].color,display[i].pos,display[i].rot,step=1 if i in step['added'] else 0) for i in step['visible']]
         fit=[display[i] for i in fit_ids]
         view,turned,visibility=views.choose(step['visible'],set(step['added']),fit_ids)
+        ghosts=views.occluders(view,step['visible'],set(step['added']),fit_ids) if visibility<.9 else []
         img=perspective_render(selected,size=size,lib=lib,ssaa=ssaa,step=1,highlight=True,fit_refs=fit,az=view[0],el=view[1])
+        if ghosts:
+            # Cut away what hides the new pieces, and keep it as a faint
+            # translucent ghost so the surroundings still read.
+            hidden=set(ghosts);clear=perspective_render([r for i,r in zip(step['visible'],selected) if i not in hidden],size=size,lib=lib,ssaa=ssaa,step=1,highlight=True,fit_refs=fit,az=view[0],el=view[1])
+            full=np.asarray(img).astype(float);cut=np.asarray(clear).astype(float)
+            differs=np.abs(full-cut).max(axis=2)>6
+            differs&=~((cut[:,:,0]==220)&(cut[:,:,1]==40)&(cut[:,:,2]==30))
+            blend=cut.copy();blend[differs]=cut[differs]*.72+full[differs]*.28
+            info=clear.info.copy();img=Image.fromarray(blend.round().astype(np.uint8));img.info.update(info)
+            visibility=views.score_without(view,[i for i in step['visible'] if i not in hidden],set(step['added']),fit_ids)
         from PIL import ImageFilter
         pixels=np.asarray(img);red=(pixels[:,:,0]==220)&(pixels[:,:,1]==40)&(pixels[:,:,2]==30)
         expanded=np.asarray(Image.fromarray(red.astype(np.uint8)*255).filter(ImageFilter.MaxFilter(2*max(2,round(size/400))+1)))>0
         pixels=pixels.copy();pixels[expanded]=(220,40,30);info=img.info.copy();img=Image.fromarray(pixels);img.info.update(info)
-        if step['direction'] is not None:
+        # One arrow per placed piece, or per attached copy of a subbuild.
+        operations=step.get('attachments') or [dict(added=step['added'],direction=step['direction'],staging_distance=step.get('staging_distance'))]
+        for operation in operations:
+            if operation['direction'] is None:continue
             r,u,c=render.camera_basis(*view);projection=np.stack([r,-u,-c])@ldraw.LDRAW_TO_BUILDER
             centers=[]
             endpoints=[]
-            for i in step['added']:
+            for i in operation['added']:
                 contacts=[]
                 a=physics.Body(physics.get_shape(refs[i].name),refs[i].rot,refs[i].pos)
                 for j in step['visible']:
@@ -780,13 +1227,13 @@ def render_instructions(refs,lib,out,size,steps,groups,warnings):
                 centers.append(np.mean(contacts,axis=0) if contacts else refs[i].pos)
                 endpoints.extend(contacts)
             if step['kind']=='join':centers=[np.mean(endpoints if endpoints else centers,axis=0)]
-            direction=frame@np.array(step['direction']);cam=img.info['cam']
+            direction=frame@np.array(operation['direction']);cam=img.info['cam']
             def pixel(p):
                 p=perspective_points(np.asarray(p),np.array(cam['perspective_center']),cam['perspective_distance'])
                 return (p[:2]-np.array(cam['center'])[:2])*cam['scale']+size/2
             for center in centers:
                 center=frame@(center-origin)
-                end=pixel(projection@center);start=pixel(projection@(center-direction*min(30,step.get('staging_distance') or 30)));start=np.clip(start,12,size-12);delta=end-start
+                end=pixel(projection@center);start=pixel(projection@(center-direction*min(30,operation.get('staging_distance') or 30)));start=np.clip(start,12,size-12);delta=end-start
                 if np.linalg.norm(delta)>3:
                     unit=delta/np.linalg.norm(delta);side=np.array([-unit[1],unit[0]])
                     head=max(14,size*.024);half=head*.52
@@ -798,11 +1245,23 @@ def render_instructions(refs,lib,out,size,steps,groups,warnings):
         lots={}
         for i in step['added']:
             key=(refs[i].name,refs[i].color);lots[key]=lots.get(key,0)+1
-        trayparts=[display[i] for i in step['added']] if step['kind']=='join' else [ldraw.Ref(part,color,np.array([120.*k,0.,0.]),np.eye(3)) for k,(part,color) in enumerate(sorted(lots))]
+        shown=operations[0]['added'] if step.get('attachments') else step['added']
+        trayparts=[display[i] for i in shown] if step['kind']=='join' else [ldraw.Ref(part,color,np.array([120.*k,0.,0.]),np.eye(3)) for k,(part,color) in enumerate(sorted(lots))]
         tray=perspective_render(trayparts,size=220,lib=lib,highlight=False,ssaa=ssaa)
         trayname=f'parts-{index:04}.png';tray.save(out/trayname)
-        labels='Completed subbuild' if step['kind']=='join' else ' · '.join(f'{qty}×' for _,qty in sorted(lots.items()))
-        title='Subbuild '+str(step['group']) if len(groups[step['group']-1])>1 and not step.get('single_piece_attachment') else ''
+        attached=len(step.get('attachments') or [])
+        labels='Completed subbuild'+(f' ×{attached}' if attached>1 else '') if step['kind']=='join' else ' · '.join(f'{qty}×' for _,qty in sorted(lots.items()))
+        if step['kind']=='join' and step.get('of',1)>1:
+            first,last=step.get('copy_range') or [step['copy']]*2
+            labels+=f' (copy {first} of {step["of"]})' if first==last else f' (copies {first}–{last} of {step["of"]})'
+        copies=step.get('copies',1)
+        badge=f'<span class="times">×{copies}</span>' if copies>1 else ''
+        # Subbuilds are numbered in the order the reader meets them; the
+        # finished model itself carries no subbuild title.
+        build=group_sets[step['group']-1]
+        if step['group'] not in anchors:anchors[step['group']]=first_piece(build)
+        if anchors[step['group']] in world_anchors or len(build)<2 or step.get('single_piece_attachment'):title=''
+        else:title='Subbuild '+str(numbers.setdefault(min(build),len(numbers)+1))
         action='Turn the model' if turned else ''
         loose=len(refs)>1 and len(groups[step['group']-1])==1 and step['kind']=='part' and step['direction'] is None
         if loose:title='Unattached piece';action='Set aside — connection not confirmed in the saved model.'
@@ -814,11 +1273,11 @@ def render_instructions(refs,lib,out,size,steps,groups,warnings):
                 tilt=float(np.degrees(np.arccos(np.clip(abs(a@b)/(np.linalg.norm(a)*np.linalg.norm(b)),0,1))))
                 if tilt>.5:action=(action+'. ' if action else '')+f'Subbuild tilt: {tilt:.0f}°'
         if visibility<.15:action=('Turn the model. ' if turned else '')+'Placement needs a closer view — review this step.'
-        page_info.append(dict(title=title,parts=labels,action=action,view=list(view),projection='perspective',added_visibility=visibility,local_build_frame=step['kind']=='part',attachment_tilt_degrees=tilt))
+        page_info.append(dict(title=title,parts=labels,action=action,view=list(view),projection='perspective',added_visibility=visibility,local_build_frame=step['kind']=='part',attachment_tilt_degrees=tilt,copies=copies,attachments=max(attached,1),ghosted=ghosts))
         turn='<span class="turn">↻ Turn the model</span>' if turned else ''
         note=(f'<p class="angle">Subbuild tilt: {tilt:.0f}°</p>' if tilt is not None and tilt>.5 else '')+('<p>Placement needs a closer view — review this step.</p>' if visibility<.15 else '')+('<p>Set aside — connection not confirmed in the saved model.</p>' if loose else '')
-        pages.append(f'<section><header><h1>{index}</h1><small>{title}</small>{turn}</header><aside><img src="{trayname}"><b>{labels}</b></aside><img class="assembly" src="{name}">{note}</section>')
-    (out/'instructions.html').write_text('<!doctype html><meta charset="utf-8"><title>CAD build instructions</title><style>body{font:18px system-ui;background:#eee;margin:0}section{box-sizing:border-box;background:white;max-width:950px;min-height:100vh;margin:20px auto;padding:32px;break-after:page}header{display:flex;align-items:center;gap:24px}h1{font-size:58px;margin:0}small{color:#555}.turn{margin-left:auto}h2{font-size:23px}section>img{width:100%;max-height:72vh;object-fit:contain}aside{display:inline-flex;align-items:center;gap:24px;padding:8px 24px 8px 8px;background:#e3f0fa;border:1px solid #a5bdd0;border-radius:12px;margin-top:16px}aside img{width:140px}p{line-height:1.5}@media print{body{background:white}section{margin:0;min-height:0;height:98vh;padding:15mm}}</style>'+''.join(pages))
+        pages.append(f'<section><header><h1>{index}</h1>{badge}<small>{title}</small>{turn}</header><aside><img src="{trayname}"><b>{labels}</b></aside><img class="assembly" src="{name}">{note}</section>')
+    (out/'instructions.html').write_text('<!doctype html><meta charset="utf-8"><title>CAD build instructions</title><style>body{font:18px system-ui;background:#eee;margin:0}section{box-sizing:border-box;background:white;max-width:950px;min-height:100vh;margin:20px auto;padding:32px;break-after:page}header{display:flex;align-items:center;gap:24px}.times{font-size:30px;font-weight:700;color:white;background:#d22;border-radius:10px;padding:2px 14px}h1{font-size:58px;margin:0}small{color:#555}.turn{margin-left:auto}h2{font-size:23px}section>img{width:100%;max-height:72vh;object-fit:contain}aside{display:inline-flex;align-items:center;gap:24px;padding:8px 24px 8px 8px;background:#e3f0fa;border:1px solid #a5bdd0;border-radius:12px;margin-top:16px}aside img{width:140px}p{line-height:1.5}@media print{body{background:white}section{margin:0;min-height:0;height:98vh;padding:15mm}}</style>'+''.join(pages))
     return dict(images=['cover.png'],document='instructions.html',pages=page_info,steps=len(steps),groups=len(groups),warnings=warnings,status='Draft generated after final-pose and sampled insertion checks. Review access/stability; sampled checks are not a continuous physical proof.')
 
 

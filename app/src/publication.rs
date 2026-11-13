@@ -80,6 +80,37 @@ fn resources() -> (PathBuf, PathBuf) {
     }
 }
 
+/// The end of a worker log: the last traceback, or else its last lines.
+fn log_tail(path: &Path) -> Option<String> {
+    let text = std::fs::read_to_string(path).ok()?;
+    let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
+    let start = lines.iter().rposition(|l| l.starts_with("Traceback")).unwrap_or(lines.len().saturating_sub(8));
+    let tail = &lines[start..];
+    // Keep the exception and the frames nearest to it.
+    let tail = if tail.len() > 12 { [&tail[..1], &tail[tail.len() - 11..]].concat() } else { tail.to_vec() };
+    (!tail.is_empty()).then(|| tail.join("\n"))
+}
+
+/// Explain a worker that failed, with what it wrote to its log.
+fn worker_failed(what: &str, log: &Path) -> String {
+    match log_tail(log) {
+        Some(tail) => format!("{what}\n{tail}"),
+        None => format!("{what}. See {}.", log.display()),
+    }
+}
+
+/// Hand the job to the worker. A worker that dies before reading it (a Python that cannot
+/// import its packages, say) closes the pipe; report its error, not EPIPE.
+fn send_job(child: &mut Child, job: &serde_json::Value, log: &Path) -> Result<(), String> {
+    let bytes = serde_json::to_vec(job).map_err(|e| e.to_string())?;
+    let sent = child.stdin.take().ok_or("Missing worker stdin")?.write_all(&bytes);
+    if let Err(e) = sent {
+        let status = child.wait().ok().and_then(|s| s.code()).map(|c| format!(" (exit {c})")).unwrap_or_default();
+        return Err(worker_failed(&format!("The instruction worker stopped before reading its job{status}: {e}"), log));
+    }
+    Ok(())
+}
+
 fn cache_directory() -> PathBuf {
     ldraw::app_env("PUBLICATION_CACHE")
         .map(PathBuf::from)
@@ -151,19 +182,16 @@ pub fn generate_cli(args: &[String]) -> Result<(), String> {
         serde_json::to_vec_pretty(&job).map_err(|e| e.to_string())?,
     )
     .map_err(|e| e.to_string())?;
+    let log = out.join("worker.log");
     let mut child =
         ldraw::runtime::python_command()?
             .args(["-u", "-c", include_str!("publication.py")])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
+            .stderr(Stdio::from(std::fs::File::create(&log).map_err(|e| e.to_string())?))
             .spawn()
             .map_err(|e| e.to_string())?;
-    child
-        .stdin
-        .take()
-        .ok_or("Missing worker stdin")?
-        .write_all(&serde_json::to_vec(&job).map_err(|e| e.to_string())?)
-        .map_err(|e| e.to_string())?;
+    send_job(&mut child, &job, &log)?;
     let mut result = None;
     let mut error = None;
     for line in BufReader::new(child.stdout.take().ok_or("Missing worker stdout")?).lines() {
@@ -189,7 +217,7 @@ pub fn generate_cli(args: &[String]) -> Result<(), String> {
     if !status.success() {
         return Err(format!(
             "{}\nDiagnostics: {}",
-            error.unwrap_or_else(|| "Instruction worker failed".into()),
+            error.unwrap_or_else(|| worker_failed("Instruction worker failed", &log)),
             out.display()
         ));
     }
@@ -282,21 +310,16 @@ fn start(
                 serde_json::to_vec_pretty(&job).map_err(|e| e.to_string())?,
             )
             .map_err(|e| e.to_string())?;
-            let log = std::fs::File::create(out.join("worker.log")).map_err(|e| e.to_string())?;
+            let log = out.join("worker.log");
             let mut child =
                 ldraw::runtime::python_command()?
                     .args(["-u", "-c", include_str!("publication.py")])
                     .stdin(Stdio::piped())
                     .stdout(Stdio::piped())
-                    .stderr(Stdio::from(log))
+                    .stderr(Stdio::from(std::fs::File::create(&log).map_err(|e| e.to_string())?))
                     .spawn()
                     .map_err(|e| e.to_string())?;
-            child
-                .stdin
-                .take()
-                .ok_or("Missing worker stdin")?
-                .write_all(&serde_json::to_vec(&job).map_err(|e| e.to_string())?)
-                .map_err(|e| e.to_string())?;
+            send_job(&mut child, &job, &log)?;
             let stdout = child.stdout.take().ok_or("Missing worker stdout")?;
             let child = Arc::new(Mutex::new(child));
             let _ = tx.send(Event::Started(child.clone()));
@@ -328,12 +351,14 @@ fn start(
                 .wait()
                 .map_err(|e| e.to_string())?;
             if !status.success() {
-                return Err(error.unwrap_or_else(|| {
-                    "Job stopped/cancelled. See worker.log in the output folder.".into()
+                // Killed by Stop (a signal) is a cancel; anything else is a failure with a log.
+                return Err(error.unwrap_or_else(|| match status.code() {
+                    None => "Job stopped/cancelled.".into(),
+                    Some(code) => worker_failed(&format!("The instruction worker failed (exit {code})"), &log),
                 }));
             }
             result.ok_or_else(|| {
-                error.unwrap_or_else(|| "Worker returned no output; see worker.log".into())
+                error.unwrap_or_else(|| worker_failed("The instruction worker returned no output", &log))
             })
         };
         let _ = tx.send(Event::Finished(run()));
@@ -575,6 +600,23 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, kind: Kind) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn worker_errors_show_the_log_tail() {
+        let dir = std::env::temp_dir().join(format!("sb-log-tail-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let log = dir.join("worker.log");
+        std::fs::write(&log, "noise\nTraceback (most recent call last):\n  File \"<string>\", line 7\nModuleNotFoundError: No module named 'PIL'\n").unwrap();
+        let text = worker_failed("The instruction worker stopped before reading its job", &log);
+        assert!(text.contains("No module named 'PIL'") && !text.contains("noise"), "{text}");
+        let mut child = Command::new("/bin/sh").args(["-c", "echo boom >&2; exit 3"]).stdin(Stdio::piped())
+            .stderr(Stdio::from(std::fs::File::create(&log).unwrap())).spawn().unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let big = serde_json::json!({"pad": "x".repeat(1 << 20)});
+        let err = send_job(&mut child, &big, &log).unwrap_err();
+        assert!(err.contains("boom") && err.contains("exit 3"), "{err}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn export_is_a_new_copy_without_private_job_or_log() {
         let root = std::env::temp_dir().join(format!(
