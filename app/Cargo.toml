@@ -1,0 +1,27 @@
+[package]
+name = "cad-app"
+description = "SuperBrick, the desktop app: dockable 3D views, parts, inspector and (later) the AI builder"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "sb"
+path = "src/main.rs"
+
+[dependencies]
+png.workspace = true
+ldraw.workspace = true
+render.workspace = true
+engine.workspace = true
+cli.workspace = true
+store.workspace = true
+ops.workspace = true
+search.workspace = true
+serde_json.workspace = true
+glam.workspace = true
+wgpu.workspace = true
+eframe = { version = "0.36", default-features = false, features = ["wgpu", "default_fonts", "accesskit"] }
+egui = "0.36"
+egui_dock = "0.21"
+rfd = "0.18"

@@ -1,0 +1,175 @@
+# query<TAB>acceptable LDraw ids (comma separated). "## name" starts a group.
+## name
+2x2 brick	3003
+brick 2x4	3001
+1x1 brick	3005
+1x2 brick	3004
+1x4 brick	3010
+1x6 brick	3009
+1x8 brick	3008
+2x3 brick	3002
+2x6 brick	2456
+1x2 plate	3023b
+2x2 plate	3022
+2x4 plate	3020
+1x1 plate	3024
+1x4 plate	3710
+1x6 plate	3666
+2x3 plate	3021
+2x6 plate	3795
+4x4 plate	3031
+6x6 plate	3958
+1x3 plate	3623
+1x1 tile	3070b
+1x2 tile	3069b
+2x2 tile	3068b
+1x4 tile	2431
+1x1 round plate	6141
+1x1 round tile	98138
+2x2 round tile	14769
+1x1 round brick	3062b
+2x2 round brick	3941
+1x1 cone	4589
+2x2 round plate	4032a,4032b
+corner plate 2x2	2420
+2x2 corner brick	2357
+slope 45 2x2	3039
+slope 45 2x1	3040b
+inverted slope 45 2x2	3660a
+inverted slope 2x1	3665a
+slope 33 3x2	3298
+slope 18 4x2	30363
+curved slope 2x2	15068
+curved slope 1x2	11477
+grille tile 1x2	2412b
+tile 1x2 with handle	2432
+baseplate 32x32	3811
+baseplate 48x48	4186
+arch 1x4	3659
+fence 1x4x1	3633
+hinge brick 1x2	3937,3938,3937c01
+turntable 2x2	3680,3679,3680c01
+1x2 plate with door rail	32028
+quarter round tile 1x1	25269
+macaroni tile 2x2	27925
+bracket 1x2 2x2	44728
+bracket 1x2 1x2	99780,99781
+duplo brick 2x4	3011
+flag 2x2	2335
+dish 4x4	3960
+slope 75 2x2x3	3684a
+slope 65 2x1x2	60481a
+brick 1x1 with stud on side	87087
+brick 1x4 with studs on side	30414
+brick 1x2 with studs on side	11211
+headlight brick	4070
+plate 1x1 round with open stud	85861
+tile 1x1 with clip	2555
+plate 1x1 with vertical clip	4085c,60897
+plate 1x1 with horizontal clip	61252
+window 1x2x2	60592
+panel 1x2x1	4865b,4865a
+technic pin	3673
+technic pin with friction	2780
+technic axle 3	4519
+technic axle 2	32062,3704
+technic beam 5	32316
+liftarm 1x3	32523
+technic brick 1x2 with hole	3700
+technic brick 1x4	3701
+technic bush	3713
+gear 24 tooth	3648b
+minifig head	3626c,3626b
+minifig torso	973
+minifig legs	3815c01
+minifig hand	3820
+bar 4L	30374
+jumper plate	3794b,15573
+2x2 jumper	87580
+cheese slope	54200
+plate 2x2 with one stud	87580
+## rebrickable name
+Slope 30 1 x 1 x 2/3	54200
+Tile Round 1 x 1	98138
+Brick Round 1 x 1	3062b
+Plate Round 1 x 1	6141
+Slope Curved 2 x 2	15068
+Brick Special 1 x 1 with Stud on 1 Side	87087
+Technic Pin with Friction Ridges Lengthwise	2780
+Plate 2 x 2 Corner	2420
+Tile Round 1 x 1 Quarter	25269
+## typo
+brik 2x2	3003
+plat 1x2	3023b
+tyle 1x1	3070b
+slop 45 2x2	3039
+breck 2x4	3001
+2x2 tiel	3068b
+roud plate 1x1	6141
+curvd slope 2x2	15068
+tecnic pin	3673
+bracket 1x2 2x2	44728
+## format
+2 x 2 brick	3003
+brick 2 by 4	3001
+two by two brick	3003
+one by one plate	3024
+2x1 plate	3023b
+4x2 brick	3001
+plate 4x2	3020
+BRICK 2X2	3003
+1 x 1 tile	3070b
+3003	3003
+54200	54200
+3070	3070b
+3794	3794b
+## colour
+red 2x2 brick	3003
+dark bluish gray 1x4 tile	2431
+light bluish grey 2x2 plate	3022
+trans clear 1x1 round plate	6141
+black 1x2 plate	3023b
+white 1x1 tile	3070b
+tan 2x4 brick	3001
+reddish brown 1x2 brick	3004
+lbg 1x6 plate	3666
+dbg cheese slope	54200
+## describe
+small flat square piece with no studs	3070b
+flat smooth 2x2	3068b
+thin 2 by 4	3020
+smooth 1x2	3069b
+brick that has a stud on its side	87087
+plate with a single stud in the middle	3794b,15573
+round 1x1 stud plate	6141
+tiny round flat tile	98138
+small slope 1x1	54200
+curved roof piece 2x2	15068
+piece to attach things sideways 1x2 to 2x2	44728
+upside down slope 2x1	3665a
+l shaped plate	2420
+l shaped brick	2357
+round brick 2x2	3941
+brick with a hole for technic pin	3700
+long technic beam with 5 holes	32316
+pin to connect technic beams	3673,2780
+cross axle length 3	4519
+quarter circle tile	25269
+tile with a handle	2432
+plate with rail for sliding doors	32028
+vent tile 1x2	2412b
+big green baseplate 32x32	3811
+minifigure head	3626c,3626b
+minifig body	973
+lego man legs	3815c01
+rotating plate 2x2	3680,3679,3680c01
+1x1 round plate with hole in the stud	85861
+stick 4 studs long	30374
+brick 1x1 with headlight	4070
+window frame 1x2x2	60592
+plate 2 by 2 with one stud in center	87580
+snot brick 1x1	87087
+technic gear with 24 teeth	3648b
+triangle tile 2x2	35787
+1x1 plate with tooth	49668
+1x2 plate with handle on side	48336

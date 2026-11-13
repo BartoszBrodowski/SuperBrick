@@ -1,0 +1,16 @@
+[package]
+name = "ldraw"
+description = "LDraw library (zip or folders), colours, geometry flattening and lossless LDR/MPD I/O; a port of bench-next/ldraw.py"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+glam.workspace = true
+memmap2.workspace = true
+miniz_oxide.workspace = true
+parking_lot.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

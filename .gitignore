@@ -1,0 +1,19 @@
+# Build output
+target/
+**/target/
+
+# Python and macOS clutter
+__pycache__/
+*.pyc
+.DS_Store
+
+# Downloaded or generated data (large; regenerate as described in spikes/search/FINDINGS.md)
+spikes/search/data/
+spikes/search/models/
+spikes/search/out/
+tools/golden/out/
+
+# Local project files and scratch output
+*.sb
+*.sb-wal
+*.sb-shm

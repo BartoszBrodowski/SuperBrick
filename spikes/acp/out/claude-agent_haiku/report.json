@@ -1,0 +1,104 @@
+{
+  "initialize": {
+    "agentCapabilities": {
+      "_meta": {
+        "opencode/child-session-updates": true
+      },
+      "loadSession": true,
+      "mcpCapabilities": {
+        "http": true,
+        "sse": false
+      },
+      "promptCapabilities": {
+        "embeddedContext": true,
+        "image": true
+      },
+      "sessionCapabilities": {
+        "additionalDirectories": {},
+        "close": {},
+        "delete": {},
+        "fork": {},
+        "list": {},
+        "resume": {}
+      }
+    },
+    "agentInfo": {
+      "name": "OpenCode",
+      "version": "2.2.5"
+    },
+    "authMethods": [
+      {
+        "description": "Run `opencode auth login` in the terminal",
+        "id": "opencode-login",
+        "name": "Login with opencode"
+      }
+    ],
+    "protocolVersion": 1
+  },
+  "mcp_connections": 1,
+  "mcp_via": "session/new",
+  "model": "claude-agent/haiku",
+  "probes": [
+    {
+      "cad_calls": [],
+      "first_text_ms": null,
+      "ms": 9774,
+      "n": 1,
+      "pass": false,
+      "permissions": [],
+      "probe": "mcp",
+      "reply": "",
+      "stop": "session/prompt: {\"code\":-32603,\"data\":{\"errorName\":\"provider.unknown\",\"service\":\"session\"},\"message\":\"Internal error: Not logged in · Run `claude auth login` in a terminal\"}",
+      "tool_calls": [],
+      "tool_updates": [],
+      "updates": {
+        "available_commands_update": 1,
+        "config_option_update": 1
+      }
+    },
+    {
+      "cad_calls": [],
+      "first_text_ms": null,
+      "ms": 141,
+      "n": 2,
+      "pass": false,
+      "permissions": [],
+      "probe": "image",
+      "reply": "",
+      "stop": "session/prompt: {\"code\":-32603,\"data\":{\"errorName\":\"provider.unknown\",\"service\":\"session\"},\"message\":\"Internal error: Not logged in · Run `claude auth login` in a terminal\"}",
+      "tool_calls": [],
+      "tool_updates": [],
+      "updates": {}
+    },
+    {
+      "cad_calls": [],
+      "first_text_ms": null,
+      "ms": 42,
+      "n": 3,
+      "pass": false,
+      "permissions": [],
+      "probe": "tool-img",
+      "reply": "",
+      "stop": "session/prompt: {\"code\":-32603,\"data\":{\"errorName\":\"provider.unknown\",\"service\":\"session\"},\"message\":\"Internal error: Not logged in · Run `claude auth login` in a terminal\"}",
+      "tool_calls": [],
+      "tool_updates": [],
+      "updates": {}
+    },
+    {
+      "cad_calls": [],
+      "first_text_ms": null,
+      "ms": 59,
+      "n": 4,
+      "pass": true,
+      "permissions": [],
+      "probe": "sandbox",
+      "reply": "",
+      "stop": "session/prompt: {\"code\":-32603,\"data\":{\"errorName\":\"provider.unknown\",\"service\":\"session\"},\"message\":\"Internal error: Not logged in · Run `claude auth login` in a terminal\"}",
+      "tool_calls": [],
+      "tool_updates": [],
+      "updates": {}
+    }
+  ],
+  "scratch_files": [],
+  "session_model": "?"
+}

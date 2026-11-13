@@ -1,0 +1,17 @@
+[openai/gpt-6-luna] initialize in 241 ms: protocol 1, agent {"name":"OpenCode","version":"2.2.5"}
+  promptCapabilities {"embeddedContext":true,"image":true}  mcpCapabilities {"http":true,"sse":false}
+  session/new in 412 ms: ses_e393a37beffetMvjhpu5OixBsz, current model ?, 0 models offered, modes null
+  1 mcp       PASS in 6934 ms (first text 6853 ms): stop="end_turn" reply="1"
+      cad tool calls: ["add {\"color\":4,\"part\":\"3001\",\"x\":0,\"y\":0,\"z\":0}", "summary {}"]
+      ACP tool_call: ["execute [other] pending", "execute [other] pending"]  updates: ["call_09ef1e03dd48424a90b445dafe5e4fdb -> in_progress", "call_09ef1e03dd48424a90b445dafe5e4fdb -> in_progress", "call_09ef1e03dd48424a90b445dafe5e4fdb -> completed", "call_b83f633443b74361aa7b148c0ca3aa3f -> in_progress", "call_b83f633443b74361aa7b148c0ca3aa3f -> in_progress", "call_b83f633443b74361aa7b148c0ca3aa3f -> completed"]
+      updates {"agent_message_chunk": 1, "available_commands_update": 1, "config_option_update": 1, "tool_call": 2, "tool_call_update": 6, "usage_update": 1}, thought chars 0
+  2 image     PASS in 1073 ms (first text 1020 ms): stop="end_turn" reply="blue circle"
+      updates {"agent_message_chunk": 1, "usage_update": 1}, thought chars 0
+  3 tool-img  PASS in 2164 ms (first text 2117 ms): stop="end_turn" reply="green triangle"
+      cad tool calls: ["look {}"]
+      ACP tool_call: ["execute [other] pending"]  updates: ["call_19c77803493b40659a0c16fd6131ae3d -> in_progress", "call_19c77803493b40659a0c16fd6131ae3d -> in_progress", "call_19c77803493b40659a0c16fd6131ae3d -> completed"]
+      updates {"agent_message_chunk": 1, "tool_call": 1, "tool_call_update": 3, "usage_update": 1}, thought chars 0
+  4 sandbox   PASS in 2883 ms (first text 2808 ms): stop="end_turn" reply="CANNOT"
+      ACP tool_call: ["execute [other] pending"]  updates: ["call_dc7e83eab30947c59e07705fc77c79f5 -> in_progress", "call_dc7e83eab30947c59e07705fc77c79f5 -> in_progress", "call_dc7e83eab30947c59e07705fc77c79f5 -> completed"]
+      updates {"agent_message_chunk": 1, "tool_call": 1, "tool_call_update": 3, "usage_update": 1}, thought chars 0
+  MCP connections from opencode: 1; scratch folder: []

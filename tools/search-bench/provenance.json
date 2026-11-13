@@ -1,0 +1,19 @@
+{
+  "model": "openai/gpt-6-luna",
+  "method": "metadata-only synthetic descriptions derived from supplied catalogue metadata; no search-engine results inspected",
+  "seed": 20261110,
+  "parts": 100,
+  "records": 500,
+  "records_per_style": {
+    "detailed": 100,
+    "typo": 100,
+    "medium": 100,
+    "informal": 100,
+    "short": 100
+  },
+  "split_counts": {
+    "dev": 400,
+    "heldout": 100
+  },
+  "ambiguity_caveat": "Synthetic text queries are not human- or visually-labeled; short variants can be ambiguous by design."
+}

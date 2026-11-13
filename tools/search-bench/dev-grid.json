@@ -1,0 +1,203 @@
+{
+  "reports": [
+    {
+      "by_style": {
+        "detailed": {
+          "queries": 80,
+          "top10": 0.5375
+        },
+        "informal": {
+          "queries": 80,
+          "top10": 0.5
+        },
+        "medium": {
+          "queries": 80,
+          "top10": 0.5125
+        },
+        "short": {
+          "queries": 80,
+          "top10": 0.2875
+        },
+        "typo": {
+          "queries": 80,
+          "top10": 0.5125
+        }
+      },
+      "failures": [],
+      "mrr50": 0.3048219258370114,
+      "p95_ms": 11.229833999999999,
+      "profile": "baseline",
+      "queries": 400,
+      "split": "dev",
+      "top1": 0.2025,
+      "top10": 0.47,
+      "top5": 0.4125
+    },
+    {
+      "by_style": {
+        "detailed": {
+          "queries": 80,
+          "top10": 0.6375
+        },
+        "informal": {
+          "queries": 80,
+          "top10": 0.6375
+        },
+        "medium": {
+          "queries": 80,
+          "top10": 0.6375
+        },
+        "short": {
+          "queries": 80,
+          "top10": 0.7125
+        },
+        "typo": {
+          "queries": 80,
+          "top10": 0.6375
+        }
+      },
+      "failures": [],
+      "mrr50": 0.6046030941280941,
+      "p95_ms": 10.251207999999998,
+      "profile": "balanced",
+      "queries": 400,
+      "split": "dev",
+      "top1": 0.57,
+      "top10": 0.6525,
+      "top5": 0.6425
+    },
+    {
+      "by_style": {
+        "detailed": {
+          "queries": 80,
+          "top10": 0.6375
+        },
+        "informal": {
+          "queries": 80,
+          "top10": 0.6375
+        },
+        "medium": {
+          "queries": 80,
+          "top10": 0.6375
+        },
+        "short": {
+          "queries": 80,
+          "top10": 0.75
+        },
+        "typo": {
+          "queries": 80,
+          "top10": 0.6375
+        }
+      },
+      "failures": [],
+      "mrr50": 0.6138298579688286,
+      "p95_ms": 11.00075,
+      "profile": "lexical",
+      "queries": 400,
+      "split": "dev",
+      "top1": 0.585,
+      "top10": 0.66,
+      "top5": 0.6525
+    },
+    {
+      "by_style": {
+        "detailed": {
+          "queries": 80,
+          "top10": 0.6375
+        },
+        "informal": {
+          "queries": 80,
+          "top10": 0.6375
+        },
+        "medium": {
+          "queries": 80,
+          "top10": 0.6375
+        },
+        "short": {
+          "queries": 80,
+          "top10": 0.7375
+        },
+        "typo": {
+          "queries": 80,
+          "top10": 0.6375
+        }
+      },
+      "failures": [],
+      "mrr50": 0.6127451118326119,
+      "p95_ms": 10.21425,
+      "profile": "precise",
+      "queries": 400,
+      "split": "dev",
+      "top1": 0.585,
+      "top10": 0.6575,
+      "top5": 0.65
+    },
+    {
+      "by_style": {
+        "detailed": {
+          "queries": 80,
+          "top10": 0.6375
+        },
+        "informal": {
+          "queries": 80,
+          "top10": 0.6375
+        },
+        "medium": {
+          "queries": 80,
+          "top10": 0.6375
+        },
+        "short": {
+          "queries": 80,
+          "top10": 0.7375
+        },
+        "typo": {
+          "queries": 80,
+          "top10": 0.6375
+        }
+      },
+      "failures": [],
+      "mrr50": 0.6131129124895572,
+      "p95_ms": 11.332917,
+      "profile": "semantic",
+      "queries": 400,
+      "split": "dev",
+      "top1": 0.5825,
+      "top10": 0.6575,
+      "top5": 0.6525
+    },
+    {
+      "by_style": {
+        "detailed": {
+          "queries": 80,
+          "top10": 0.6375
+        },
+        "informal": {
+          "queries": 80,
+          "top10": 0.6375
+        },
+        "medium": {
+          "queries": 80,
+          "top10": 0.6375
+        },
+        "short": {
+          "queries": 80,
+          "top10": 0.75
+        },
+        "typo": {
+          "queries": 80,
+          "top10": 0.6375
+        }
+      },
+      "failures": [],
+      "mrr50": 0.6142632275132275,
+      "p95_ms": 10.788917,
+      "profile": "no-priors",
+      "queries": 400,
+      "split": "dev",
+      "top1": 0.5825,
+      "top10": 0.66,
+      "top5": 0.6525
+    }
+  ],
+  "split": "dev"
+}

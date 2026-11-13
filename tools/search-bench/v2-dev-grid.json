@@ -1,0 +1,236 @@
+{
+  "reports": [
+    {
+      "by_style": {
+        "detailed": {
+          "queries": 80,
+          "top10": 0.7875
+        },
+        "informal": {
+          "queries": 80,
+          "top10": 0.725
+        },
+        "medium": {
+          "queries": 80,
+          "top10": 0.625
+        },
+        "short": {
+          "queries": 80,
+          "top10": 0.4125
+        },
+        "typo": {
+          "queries": 80,
+          "top10": 0.75
+        }
+      },
+      "failures": [],
+      "mrr50": 0.4114259936011234,
+      "p95_ms": 12.747875,
+      "profile": "baseline",
+      "queries": 400,
+      "split": "dev",
+      "top1": 0.2725,
+      "top10": 0.66,
+      "top5": 0.59
+    },
+    {
+      "by_style": {
+        "detailed": {
+          "queries": 80,
+          "top10": 0.9875
+        },
+        "informal": {
+          "queries": 80,
+          "top10": 1.0
+        },
+        "medium": {
+          "queries": 80,
+          "top10": 0.9125
+        },
+        "short": {
+          "queries": 80,
+          "top10": 0.725
+        },
+        "typo": {
+          "queries": 80,
+          "top10": 1.0
+        }
+      },
+      "failures": [],
+      "mrr50": 0.8660959116257323,
+      "p95_ms": 13.140583000000001,
+      "profile": "adaptive",
+      "queries": 400,
+      "split": "dev",
+      "top1": 0.83,
+      "top10": 0.925,
+      "top5": 0.9025
+    },
+    {
+      "by_style": {
+        "detailed": {
+          "queries": 80,
+          "top10": 1.0
+        },
+        "informal": {
+          "queries": 80,
+          "top10": 1.0
+        },
+        "medium": {
+          "queries": 80,
+          "top10": 0.9125
+        },
+        "short": {
+          "queries": 80,
+          "top10": 0.9
+        },
+        "typo": {
+          "queries": 80,
+          "top10": 1.0
+        }
+      },
+      "failures": [],
+      "mrr50": 0.8687716810942541,
+      "p95_ms": 12.320625,
+      "profile": "balanced",
+      "queries": 400,
+      "split": "dev",
+      "top1": 0.8125,
+      "top10": 0.9625,
+      "top5": 0.9325
+    },
+    {
+      "by_style": {
+        "detailed": {
+          "queries": 80,
+          "top10": 0.9875
+        },
+        "informal": {
+          "queries": 80,
+          "top10": 1.0
+        },
+        "medium": {
+          "queries": 80,
+          "top10": 0.9125
+        },
+        "short": {
+          "queries": 80,
+          "top10": 0.9125
+        },
+        "typo": {
+          "queries": 80,
+          "top10": 1.0
+        }
+      },
+      "failures": [],
+      "mrr50": 0.8925287990266437,
+      "p95_ms": 12.453083999999999,
+      "profile": "lexical",
+      "queries": 400,
+      "split": "dev",
+      "top1": 0.8475,
+      "top10": 0.9625,
+      "top5": 0.9425
+    },
+    {
+      "by_style": {
+        "detailed": {
+          "queries": 80,
+          "top10": 0.9875
+        },
+        "informal": {
+          "queries": 80,
+          "top10": 0.9875
+        },
+        "medium": {
+          "queries": 80,
+          "top10": 0.9125
+        },
+        "short": {
+          "queries": 80,
+          "top10": 0.9125
+        },
+        "typo": {
+          "queries": 80,
+          "top10": 0.9875
+        }
+      },
+      "failures": [],
+      "mrr50": 0.8839857620162445,
+      "p95_ms": 12.4325,
+      "profile": "precise",
+      "queries": 400,
+      "split": "dev",
+      "top1": 0.8425,
+      "top10": 0.9575,
+      "top5": 0.9325
+    },
+    {
+      "by_style": {
+        "detailed": {
+          "queries": 80,
+          "top10": 1.0
+        },
+        "informal": {
+          "queries": 80,
+          "top10": 1.0
+        },
+        "medium": {
+          "queries": 80,
+          "top10": 0.9125
+        },
+        "short": {
+          "queries": 80,
+          "top10": 0.925
+        },
+        "typo": {
+          "queries": 80,
+          "top10": 1.0
+        }
+      },
+      "failures": [],
+      "mrr50": 0.8931962991329224,
+      "p95_ms": 12.376958,
+      "profile": "semantic",
+      "queries": 400,
+      "split": "dev",
+      "top1": 0.85,
+      "top10": 0.9675,
+      "top5": 0.9425
+    },
+    {
+      "by_style": {
+        "detailed": {
+          "queries": 80,
+          "top10": 0.9875
+        },
+        "informal": {
+          "queries": 80,
+          "top10": 1.0
+        },
+        "medium": {
+          "queries": 80,
+          "top10": 0.9
+        },
+        "short": {
+          "queries": 80,
+          "top10": 0.9
+        },
+        "typo": {
+          "queries": 80,
+          "top10": 1.0
+        }
+      },
+      "failures": [],
+      "mrr50": 0.8909385932970919,
+      "p95_ms": 12.273125,
+      "profile": "no-priors",
+      "queries": 400,
+      "split": "dev",
+      "top1": 0.8475,
+      "top10": 0.9575,
+      "top5": 0.9425
+    }
+  ],
+  "split": "dev"
+}

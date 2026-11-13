@@ -1,0 +1,148 @@
+{
+  "initialize": {
+    "agentCapabilities": {
+      "_meta": {
+        "opencode/child-session-updates": true
+      },
+      "loadSession": true,
+      "mcpCapabilities": {
+        "http": true,
+        "sse": false
+      },
+      "promptCapabilities": {
+        "embeddedContext": true,
+        "image": true
+      },
+      "sessionCapabilities": {
+        "additionalDirectories": {},
+        "close": {},
+        "delete": {},
+        "fork": {},
+        "list": {},
+        "resume": {}
+      }
+    },
+    "agentInfo": {
+      "name": "OpenCode",
+      "version": "2.2.5"
+    },
+    "authMethods": [
+      {
+        "description": "Run `opencode auth login` in the terminal",
+        "id": "opencode-login",
+        "name": "Login with opencode"
+      }
+    ],
+    "protocolVersion": 1
+  },
+  "mcp_connections": 1,
+  "mcp_via": "config",
+  "model": "openai/gpt-6-luna",
+  "probes": [
+    {
+      "cad_calls": [
+        "add {\"color\":4,\"part\":\"3001\",\"x\":0,\"y\":0,\"z\":0}",
+        "summary {}"
+      ],
+      "first_text_ms": 5063,
+      "ms": 5139,
+      "n": 1,
+      "pass": true,
+      "permissions": [],
+      "probe": "mcp",
+      "reply": "1",
+      "stop": "end_turn",
+      "tool_calls": [
+        "execute [other] pending",
+        "execute [other] pending"
+      ],
+      "tool_updates": [
+        "call_a9041339ae544b7898bf7bd9c2d3bd50 -> in_progress",
+        "call_a9041339ae544b7898bf7bd9c2d3bd50 -> in_progress",
+        "call_a9041339ae544b7898bf7bd9c2d3bd50 -> completed",
+        "call_43dccee2791343079cfe1009326aae76 -> in_progress",
+        "call_43dccee2791343079cfe1009326aae76 -> in_progress",
+        "call_43dccee2791343079cfe1009326aae76 -> completed"
+      ],
+      "updates": {
+        "agent_message_chunk": 1,
+        "available_commands_update": 1,
+        "config_option_update": 1,
+        "tool_call": 2,
+        "tool_call_update": 6,
+        "usage_update": 1
+      }
+    },
+    {
+      "cad_calls": [],
+      "first_text_ms": 1286,
+      "ms": 1379,
+      "n": 2,
+      "pass": true,
+      "permissions": [],
+      "probe": "image",
+      "reply": "blue circle",
+      "stop": "end_turn",
+      "tool_calls": [],
+      "tool_updates": [],
+      "updates": {
+        "agent_message_chunk": 1,
+        "usage_update": 1
+      }
+    },
+    {
+      "cad_calls": [
+        "look {}"
+      ],
+      "first_text_ms": 2716,
+      "ms": 2768,
+      "n": 3,
+      "pass": true,
+      "permissions": [],
+      "probe": "tool-img",
+      "reply": "green triangle",
+      "stop": "end_turn",
+      "tool_calls": [
+        "execute [other] pending"
+      ],
+      "tool_updates": [
+        "call_0bdde4ea05c44d928ba29abdb5c218a8 -> in_progress",
+        "call_0bdde4ea05c44d928ba29abdb5c218a8 -> in_progress",
+        "call_0bdde4ea05c44d928ba29abdb5c218a8 -> completed"
+      ],
+      "updates": {
+        "agent_message_chunk": 1,
+        "tool_call": 1,
+        "tool_call_update": 3,
+        "usage_update": 1
+      }
+    },
+    {
+      "cad_calls": [],
+      "first_text_ms": 3249,
+      "ms": 3418,
+      "n": 4,
+      "pass": true,
+      "permissions": [],
+      "probe": "sandbox",
+      "reply": "CANNOT",
+      "stop": "end_turn",
+      "tool_calls": [
+        "execute [other] pending"
+      ],
+      "tool_updates": [
+        "call_3f900a96c3e448139a95e4b6bf5c225a -> in_progress",
+        "call_3f900a96c3e448139a95e4b6bf5c225a -> in_progress",
+        "call_3f900a96c3e448139a95e4b6bf5c225a -> completed"
+      ],
+      "updates": {
+        "agent_message_chunk": 1,
+        "tool_call": 1,
+        "tool_call_update": 3,
+        "usage_update": 1
+      }
+    }
+  ],
+  "scratch_files": [],
+  "session_model": "?"
+}

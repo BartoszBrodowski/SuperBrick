@@ -1,0 +1,19 @@
+[package]
+name = "ops"
+description = "SuperBrick operations: the one core behind the MCP server, the headless CLI and (in time) the GUI"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+engine.workspace = true
+store.workspace = true
+ldraw.workspace = true
+render.workspace = true
+search.workspace = true
+glam.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+png.workspace = true
+ab_glyph = "0.2"
+epaint_default_fonts = "0.36"

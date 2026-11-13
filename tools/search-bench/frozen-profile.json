@@ -1,0 +1,11 @@
+{
+  "selected_profile": "adaptive",
+  "query_sha256": "4a1184495fc98229da6bbb18e8e07fc630a43d506df06a5976db0f6a1c082a04",
+  "sample_seed": 20261110,
+  "selection": "Dev-only selection: preserve >=90% legacy top1 while raising dev top10; no heldout query or failure inspection",
+  "dev_top10": 0.925,
+  "dev_baseline_top10": 0.66,
+  "legacy_top1": 0.9107142857142857,
+  "production_weights": "legacy (1,.2,1.5,.6,1), descriptive (4,1,.3,.7,.3) when decor/informative>=6/rare>=2; leading-only colour extraction",
+  "heldout_evaluated_before_freeze": false
+}

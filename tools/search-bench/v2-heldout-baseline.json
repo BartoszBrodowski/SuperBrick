@@ -1,0 +1,38 @@
+{
+  "reports": [
+    {
+      "by_style": {
+        "detailed": {
+          "queries": 20,
+          "top10": 0.8
+        },
+        "informal": {
+          "queries": 20,
+          "top10": 0.8
+        },
+        "medium": {
+          "queries": 20,
+          "top10": 0.65
+        },
+        "short": {
+          "queries": 20,
+          "top10": 0.2
+        },
+        "typo": {
+          "queries": 20,
+          "top10": 0.85
+        }
+      },
+      "failures": [],
+      "mrr50": 0.3576443139677437,
+      "p95_ms": 14.246833,
+      "profile": "baseline",
+      "queries": 100,
+      "split": "heldout",
+      "top1": 0.23,
+      "top10": 0.66,
+      "top5": 0.55
+    }
+  ],
+  "split": "heldout"
+}

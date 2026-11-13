@@ -1,0 +1,33 @@
+{
+  "version": "v2",
+  "scope": "100 parts sampled in sample.json; five synthetic query styles per part, preserving supplied split assignments",
+  "source": "sample.json descriptions and supplied metadata only; no search code, results, or dev scores inspected",
+  "model": "openai/gpt-6-luna",
+  "seed": 20261110,
+  "counts": {
+    "parts": 100,
+    "records": 500,
+    "per_style": {
+      "short": 100,
+      "medium": 100,
+      "detailed": 100,
+      "informal": 100,
+      "typo": 100
+    },
+    "dev_parts": 80,
+    "heldout_parts": 20
+  },
+  "limitations": "Synthetic paraphrases, not human-written or visually verified labels. Queries are derived solely from textual metadata; ambiguity and imperfect paraphrase remain possible. Length violations are reported below.",
+  "length_violations": [
+    {
+      "part_id": "t43219",
+      "style": "medium",
+      "word_count": 5
+    },
+    {
+      "part_id": "40234",
+      "style": "medium",
+      "word_count": 5
+    }
+  ]
+}

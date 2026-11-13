@@ -1,0 +1,3983 @@
+{
+  "reports": [
+    {
+      "by_style": {
+        "detailed": {
+          "queries": 80,
+          "top10": 0.6375
+        },
+        "informal": {
+          "queries": 80,
+          "top10": 0.6375
+        },
+        "medium": {
+          "queries": 80,
+          "top10": 0.6375
+        },
+        "short": {
+          "queries": 80,
+          "top10": 0.75
+        },
+        "typo": {
+          "queries": 80,
+          "top10": 0.6375
+        }
+      },
+      "failures": [
+        {
+          "expected": [
+            "3039d06"
+          ],
+          "query": "Slope Brick 45 Yellow Sticker",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Slope Brick 45  2 x  2",
+              "id": "3039"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  4",
+              "id": "3037"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  3",
+              "id": "3038"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  1",
+              "id": "3040b"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  8",
+              "id": "4445"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3039d06"
+          ],
+          "query": "Find the slope brick 45 2 x 2 with black and red flight controls on yellow sticker for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Slope Brick 45  2 x  2",
+              "id": "3039"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double Convex with 45 Corner",
+              "id": "13548"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double",
+              "id": "3043"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double Convex",
+              "id": "3045"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Inverted Double Convex",
+              "id": "3676"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3039d06"
+          ],
+          "query": "I need a slope brick 45 2 x 2 with black and red flight controls on yellow sticker piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Slope Brick 45  2 x  2",
+              "id": "3039"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double Convex with 45 Corner",
+              "id": "13548"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double",
+              "id": "3043"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double Convex",
+              "id": "3045"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double Concave",
+              "id": "3046"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3039d06"
+          ],
+          "query": "Looking for that slope brick 45 2 x 2 with black and red flight controls on yellow sticker element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Slope Brick 45  2 x  2",
+              "id": "3039"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double Convex with 45 Corner",
+              "id": "13548"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double",
+              "id": "3043"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double Convex",
+              "id": "3045"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Inverted Double Convex",
+              "id": "3676"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3039d06"
+          ],
+          "query": "Search for slope brick 45 2 x 2 with black and red flight controls on yellow sticker peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Slope Brick 45  2 x  2",
+              "id": "3039"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double",
+              "id": "3043"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double Convex with 45 Corner",
+              "id": "13548"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double Convex",
+              "id": "3045"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Inverted Double Convex",
+              "id": "3676"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "92253p05"
+          ],
+          "query": "Find the figure friends legs with trousers with light nougat ankles and dark turquoise shoes for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Hips and Legs Short without Hole",
+              "id": "41879a"
+            },
+            {
+              "desc": "Figure Feet  2 x  2 x  0.667",
+              "id": "66858"
+            },
+            {
+              "desc": "Technic Action Figure Helmet (Needs Work)",
+              "id": "2715"
+            },
+            {
+              "desc": "Animal Horse Saddle Friends",
+              "id": "93086"
+            },
+            {
+              "desc": "Technic Ski",
+              "id": "2713"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "92253p05"
+          ],
+          "query": "I need a figure friends legs with trousers with light nougat ankles and dark turquoise shoes piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Plate  6 x  6 with Heart Shape",
+              "id": "46342"
+            },
+            {
+              "desc": "Technic Action Figure Helmet (Needs Work)",
+              "id": "2715"
+            },
+            {
+              "desc": "Plate  4 x  4 x  0.667 with Five Point Star Shape",
+              "id": "39611"
+            },
+            {
+              "desc": "Minifig Helmet Classic with Thin Chin Guard Unbroken",
+              "id": "50665"
+            },
+            {
+              "desc": "Technic Connector  3 x  4.5 x  2.333 with Pin (Needs Work)",
+              "id": "32576"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "92253p05"
+          ],
+          "query": "Looking for that figure friends legs with trousers with light nougat ankles and dark turquoise shoes element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Hat Conical Asian with Curved Sides",
+              "id": "26007"
+            },
+            {
+              "desc": "Minifig Hat with Wide Brim Down",
+              "id": "13788"
+            },
+            {
+              "desc": "Minifig Hips and Legs Short without Hole",
+              "id": "41879a"
+            },
+            {
+              "desc": "Wheel Rim 12.7 x 30 Stepped",
+              "id": "2695"
+            },
+            {
+              "desc": "Minifig Cap with Short Arched Peak with Seams and Top Pin Hole",
+              "id": "11303"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "92253p05"
+          ],
+          "query": "Search for figure friends legs with trousers with light nougat ankles and dark turquoise shoes peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Hips and Legs Short without Hole",
+              "id": "41879a"
+            },
+            {
+              "desc": "Figure Feet  2 x  2 x  0.667",
+              "id": "66858"
+            },
+            {
+              "desc": "Technic Action Figure Helmet (Needs Work)",
+              "id": "2715"
+            },
+            {
+              "desc": "Animal Horse Saddle Friends",
+              "id": "93086"
+            },
+            {
+              "desc": "Technic Ski",
+              "id": "2713"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "4480c03"
+          ],
+          "query": "Find the bike 2 wheel motorcycle with trans-clear wheels (complete) for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Bike  2 Wheel Motorcycle Fairing Racing",
+              "id": "18895"
+            },
+            {
+              "desc": "Wheel 17 x 75 Motorcycle with Holes in Rim",
+              "id": "88517"
+            },
+            {
+              "desc": "Sheet Plastic  8.5 x  7 Motorcycle Windscreen",
+              "id": "67144"
+            },
+            {
+              "desc": "Motorcycle Windshield",
+              "id": "4483"
+            },
+            {
+              "desc": "Wheel Minifig Bicycle with Integral Rubber Black Tyre",
+              "id": "92851"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "4480c03"
+          ],
+          "query": "I need a bike 2 wheel motorcycle with trans-clear wheels (complete) piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Bike  2 Wheel Motorcycle Fairing Racing",
+              "id": "18895"
+            },
+            {
+              "desc": "Wheel 17 x 75 Motorcycle with Holes in Rim",
+              "id": "88517"
+            },
+            {
+              "desc": "Sheet Plastic  8.5 x  7 Motorcycle Windscreen",
+              "id": "67144"
+            },
+            {
+              "desc": "Motorcycle Windshield",
+              "id": "4483"
+            },
+            {
+              "desc": "Arch  1 x  6 x  2 with Thin Top",
+              "id": "15254"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "4480c03"
+          ],
+          "query": "Looking for that bike 2 wheel motorcycle with trans-clear wheels (complete) element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Bike  2 Wheel Motorcycle Fairing Racing",
+              "id": "18895"
+            },
+            {
+              "desc": "Wheel 17 x 75 Motorcycle with Holes in Rim",
+              "id": "88517"
+            },
+            {
+              "desc": "Sheet Plastic  8.5 x  7 Motorcycle Windscreen",
+              "id": "67144"
+            },
+            {
+              "desc": "Motorcycle Windshield",
+              "id": "4483"
+            },
+            {
+              "desc": "Wheel Minifig Bicycle with Integral Rubber Black Tyre",
+              "id": "92851"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "4480c03"
+          ],
+          "query": "Search for bike 2 wheel motorcycle with trans-clear wheels (complete) peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Bike  2 Wheel Motorcycle Fairing Racing",
+              "id": "18895"
+            },
+            {
+              "desc": "Wheel 17 x 75 Motorcycle with Holes in Rim",
+              "id": "88517"
+            },
+            {
+              "desc": "Sheet Plastic  8.5 x  7 Motorcycle Windscreen",
+              "id": "67144"
+            },
+            {
+              "desc": "Motorcycle Windshield",
+              "id": "4483"
+            },
+            {
+              "desc": "Wheel Minifig Bicycle with Integral Rubber Black Tyre",
+              "id": "92851"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "87997p04"
+          ],
+          "query": "Minifig Cheerleader Pom with Green",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Head with Hollow Stud",
+              "id": "3626c"
+            },
+            {
+              "desc": "Minifig Head with Vented Stud",
+              "id": "28621"
+            },
+            {
+              "desc": "Minifig Head with Blocked Hollow Stud",
+              "id": "3626b"
+            },
+            {
+              "desc": "Minifig Face Scarf with Notch in Back",
+              "id": "24504"
+            },
+            {
+              "desc": "Minifig Helmet with Chinstrap and Wide Brim",
+              "id": "30273"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "87997p04"
+          ],
+          "query": "Find the minifig cheerleader pom pom with green for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Hips and Legs Short without Hole",
+              "id": "41879a"
+            },
+            {
+              "desc": "Minifig Hips and Skirt",
+              "id": "36036"
+            },
+            {
+              "desc": "Minifig Armour Plate",
+              "id": "2587"
+            },
+            {
+              "desc": "Technic Bionicle Leg  2 x  6 with  2 Ball Joints",
+              "id": "32173"
+            },
+            {
+              "desc": "Technic Bionicle Leg  4 x  4 with Two Ball Joints",
+              "id": "41670"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "87997p04"
+          ],
+          "query": "I need a minifig cheerleader pom pom with green piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Plate  3 x  5 Cloud Shape with  3 Studs",
+              "id": "35470"
+            },
+            {
+              "desc": "Bracket  1 x  1 -  1 x  1 Thin with Stud Hole",
+              "id": "42446"
+            },
+            {
+              "desc": "Minifig Helmet Classic with Thin Chin Guard Unbroken",
+              "id": "50665"
+            },
+            {
+              "desc": "Technic Beam  5 x  3 x  0.5 Liftarm Triangle",
+              "id": "2905"
+            },
+            {
+              "desc": "Panel  1 x  4 x  1 with Rounded Corners, Thin Wall",
+              "id": "15207"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "87997p04"
+          ],
+          "query": "Looking for that minifig cheerleader pom pom with green element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Sack with Hand Grab",
+              "id": "10169"
+            },
+            {
+              "desc": "Minifig Top Hat",
+              "id": "3878"
+            },
+            {
+              "desc": "Minifig Wizards Hat",
+              "id": "6131"
+            },
+            {
+              "desc": "Minifig Hat Bowler",
+              "id": "95674"
+            },
+            {
+              "desc": "Minifig Hat Rag",
+              "id": "2543"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "87997p04"
+          ],
+          "query": "Search for minifig cheerleader pom pom with green peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Head with Hollow Stud",
+              "id": "3626c"
+            },
+            {
+              "desc": "Minifig Head with Vented Stud",
+              "id": "28621"
+            },
+            {
+              "desc": "Minifig Head with Blocked Hollow Stud",
+              "id": "3626b"
+            },
+            {
+              "desc": "Minifig Helmet with Chinstrap and Wide Brim",
+              "id": "30273"
+            },
+            {
+              "desc": "Minifig Face Scarf with Notch in Back",
+              "id": "24504"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "85984d08"
+          ],
+          "query": "Find the slope brick 31 1 x 2 x 0.667 with chrome silver sticker for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Tile  1 x  2 Grille with Groove",
+              "id": "2412b"
+            },
+            {
+              "desc": "Tap  1 x  2 with Two Valves",
+              "id": "6936"
+            },
+            {
+              "desc": "Brick  2 x  4",
+              "id": "3001"
+            },
+            {
+              "desc": "Brick  2 x  2 Round without Reinforcement",
+              "id": "3941"
+            },
+            {
+              "desc": "Brick  1 x  1 x  1.667 Round",
+              "id": "71075a"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "85984d08"
+          ],
+          "query": "I need a slope brick 31 1 x 2 x 0.667 with chrome silver sticker piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Tile  1 x  2 Grille with Groove",
+              "id": "2412b"
+            },
+            {
+              "desc": "Tap  1 x  2 with Two Valves",
+              "id": "6936"
+            },
+            {
+              "desc": "Rock  1 x  1 Crystal 5 Point",
+              "id": "30385"
+            },
+            {
+              "desc": "Brick  2 x  4",
+              "id": "3001"
+            },
+            {
+              "desc": "Plate  1 x  1 Round",
+              "id": "6141"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "85984d08"
+          ],
+          "query": "Looking for that slope brick 31 1 x 2 x 0.667 with chrome silver sticker element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Tile  1 x  2 Grille with Groove",
+              "id": "2412b"
+            },
+            {
+              "desc": "Tap  1 x  2 with Two Valves",
+              "id": "6936"
+            },
+            {
+              "desc": "Antenna  6H",
+              "id": "104"
+            },
+            {
+              "desc": "Brick  2 x  4",
+              "id": "3001"
+            },
+            {
+              "desc": "Brick  2 x  2 Round without Reinforcement",
+              "id": "3941"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "85984d08"
+          ],
+          "query": "Search for slope brick 31 1 x 2 x 0.667 with chrome silver sticker peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Tile  1 x  2 Grille with Groove",
+              "id": "2412b"
+            },
+            {
+              "desc": "Tap  1 x  2 with Two Valves",
+              "id": "6936"
+            },
+            {
+              "desc": "Brick  2 x  4",
+              "id": "3001"
+            },
+            {
+              "desc": "Brick  2 x  2 Round without Reinforcement",
+              "id": "3941"
+            },
+            {
+              "desc": "Brick  1 x  1 x  1.667 Round",
+              "id": "71075a"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3003p30"
+          ],
+          "query": "Brick 2 x Black \"30\"",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Brick  2 x  3",
+              "id": "3002"
+            },
+            {
+              "desc": "Brick  2 x  2",
+              "id": "3003"
+            },
+            {
+              "desc": "Brick  1 x  2",
+              "id": "3004"
+            },
+            {
+              "desc": "Brick  2 x  4",
+              "id": "3001"
+            },
+            {
+              "desc": "Brick  2 x  6",
+              "id": "2456"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3003p30"
+          ],
+          "query": "Find the brick 2 x 2 with black \"30\" for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Brick  2 x  2",
+              "id": "3003"
+            },
+            {
+              "desc": "Brick  2 x  2 x  3",
+              "id": "30145"
+            },
+            {
+              "desc": "Brick  2 x  2 Corner",
+              "id": "2357"
+            },
+            {
+              "desc": "Brick  2 x  2 Round with Grille",
+              "id": "92947"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2",
+              "id": "3039"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3003p30"
+          ],
+          "query": "I need a brick 2 x 2 with black \"30\" piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Hinge  2 x  2 Top",
+              "id": "6134"
+            },
+            {
+              "desc": "Plate  2 x  2 with Jet Engine with 12 Fins",
+              "id": "4229"
+            },
+            {
+              "desc": "Flag  2 x  2 Trapezoid (Thin C-Clip)",
+              "id": "44676a"
+            },
+            {
+              "desc": "Plane Jet Engine with Plate  2 x  2",
+              "id": "4868b"
+            },
+            {
+              "desc": "Brick  2 x  2 x  0.667 Ribbed Horizontally",
+              "id": "71752"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3003p30"
+          ],
+          "query": "Looking for that brick 2 x 2 with black \"30\" element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Hinge Brick  2 x  2 Locking with Axlehole and Single Finger",
+              "id": "30389b"
+            },
+            {
+              "desc": "Hinge Brick  2 x  2 Locking with Axlehole Type 2 and Single Finger",
+              "id": "30389c"
+            },
+            {
+              "desc": "Hinge Brick  2 x  2 Locking with Single Finger On Side",
+              "id": "30389a"
+            },
+            {
+              "desc": "Brick Round  2 x  2 Curved 45 Degrees",
+              "id": "65473"
+            },
+            {
+              "desc": "Brick  2 x  2 with Red Wheels (Complete)",
+              "id": "3137c01"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3003p30"
+          ],
+          "query": "Search for brick 2 x 2 with black \"30\" peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Brick  2 x  2",
+              "id": "3003"
+            },
+            {
+              "desc": "Brick  2 x  2 x  3",
+              "id": "30145"
+            },
+            {
+              "desc": "Brick  2 x  2 Corner",
+              "id": "2357"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2",
+              "id": "3039"
+            },
+            {
+              "desc": "Brick  2 x  2  x  6 with Groove",
+              "id": "6056"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "63864d0f"
+          ],
+          "query": "Tile 1 x Background Sticker",
+          "rank": 39,
+          "top": [
+            {
+              "desc": "Tile  1 x  3 with \"ONE WAY\" in White Arrow on Blue Background Sticker",
+              "id": "63864d03"
+            },
+            {
+              "desc": "Tile  2 x  4 with AMG Petronas Formula One Team Logo on Black Background Sticker",
+              "id": "87079d1f"
+            },
+            {
+              "desc": "Tile  2 x  2 with Yellow \"LT\" Logo on Black Background Sticker",
+              "id": "3068bd1z"
+            },
+            {
+              "desc": "Tile  1 x  1 with White Number 1 and  3 Dark Grey Circles Right on Red Background Sticker",
+              "id": "3070bd04"
+            },
+            {
+              "desc": "Tile  1 x  1 with White Number 1 and  3 Dark Grey Circles Left on Red Background Sticker",
+              "id": "3070bd05"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "63864d0f"
+          ],
+          "query": "Find the tile 1 x 3 with black \"p51 ak1\" on transparent background sticker for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Tile  1 x  3",
+              "id": "63864"
+            },
+            {
+              "desc": "Hinge Tile  1 x  3 Locking with Single Finger on Top",
+              "id": "44300"
+            },
+            {
+              "desc": "Tile  1 x  3 Inverted with Bar Hole",
+              "id": "35459"
+            },
+            {
+              "desc": "Plate  1 x  3 with Offset Peghole on Underside",
+              "id": "3172"
+            },
+            {
+              "desc": "Slope Brick 53  3 x  1 x  3 & 1/3 with Studs on Slope",
+              "id": "6044"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "63864d0f"
+          ],
+          "query": "I need a tile 1 x 3 with black \"p51 ak1\" on transparent background sticker piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Plate  1 x  3 with Offset Peghole on Underside",
+              "id": "3172"
+            },
+            {
+              "desc": "Tile  1 x  3",
+              "id": "63864"
+            },
+            {
+              "desc": "Hinge Tile  1 x  3 Locking with Single Finger on Top",
+              "id": "44300"
+            },
+            {
+              "desc": "Slope Brick 33  3 x  1 Inverted with Notch, Stud Blocker and Thin Front",
+              "id": "4287c"
+            },
+            {
+              "desc": "Plate  1 x  3",
+              "id": "3623"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "63864d0f"
+          ],
+          "query": "Looking for that tile 1 x 3 with black \"p51 ak1\" on transparent background sticker element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Hinge Tile  1 x  3 Locking with Single Finger on Top",
+              "id": "44300"
+            },
+            {
+              "desc": "Tile  1 x  3",
+              "id": "63864"
+            },
+            {
+              "desc": "Tile  1 x  3 Inverted with Bar Hole",
+              "id": "35459"
+            },
+            {
+              "desc": "Plate  1 x  3 with Offset Peghole on Underside",
+              "id": "3172"
+            },
+            {
+              "desc": "Plate  1 x  3 with  2 Studs Offset",
+              "id": "34103"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "63864d0f"
+          ],
+          "query": "Search for tile 1 x 3 with black \"p51 ak1\" on transparent background sticker peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Tile  1 x  3",
+              "id": "63864"
+            },
+            {
+              "desc": "Hinge Tile  1 x  3 Locking with Single Finger on Top",
+              "id": "44300"
+            },
+            {
+              "desc": "Tile  1 x  3 Inverted with Bar Hole",
+              "id": "35459"
+            },
+            {
+              "desc": "Plate  1 x  3 with Offset Peghole on Underside",
+              "id": "3172"
+            },
+            {
+              "desc": "Minifig Metal Detector without Stud on Search Head",
+              "id": "93106"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3039p12"
+          ],
+          "query": "Slope Brick 45 White Phone",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Slope Brick 45  2 x  2",
+              "id": "3039"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  4",
+              "id": "3037"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  3",
+              "id": "3038"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  1",
+              "id": "3040b"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  8",
+              "id": "4445"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3039p12"
+          ],
+          "query": "Find the slope brick 45 2 x 2 with white phone for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Slope Brick 45  2 x  2",
+              "id": "3039"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double",
+              "id": "3043"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double Convex with 45 Corner",
+              "id": "13548"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double Convex",
+              "id": "3045"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double Concave",
+              "id": "3046"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3039p12"
+          ],
+          "query": "I need a slope brick 45 2 x 2 with white phone piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Slope Brick 45  2 x  2",
+              "id": "3039"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double",
+              "id": "3043"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double Convex with 45 Corner",
+              "id": "13548"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double Convex",
+              "id": "3045"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double Concave",
+              "id": "3046"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3039p12"
+          ],
+          "query": "Looking for that slope brick 45 2 x 2 with white phone element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Slope Brick 45  2 x  2",
+              "id": "3039"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double",
+              "id": "3043"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double Convex with 45 Corner",
+              "id": "13548"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double Convex",
+              "id": "3045"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Inverted Double Convex",
+              "id": "3676"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3039p12"
+          ],
+          "query": "Search for slope brick 45 2 x 2 with white phone peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Slope Brick 45  2 x  2",
+              "id": "3039"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double",
+              "id": "3043"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double Convex with 45 Corner",
+              "id": "13548"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double Convex",
+              "id": "3045"
+            },
+            {
+              "desc": "Slope Brick 45  2 x  2 Double Concave",
+              "id": "3046"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "92755p01"
+          ],
+          "query": "Minifig Body Dug Tan Legs",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Skeleton Leg",
+              "id": "6266"
+            },
+            {
+              "desc": "Minifig Hips and Legs Short without Hole",
+              "id": "41879a"
+            },
+            {
+              "desc": "Minifig Mechanical Legs",
+              "id": "30376"
+            },
+            {
+              "desc": "Minifig Martian Legs",
+              "id": "30530"
+            },
+            {
+              "desc": "Minifig Hips and Skirt",
+              "id": "36036"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "92755p01"
+          ],
+          "query": "Find the minifig body dug without arms with sebulba lavender eyes and tan legs for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Hips and Legs Short without Hole",
+              "id": "41879a"
+            },
+            {
+              "desc": "Cylinder  2 x  2 x  2 Robot Body without Bottom Axle Holder",
+              "id": "30361a"
+            },
+            {
+              "desc": "Minifig Skeleton Leg",
+              "id": "6266"
+            },
+            {
+              "desc": "Minifig Mechanical Legs",
+              "id": "30376"
+            },
+            {
+              "desc": "Minifig Martian Legs",
+              "id": "30530"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "92755p01"
+          ],
+          "query": "I need a minifig body dug without arms with sebulba lavender eyes and tan legs piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Torso Skeleton with Thin Shoulder Pins",
+              "id": "6260"
+            },
+            {
+              "desc": "Minifig Hips and Legs Short without Hole",
+              "id": "41879a"
+            },
+            {
+              "desc": "Minifig Head Gungan with Split Eyes (Needs Work)",
+              "id": "30371"
+            },
+            {
+              "desc": "Cylinder  2 x  2 x  2 Robot Body without Bottom Axle Holder",
+              "id": "30361a"
+            },
+            {
+              "desc": "Plate  3 x  3 Heart Shape",
+              "id": "39613"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "92755p01"
+          ],
+          "query": "Looking for that minifig body dug without arms with sebulba lavender eyes and tan legs element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Hips and Legs Short without Hole",
+              "id": "41879a"
+            },
+            {
+              "desc": "Cylinder  2 x  2 x  2 Robot Body without Bottom Axle Holder",
+              "id": "30361a"
+            },
+            {
+              "desc": "Minifig Mechanical Legs",
+              "id": "30376"
+            },
+            {
+              "desc": "Minifig Skeleton Leg",
+              "id": "6266"
+            },
+            {
+              "desc": "Minifig Mechanical Torso",
+              "id": "30375"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "92755p01"
+          ],
+          "query": "Search for minifig body dug without arms with sebulba lavender eyes and tan legs peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Hips and Legs Short without Hole",
+              "id": "41879a"
+            },
+            {
+              "desc": "Cylinder  2 x  2 x  2 Robot Body without Bottom Axle Holder",
+              "id": "30361a"
+            },
+            {
+              "desc": "Minifig Skeleton Leg",
+              "id": "6266"
+            },
+            {
+              "desc": "Minifig Torso Skeleton with Thin Shoulder Pins",
+              "id": "6260"
+            },
+            {
+              "desc": "Minifig Mechanical Legs",
+              "id": "30376"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "76382p57"
+          ],
+          "query": "Minifig Torso with Black Panels",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Torso with Integral Arms",
+              "id": "17"
+            },
+            {
+              "desc": "Minifig Torso Skeleton with Thin Shoulder Pins",
+              "id": "6260"
+            },
+            {
+              "desc": "Minifig Mechanical Torso",
+              "id": "30375"
+            },
+            {
+              "desc": "Minifig Mechanical Torso with 4 Side Attachment Cylinders",
+              "id": "54275"
+            },
+            {
+              "desc": "Minifig Skeleton Torso with Shoulder Rods",
+              "id": "60115"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "76382p57"
+          ],
+          "query": "Find the minifig torso with arms and hands with insectoids with silver logo on black panels for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Torso with Integral Arms",
+              "id": "17"
+            },
+            {
+              "desc": "Support Insectoid Leg Small",
+              "id": "30211"
+            },
+            {
+              "desc": "Minifig Mechanical Legs",
+              "id": "30376"
+            },
+            {
+              "desc": "Minifig Mechanical Torso",
+              "id": "30375"
+            },
+            {
+              "desc": "Minifig Hand",
+              "id": "3820"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "76382p57"
+          ],
+          "query": "I need a minifig torso with arms and hands with insectoids with silver logo on black panels piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Torso Skeleton with Thin Shoulder Pins",
+              "id": "6260"
+            },
+            {
+              "desc": "Minifig Torso with Integral Arms",
+              "id": "17"
+            },
+            {
+              "desc": "Plate  3 x  3 Heart Shape",
+              "id": "39613"
+            },
+            {
+              "desc": "Panel  1 x  4 x  1 with Rounded Corners, Thin Wall",
+              "id": "15207"
+            },
+            {
+              "desc": "Panel  1 x  2 x  1 with Thin Central Divider and Rounded Corners",
+              "id": "93095"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "76382p57"
+          ],
+          "query": "Looking for that minifig torso with arms and hands with insectoids with silver logo on black panels element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Sack with Hand Grab",
+              "id": "10169"
+            },
+            {
+              "desc": "Minifig Torso with Integral Arms",
+              "id": "17"
+            },
+            {
+              "desc": "Arm Piece Grab Jaw",
+              "id": "4221"
+            },
+            {
+              "desc": "Minifig Container D-Basket",
+              "id": "4523"
+            },
+            {
+              "desc": "Brick  1 x  1 with Conductive Element and Stud on Opposite Sides",
+              "id": "15411"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "76382p57"
+          ],
+          "query": "Search for minifig torso with arms and hands with insectoids with silver logo on black panels peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Metal Detector without Stud on Search Head",
+              "id": "93106"
+            },
+            {
+              "desc": "Minifig Torso with Integral Arms",
+              "id": "17"
+            },
+            {
+              "desc": "Minifig Mechanical Torso",
+              "id": "30375"
+            },
+            {
+              "desc": "Minifig Torso Skeleton with Thin Shoulder Pins",
+              "id": "6260"
+            },
+            {
+              "desc": "Minifig Hand",
+              "id": "3820"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3009pt7"
+          ],
+          "query": "Brick 1 x White Background",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Brick  1 x  1 with Stud on 1 Side",
+              "id": "87087"
+            },
+            {
+              "desc": "Brick  1 x  1 x  1.667 with Studs on 1 Side",
+              "id": "32952"
+            },
+            {
+              "desc": "Brick  1 x  2 with Two Studs on One Side",
+              "id": "11211"
+            },
+            {
+              "desc": "Brick  1 x  2 x  1.667 with Studs on 1 Side",
+              "id": "22885"
+            },
+            {
+              "desc": "Brick Braille 2 x 4 with 1 Stud (DOTS-3)",
+              "id": "65551"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3009pt7"
+          ],
+          "query": "Find the brick 1 x 6 with \"london\" on white background for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Brick  1 x  6",
+              "id": "3009"
+            },
+            {
+              "desc": "Brick  1 x  6 x  5",
+              "id": "3754"
+            },
+            {
+              "desc": "Slope Brick Curved  6 x  1",
+              "id": "42022"
+            },
+            {
+              "desc": "Slope Brick 10  6 x  1",
+              "id": "4569"
+            },
+            {
+              "desc": "Technic Brick  1 x  6 with Holes",
+              "id": "3894"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3009pt7"
+          ],
+          "query": "I need a brick 1 x 6 with \"london\" on white background piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Arch  1 x  6 x  2 with Thin Top",
+              "id": "15254"
+            },
+            {
+              "desc": "Arch  1 x  6 x  2 with Very Thin Top",
+              "id": "12939"
+            },
+            {
+              "desc": "Brick  1 x  6",
+              "id": "3009"
+            },
+            {
+              "desc": "Plate  1 x  6",
+              "id": "3666"
+            },
+            {
+              "desc": "Brick  1 x  6 x  5",
+              "id": "3754"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3009pt7"
+          ],
+          "query": "Looking for that brick 1 x 6 with \"london\" on white background element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Brick  1 x  6",
+              "id": "3009"
+            },
+            {
+              "desc": "Brick  1 x  6 x  5",
+              "id": "3754"
+            },
+            {
+              "desc": "Slope Brick Curved  6 x  1",
+              "id": "42022"
+            },
+            {
+              "desc": "Slope Brick 10  6 x  1",
+              "id": "4569"
+            },
+            {
+              "desc": "Technic Brick  1 x  6 with Holes",
+              "id": "3894"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3009pt7"
+          ],
+          "query": "Search for brick 1 x 6 with \"london\" on white background peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Brick  1 x  6",
+              "id": "3009"
+            },
+            {
+              "desc": "Brick  1 x  6 x  5",
+              "id": "3754"
+            },
+            {
+              "desc": "Slope Brick 10  6 x  1",
+              "id": "4569"
+            },
+            {
+              "desc": "Slope Brick Curved  6 x  1",
+              "id": "42022"
+            },
+            {
+              "desc": "Technic Brick  1 x  6 with Holes",
+              "id": "3894"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "192685a"
+          ],
+          "query": "Find the sticker funnel 4.1 x 6.3 black with white stripe and \"s\" logo for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Train Track Roller Coaster Ramp  4 x 16 x  3 S-Shape",
+              "id": "34738"
+            },
+            {
+              "desc": "Tyre 20/ 64 x 37 S",
+              "id": "32019"
+            },
+            {
+              "desc": "Minifig Hair Short Swept Back with Sideburns and Widow's Peak",
+              "id": "21268"
+            },
+            {
+              "desc": "Minifig Hair Swept Back with Slight Widow's Peak and Short Sideburns",
+              "id": "25972"
+            },
+            {
+              "desc": "Minifig Hips and Legs with Integral Legs",
+              "id": "15"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "192685a"
+          ],
+          "query": "I need a sticker funnel 4.1 x 6.3 black with white stripe and \"s\" logo piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Plate  3 x  3 Heart Shape",
+              "id": "39613"
+            },
+            {
+              "desc": "Train Track Roller Coaster Ramp  4 x 16 x  3 S-Shape",
+              "id": "34738"
+            },
+            {
+              "desc": "Plate  1 x  1 with Clip Vertical (Thin U-Clip)",
+              "id": "4085b"
+            },
+            {
+              "desc": "Plate  1 x  1 with Clip Vertical (Thin C-Clip)",
+              "id": "4085a"
+            },
+            {
+              "desc": "Technic Beam  3 x  3 x  0.5 Liftarm Bent 90",
+              "id": "32056"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "192685a"
+          ],
+          "query": "Looking for that sticker funnel 4.1 x 6.3 black with white stripe and \"s\" logo element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Captains Hat",
+              "id": "12895"
+            },
+            {
+              "desc": "Container Lifting Grab Tool Rubber",
+              "id": "2649"
+            },
+            {
+              "desc": "Arm Piece Grab Jaw",
+              "id": "4221"
+            },
+            {
+              "desc": "Minifig Sack with Hand Grab",
+              "id": "10169"
+            },
+            {
+              "desc": "Brick  1 x  1 with Conductive Element and Stud on Opposite Sides",
+              "id": "15411"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "192685a"
+          ],
+          "query": "Search for sticker funnel 4.1 x 6.3 black with white stripe and \"s\" logo peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Metal Detector without Stud on Search Head",
+              "id": "93106"
+            },
+            {
+              "desc": "Train Track Roller Coaster Ramp  4 x 16 x  3 S-Shape",
+              "id": "34738"
+            },
+            {
+              "desc": "Tyre 20/ 64 x 37 S",
+              "id": "32019"
+            },
+            {
+              "desc": "Minifig Hair Short Swept Back with Sideburns and Widow's Peak",
+              "id": "21268"
+            },
+            {
+              "desc": "Minifig Hair Swept Back with Slight Widow's Peak and Short Sideburns",
+              "id": "25972"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "169665d"
+          ],
+          "query": "Sticker 2.0 x Right Side",
+          "rank": 17,
+          "top": [
+            {
+              "desc": "Sticker  2.0 x  1.9 Trapezoid with Black Stripes (Right Side)",
+              "id": "191485f"
+            },
+            {
+              "desc": "Sticker  2.0 x  7.0 with SW Y-wing Cockpit Right Side",
+              "id": "4221407a"
+            },
+            {
+              "desc": "Tail  4 x  1 x  3 with Classic Space Logo Sticker on Right Side",
+              "id": "2340d50"
+            },
+            {
+              "desc": "Sticker  2.6 x  2.6 Double Trapezoid with Black and Light Blue Stripes (Right Side)",
+              "id": "191485h"
+            },
+            {
+              "desc": "Sticker  3.9 x  5.6 with Black Space Shuttle Tail Lines Right Side",
+              "id": "169665b"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "169665d"
+          ],
+          "query": "Find the sticker 2.0 x 6.3 with launch command logo, blue v and red lines and number \"2\" right side for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Brick  4 x  4 Round with Holes",
+              "id": "6222"
+            },
+            {
+              "desc": "Technic Axle Joiner  3L with Two Flat Sides",
+              "id": "42195"
+            },
+            {
+              "desc": "Brick  1 x  2 with Two Studs on One Side",
+              "id": "11211"
+            },
+            {
+              "desc": "Brick  1 x  1 with Studs on Two Opposite Sides",
+              "id": "47905"
+            },
+            {
+              "desc": "Brick  1 x  1 with Studs on Two Adjacent Sides",
+              "id": "26604"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "169665d"
+          ],
+          "query": "I need a sticker 2.0 x 6.3 with launch command logo, blue v and red lines and number \"2\" right side piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Brick  4 x  4 Round with Holes",
+              "id": "6222"
+            },
+            {
+              "desc": "Hinge Plate  1 x  6 with 2 and 3 Fingers On Sides",
+              "id": "4507"
+            },
+            {
+              "desc": "Plate  2 x  2 x  0.667 with Two Studs On Side and Two Raised with Closed Understud",
+              "id": "99206"
+            },
+            {
+              "desc": "Plate  2 x  2 x  0.667 with Two Studs On Side and Two Raised with Partial Closed Understud",
+              "id": "4304"
+            },
+            {
+              "desc": "Wheel Rim 14 x 18 with Holes on Both Sides (Needs Work)",
+              "id": "55981"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "169665d"
+          ],
+          "query": "Looking for that sticker 2.0 x 6.3 with launch command logo, blue v and red lines and number \"2\" right side element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Brick  1 x  2 with Two Studs on One Side",
+              "id": "11211"
+            },
+            {
+              "desc": "Hinge Plate  1 x  4 Locking with Two Single Fingers on Side",
+              "id": "44568"
+            },
+            {
+              "desc": "Brick  4 x  4 Round with Holes",
+              "id": "6222"
+            },
+            {
+              "desc": "Tile  6 x  6 with Underside Details",
+              "id": "6881b"
+            },
+            {
+              "desc": "Technic Axle Joiner  3L with Two Flat Sides",
+              "id": "42195"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "169665d"
+          ],
+          "query": "Search for sticker 2.0 x 6.3 with launch command logo, blue v and red lines and number \"2\" right side peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Brick  4 x  4 Round with Holes",
+              "id": "6222"
+            },
+            {
+              "desc": "Technic Axle Joiner  3L with Two Flat Sides",
+              "id": "42195"
+            },
+            {
+              "desc": "Brick  1 x  2 with Two Studs on One Side",
+              "id": "11211"
+            },
+            {
+              "desc": "Hinge Plate  1 x  6 with 2 and 3 Fingers On Sides",
+              "id": "4507"
+            },
+            {
+              "desc": "Brick  1 x  1 with Studs on Two Opposite Sides",
+              "id": "47905"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "88323c01"
+          ],
+          "query": "Find the technic chain tread 5 wide reinforced with single black rubber foot right for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Technic Chain Tread 5 Wide Reinforced",
+              "id": "88323"
+            },
+            {
+              "desc": "Technic Rubber Pin for Chain Tread 5 Wide",
+              "id": "24375"
+            },
+            {
+              "desc": "Technic Chain Tread 5 Wide",
+              "id": "57518"
+            },
+            {
+              "desc": "Technic Chain Tread 2.5 Wide",
+              "id": "3873"
+            },
+            {
+              "desc": "Technic Chain Tread 2.5 Wide",
+              "id": "15379"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "88323c01"
+          ],
+          "query": "I need a technic chain tread 5 wide reinforced with single black rubber foot right piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Technic Chain Tread 5 Wide Reinforced",
+              "id": "88323"
+            },
+            {
+              "desc": "Technic Rubber Pin for Chain Tread 5 Wide",
+              "id": "24375"
+            },
+            {
+              "desc": "Technic Chain Tread 5 Wide",
+              "id": "57518"
+            },
+            {
+              "desc": "Technic Chain Tread 2.5 Wide",
+              "id": "3873"
+            },
+            {
+              "desc": "Technic Chain Tread 2.5 Wide",
+              "id": "15379"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "88323c01"
+          ],
+          "query": "Looking for that technic chain tread 5 wide reinforced with single black rubber foot right element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Technic Chain Tread 5 Wide Reinforced",
+              "id": "88323"
+            },
+            {
+              "desc": "Technic Rubber Pin for Chain Tread 5 Wide",
+              "id": "24375"
+            },
+            {
+              "desc": "Technic Chain Tread 5 Wide",
+              "id": "57518"
+            },
+            {
+              "desc": "Technic Chain Tread 2.5 Wide",
+              "id": "3873"
+            },
+            {
+              "desc": "Technic Chain Tread 2.5 Wide",
+              "id": "15379"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "88323c01"
+          ],
+          "query": "Search for technic chain tread 5 wide reinforced with single black rubber foot right peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Technic Chain Tread 5 Wide Reinforced",
+              "id": "88323"
+            },
+            {
+              "desc": "Technic Rubber Pin for Chain Tread 5 Wide",
+              "id": "24375"
+            },
+            {
+              "desc": "Technic Chain Tread 5 Wide",
+              "id": "57518"
+            },
+            {
+              "desc": "Technic Chain Tread 2.5 Wide",
+              "id": "3873"
+            },
+            {
+              "desc": "Technic Chain Tread 2.5 Wide",
+              "id": "15379"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "28798p04"
+          ],
+          "query": "Find the minifig hair female pigtails high bouncy, hole on top with red on left for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Hair Female Pigtails High, Long Bangs, Hole on Top",
+              "id": "20596"
+            },
+            {
+              "desc": "Minifig Hair Female with Pigtails",
+              "id": "3625"
+            },
+            {
+              "desc": "Figure Friends Hair Long, Left Side Part and High Bangs, Hole on Top and Left",
+              "id": "3013"
+            },
+            {
+              "desc": "Minifig Hair Female Ponytail with Long French Braid",
+              "id": "88286"
+            },
+            {
+              "desc": "Minifig Hips and Legs Short without Hole",
+              "id": "41879a"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "28798p04"
+          ],
+          "query": "I need a minifig hair female pigtails high bouncy, hole on top with red on left piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Hair Female Pigtails High, Long Bangs, Hole on Top",
+              "id": "20596"
+            },
+            {
+              "desc": "Figure Friends Hair Long, Left Side Part and High Bangs, Hole on Top and Left",
+              "id": "3013"
+            },
+            {
+              "desc": "Minifig Hair Female with Pigtails",
+              "id": "3625"
+            },
+            {
+              "desc": "Minifig Cap with Short Arched Peak with Seams and Top Pin Hole",
+              "id": "11303"
+            },
+            {
+              "desc": "Bracket  1 x  1 -  1 x  1 Thin with Stud Hole",
+              "id": "42446"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "28798p04"
+          ],
+          "query": "Looking for that minifig hair female pigtails high bouncy, hole on top with red on left element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Hair Female Pigtails High, Long Bangs, Hole on Top",
+              "id": "20596"
+            },
+            {
+              "desc": "Figure Friends Hair Long, Left Side Part and High Bangs, Hole on Top and Left",
+              "id": "3013"
+            },
+            {
+              "desc": "Minifig Hair Female with Pigtails",
+              "id": "3625"
+            },
+            {
+              "desc": "Minifig Hat High Cone Shaped",
+              "id": "2338"
+            },
+            {
+              "desc": "Minifig Cap with Short Arched Peak with Seams and Top Pin Hole",
+              "id": "11303"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "28798p04"
+          ],
+          "query": "Search for minifig hair female pigtails high bouncy, hole on top with red on left peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Hair Female Pigtails High, Long Bangs, Hole on Top",
+              "id": "20596"
+            },
+            {
+              "desc": "Minifig Hair Female with Pigtails",
+              "id": "3625"
+            },
+            {
+              "desc": "Figure Friends Hair Long, Left Side Part and High Bangs, Hole on Top and Left",
+              "id": "3013"
+            },
+            {
+              "desc": "Minifig Hair Female Ponytail with Long French Braid",
+              "id": "88286"
+            },
+            {
+              "desc": "Minifig Cap with Short Arched Peak with Seams and Top Pin Hole",
+              "id": "11303"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "14769p81"
+          ],
+          "query": "Find the tile 2 x 2 round with round underside stud with magenta star and record for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Brick  2 x  2 Corner Round w Stud Notch and Reinforced Underside",
+              "id": "85080"
+            },
+            {
+              "desc": "Plate  2 x  2 Round with  1 Centre Stud",
+              "id": "18674"
+            },
+            {
+              "desc": "Tile  2 x  2 Corner Round",
+              "id": "27925"
+            },
+            {
+              "desc": "Cylinder  2 x  2 with Dome Top with Axle Hole and Hollow Stud",
+              "id": "30367c"
+            },
+            {
+              "desc": "Dish  2 x  2 with Rim",
+              "id": "2654a"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "14769p81"
+          ],
+          "query": "I need a tile 2 x 2 round with round underside stud with magenta star and record piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Brick  2 x  2 Corner Round w Stud Notch and Reinforced Underside",
+              "id": "85080"
+            },
+            {
+              "desc": "Plate  2 x  2 Round with  1 Centre Stud",
+              "id": "18674"
+            },
+            {
+              "desc": "Dish  2 x  2 with Rim",
+              "id": "2654a"
+            },
+            {
+              "desc": "Tile  2 x  2 Corner Round",
+              "id": "27925"
+            },
+            {
+              "desc": "Cylinder  2 x  2 with Dome Top with Axle Hole and Hollow Stud",
+              "id": "30367c"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "14769p81"
+          ],
+          "query": "Looking for that tile 2 x 2 round with round underside stud with magenta star and record element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Brick  2 x  2 Corner Round w Stud Notch and Reinforced Underside",
+              "id": "85080"
+            },
+            {
+              "desc": "Plate  2 x  2 Round with  1 Centre Stud",
+              "id": "18674"
+            },
+            {
+              "desc": "Tile  2 x  2 Corner Round",
+              "id": "27925"
+            },
+            {
+              "desc": "Cylinder  2 x  2 with Dome Top with Axle Hole and Hollow Stud",
+              "id": "30367c"
+            },
+            {
+              "desc": "Plate  2 x  2 with Groove with 1 Centre Stud",
+              "id": "87580"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "14769p81"
+          ],
+          "query": "Search for tile 2 x 2 round with round underside stud with magenta star and record peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Brick  2 x  2 Corner Round w Stud Notch and Reinforced Underside",
+              "id": "85080"
+            },
+            {
+              "desc": "Plate  2 x  2 Round with  1 Centre Stud",
+              "id": "18674"
+            },
+            {
+              "desc": "Tile  2 x  2 Corner Round",
+              "id": "27925"
+            },
+            {
+              "desc": "Cylinder  2 x  2 with Dome Top with Axle Hole and Hollow Stud",
+              "id": "30367c"
+            },
+            {
+              "desc": "Dish  2 x  2 with Rim",
+              "id": "2654a"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "22011"
+          ],
+          "query": "Electric Technic Capacitor Clear Top",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Technic Turntable Type 1 Top",
+              "id": "2855"
+            },
+            {
+              "desc": "Electric Technic Fiber Optics Cable  5L",
+              "id": "6640b"
+            },
+            {
+              "desc": "Technic Beam 15",
+              "id": "32278"
+            },
+            {
+              "desc": "Technic Connector Block  3 x  2 x  2",
+              "id": "32137"
+            },
+            {
+              "desc": "Technic Angle Connector #3 (157.5 degree)",
+              "id": "32016"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "22011"
+          ],
+          "query": "Find the electric technic capacitor with clear top for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Technic Turntable Type 1 Top",
+              "id": "2855"
+            },
+            {
+              "desc": "Electric Technic Fiber Optics Cable  5L",
+              "id": "6640b"
+            },
+            {
+              "desc": "Antenna  4H with Flat Top",
+              "id": "3957b"
+            },
+            {
+              "desc": "Antenna  4H with Rounded Top",
+              "id": "3957a"
+            },
+            {
+              "desc": "Technic Brick  5 x  3 x  1 with  8 Pegholes and  2 Studs",
+              "id": "32333"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "22011"
+          ],
+          "query": "I need a electric technic capacitor with clear top piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Arch  1 x  6 x  2 with Thin Top",
+              "id": "15254"
+            },
+            {
+              "desc": "Technic Panel Fairing Smooth #8 (Thin Very Short)",
+              "id": "2389"
+            },
+            {
+              "desc": "Technic Panel Fairing Smooth #7 (Thin Very Short)",
+              "id": "2387"
+            },
+            {
+              "desc": "Technic Action Figure Helmet Visor (Needs Work)",
+              "id": "2716"
+            },
+            {
+              "desc": "Technic Turntable Type 1 Top",
+              "id": "2855"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "22011"
+          ],
+          "query": "Looking for that electric technic capacitor with clear top element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Technic Turntable Type 1 Top",
+              "id": "2855"
+            },
+            {
+              "desc": "Minifig Cook's Hat",
+              "id": "3898"
+            },
+            {
+              "desc": "Electric Technic Fiber Optics Cable  5L",
+              "id": "6640b"
+            },
+            {
+              "desc": "Antenna  4H with Flat Top",
+              "id": "3957b"
+            },
+            {
+              "desc": "Minifig Helmet Visor Large with Trapezoid Area on Top",
+              "id": "89159"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "22011"
+          ],
+          "query": "Search for electric technic capacitor with clear top peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Technic Turntable Type 1 Top",
+              "id": "2855"
+            },
+            {
+              "desc": "Electric Technic Fiber Optics Cable  5L",
+              "id": "6640b"
+            },
+            {
+              "desc": "Antenna  4H with Flat Top",
+              "id": "3957b"
+            },
+            {
+              "desc": "Antenna  4H with Rounded Top",
+              "id": "3957a"
+            },
+            {
+              "desc": "Minifig Helmet Visor Large with Trapezoid Area on Top",
+              "id": "89159"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3817cphb"
+          ],
+          "query": "Minifig Leg Left Grey Border",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Skeleton Leg",
+              "id": "6266"
+            },
+            {
+              "desc": "Minifig Hips and Legs Short without Hole",
+              "id": "41879a"
+            },
+            {
+              "desc": "Minifig Mechanical Legs",
+              "id": "30376"
+            },
+            {
+              "desc": "Minifig Robot Leg  1 x  2 x  1.667 with Pin",
+              "id": "17486"
+            },
+            {
+              "desc": "Minifig Hair Swept Left Tousled",
+              "id": "23186"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3817cphb"
+          ],
+          "query": "Find the minifig leg left with purple greatcoat with dark grey border for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Mechanical Legs",
+              "id": "30376"
+            },
+            {
+              "desc": "Minifig Armour Plate",
+              "id": "2587"
+            },
+            {
+              "desc": "Support Insectoid Leg Small",
+              "id": "30211"
+            },
+            {
+              "desc": "Support Insectoid Leg Large",
+              "id": "30212"
+            },
+            {
+              "desc": "Technic Bionicle Leg  2 x  6 with  2 Ball Joints",
+              "id": "32173"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3817cphb"
+          ],
+          "query": "I need a minifig leg left with purple greatcoat with dark grey border piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Armour Shoulder (Needs Work)",
+              "id": "30121"
+            },
+            {
+              "desc": "Bracket  1 x  1 -  1 x  1 Thin with Stud Hole",
+              "id": "42446"
+            },
+            {
+              "desc": "Minifig Zip Line Handle (Needs work)",
+              "id": "30229"
+            },
+            {
+              "desc": "Technic Beam  3 x  3 x  0.5 Liftarm Bent 90",
+              "id": "32056"
+            },
+            {
+              "desc": "Minifig Armour Plate",
+              "id": "2587"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3817cphb"
+          ],
+          "query": "Looking for that minifig leg left with purple greatcoat with dark grey border element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Arm Piece Grab Jaw Holder with Handle",
+              "id": "30198"
+            },
+            {
+              "desc": "Minifig Police Hat",
+              "id": "3624"
+            },
+            {
+              "desc": "Minifig Hat Kepi",
+              "id": "30135"
+            },
+            {
+              "desc": "Minifig Hat Knit Cap",
+              "id": "41334"
+            },
+            {
+              "desc": "Minifig Mechanical Legs",
+              "id": "30376"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3817cphb"
+          ],
+          "query": "Search for minifig leg left with purple greatcoat with dark grey border peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Mechanical Legs",
+              "id": "30376"
+            },
+            {
+              "desc": "Minifig Armour Plate",
+              "id": "2587"
+            },
+            {
+              "desc": "Support Insectoid Leg Small",
+              "id": "30211"
+            },
+            {
+              "desc": "Support Insectoid Leg Large",
+              "id": "30212"
+            },
+            {
+              "desc": "Wing  2 x  4 Left without Chamfer",
+              "id": "41770a"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "47847d01"
+          ],
+          "query": "Panel 2 x Logo Sticker",
+          "rank": 25,
+          "top": [
+            {
+              "desc": "Panel  1 x  2 x  2 with Launch Command Logo with White Border Facing Right Sticker",
+              "id": "4864ad05"
+            },
+            {
+              "desc": "Panel  1 x  2 x  2 with Launch Command Logo with White Border Facing Left Sticker",
+              "id": "4864ad06"
+            },
+            {
+              "desc": "Panel  1 x  2 x  2 with Octan Logo Sticker",
+              "id": "4864ad03"
+            },
+            {
+              "desc": "Panel  1 x  2 x  1 with Black Train Logo Sticker",
+              "id": "4865ad0a"
+            },
+            {
+              "desc": "Panel  1 x  2 x  1 with Black Train Logo Sticker",
+              "id": "4865d01"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3005p06"
+          ],
+          "query": "Brick 1 x Yellow Streaks",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Brick  1 x  1 with Stud on 1 Side",
+              "id": "87087"
+            },
+            {
+              "desc": "Brick  1 x  1 x  1.667 with Studs on 1 Side",
+              "id": "32952"
+            },
+            {
+              "desc": "Brick  1 x  2 x  1.667 with Studs on 1 Side",
+              "id": "22885"
+            },
+            {
+              "desc": "Brick  1 x  2 with Two Studs on One Side",
+              "id": "11211"
+            },
+            {
+              "desc": "Brick Braille 2 x 4 with 1 Stud (DOTS-5)",
+              "id": "65559"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3005p06"
+          ],
+          "query": "Find the brick 1 x 1 with black mosquito and yellow streaks for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Brick  1 x  1",
+              "id": "3005"
+            },
+            {
+              "desc": "Brick  1 x  1 x  3",
+              "id": "14716"
+            },
+            {
+              "desc": "Brick  1 x  1 with Headlight",
+              "id": "4070"
+            },
+            {
+              "desc": "Brick  1 x  1 with Handle",
+              "id": "2921"
+            },
+            {
+              "desc": "Brick  1 x  1 x  5 with Solid Stud",
+              "id": "2453b"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3005p06"
+          ],
+          "query": "I need a brick 1 x 1 with black mosquito and yellow streaks piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Plate  1 x  1 with Clip Vertical (Thin U-Clip)",
+              "id": "4085b"
+            },
+            {
+              "desc": "Plate  1 x  1 with Clip Vertical (Thin C-Clip)",
+              "id": "4085a"
+            },
+            {
+              "desc": "Tile  1 x  1 Heart Shape",
+              "id": "39739"
+            },
+            {
+              "desc": "Bracket  1 x  1 -  1 x  1 Thin with Stud Hole",
+              "id": "42446"
+            },
+            {
+              "desc": "Plate  1 x  1 with Clip Light Type 1",
+              "id": "4081a"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3005p06"
+          ],
+          "query": "Looking for that brick 1 x 1 with black mosquito and yellow streaks element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Brick  1 x  1 with Conductive Element and Stud on Opposite Sides",
+              "id": "15411"
+            },
+            {
+              "desc": "Brick  1 x  1 x  1.667 with Studs on 1 Side",
+              "id": "32952"
+            },
+            {
+              "desc": "Brick  1 x  1 with Stud on 1 Side",
+              "id": "87087"
+            },
+            {
+              "desc": "Brick  1 x  1",
+              "id": "3005"
+            },
+            {
+              "desc": "Brick  1 x  1 with Headlight",
+              "id": "4070"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3005p06"
+          ],
+          "query": "Search for brick 1 x 1 with black mosquito and yellow streaks peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Brick  1 x  1",
+              "id": "3005"
+            },
+            {
+              "desc": "Brick  1 x  1 x  3",
+              "id": "14716"
+            },
+            {
+              "desc": "Brick  1 x  1 with Headlight",
+              "id": "4070"
+            },
+            {
+              "desc": "Brick  1 x  1 x  1.667 with Studs on 1 Side",
+              "id": "32952"
+            },
+            {
+              "desc": "Brick  1 x  1 with Handle",
+              "id": "2921"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "4182d0e"
+          ],
+          "query": "Find the train door 1 x 4 x 5 right with black minifig silhouette sticker for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Train Door  1 x  4 x  5 Right",
+              "id": "4182"
+            },
+            {
+              "desc": "Train Door  1 x  4 x  5 Right with Thick Bottom Support",
+              "id": "42819"
+            },
+            {
+              "desc": "Train Door  1 x  4 x  5 Left",
+              "id": "4181"
+            },
+            {
+              "desc": "Train Door  1 x  4 x  5 Left with Thick Bottom Support",
+              "id": "43967"
+            },
+            {
+              "desc": "Door  1 x  4 x  5 Right with Trans Clear Glass",
+              "id": "73194c01"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "4182d0e"
+          ],
+          "query": "I need a train door 1 x 4 x 5 right with black minifig silhouette sticker piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Train Door  1 x  4 x  5 Right",
+              "id": "4182"
+            },
+            {
+              "desc": "Train Door  1 x  4 x  5 Right with Thick Bottom Support",
+              "id": "42819"
+            },
+            {
+              "desc": "Train Door  1 x  4 x  5 Left",
+              "id": "4181"
+            },
+            {
+              "desc": "Train Door  1 x  4 x  5 Left with Thick Bottom Support",
+              "id": "43967"
+            },
+            {
+              "desc": "Door  1 x  4 x  5 Right with Trans Clear Glass",
+              "id": "73194c01"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "4182d0e"
+          ],
+          "query": "Looking for that train door 1 x 4 x 5 right with black minifig silhouette sticker element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Train Door  1 x  4 x  5 Right",
+              "id": "4182"
+            },
+            {
+              "desc": "Train Door  1 x  4 x  5 Right with Thick Bottom Support",
+              "id": "42819"
+            },
+            {
+              "desc": "Train Door  1 x  4 x  5 Left",
+              "id": "4181"
+            },
+            {
+              "desc": "Door  1 x  4 x  5 with 4 Panes and One-way Hinge",
+              "id": "3861b"
+            },
+            {
+              "desc": "Train Door  1 x  4 x  5 Left with Thick Bottom Support",
+              "id": "43967"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "4182d0e"
+          ],
+          "query": "Search for train door 1 x 4 x 5 right with black minifig silhouette sticker peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Train Door  1 x  4 x  5 Right",
+              "id": "4182"
+            },
+            {
+              "desc": "Train Door  1 x  4 x  5 Right with Thick Bottom Support",
+              "id": "42819"
+            },
+            {
+              "desc": "Train Door  1 x  4 x  5 Left",
+              "id": "4181"
+            },
+            {
+              "desc": "Train Door  1 x  4 x  5 Left with Thick Bottom Support",
+              "id": "43967"
+            },
+            {
+              "desc": "Door  1 x  4 x  5 Right with Trans Clear Glass",
+              "id": "73194c01"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "196945n"
+          ],
+          "query": "Find the sticker 2.4 x 2 with black german railways logo and \"7735\" for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Animal Dog German Shepherd",
+              "id": "92586"
+            },
+            {
+              "desc": "Minifig Hips and Legs with Integral Legs",
+              "id": "15"
+            },
+            {
+              "desc": "Technic Bionicle Leg  4 x  4 with Two Ball Joints",
+              "id": "41670"
+            },
+            {
+              "desc": "Minifig Skeleton Leg",
+              "id": "6266"
+            },
+            {
+              "desc": "Animal Leg Segmented with Bar  0.5L",
+              "id": "15064"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "196945n"
+          ],
+          "query": "I need a sticker 2.4 x 2 with black german railways logo and \"7735\" piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Plate  3 x  3 Heart Shape",
+              "id": "39613"
+            },
+            {
+              "desc": "Plate  1 x  1 with Clip Vertical (Thin U-Clip)",
+              "id": "4085b"
+            },
+            {
+              "desc": "Plate  1 x  1 with Clip Vertical (Thin C-Clip)",
+              "id": "4085a"
+            },
+            {
+              "desc": "Technic Beam  3 x  3 x  0.5 Liftarm Bent 90",
+              "id": "32056"
+            },
+            {
+              "desc": "Technic Beam  5 x  3 x  0.5 Liftarm Triangle",
+              "id": "2905"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "196945n"
+          ],
+          "query": "Looking for that sticker 2.4 x 2 with black german railways logo and \"7735\" element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Arm Piece Grab Jaw",
+              "id": "4221"
+            },
+            {
+              "desc": "Container Lifting Grab Tool Rubber",
+              "id": "2649"
+            },
+            {
+              "desc": "Minifig Sack with Hand Grab",
+              "id": "10169"
+            },
+            {
+              "desc": "Brick  1 x  1 with Conductive Element and Stud on Opposite Sides",
+              "id": "15411"
+            },
+            {
+              "desc": "Minifig Container D-Basket",
+              "id": "4523"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "196945n"
+          ],
+          "query": "Search for sticker 2.4 x 2 with black german railways logo and \"7735\" peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Metal Detector without Stud on Search Head",
+              "id": "93106"
+            },
+            {
+              "desc": "Animal Dog German Shepherd",
+              "id": "92586"
+            },
+            {
+              "desc": "Plate  1 x  4 with 2 Wheel Pins",
+              "id": "2926"
+            },
+            {
+              "desc": "Plate  2 x  2 with 1 Wheel Pin",
+              "id": "4488"
+            },
+            {
+              "desc": "Plate  2 x  2 with 2 Wheel Pins",
+              "id": "4600"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "168315c"
+          ],
+          "query": "Sticker 1.8 x 3&4 White",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Plate  2 x  6 x  0.667 with Four Studs On Side and Four Raised",
+              "id": "87609"
+            },
+            {
+              "desc": "Plate  2 x  6 x  0.667 with Four Studs On Side and Four Raised Reinforced",
+              "id": "72132"
+            },
+            {
+              "desc": "Door  1 x  4 x  5 with 4 Panes and One-way Hinge",
+              "id": "3861b"
+            },
+            {
+              "desc": "Door  1 x  4 x  6 with 4 Panes and Stud Handle",
+              "id": "60623"
+            },
+            {
+              "desc": "Plate  6 x  6 Open Center without 4 Corners with 4 Clips",
+              "id": "2539"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "168315c"
+          ],
+          "query": "Find the sticker 1.8 x 0.8 technic supercar gearbox 3&4 white for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Technic Connector Block  3 x  6 x  1.667 Gearbox",
+              "id": "32166"
+            },
+            {
+              "desc": "Technic Axle  4",
+              "id": "3705"
+            },
+            {
+              "desc": "Technic Axle  3",
+              "id": "4519"
+            },
+            {
+              "desc": "Technic Connector Block  4 x  5 x  7.667",
+              "id": "32489"
+            },
+            {
+              "desc": "Technic Beam  3",
+              "id": "32523"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "168315c"
+          ],
+          "query": "I need a sticker 1.8 x 0.8 technic supercar gearbox 3&4 white piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Plate  3 x  5 Cloud Shape with  3 Studs",
+              "id": "35470"
+            },
+            {
+              "desc": "Technic Connector Block  3 x  6 x  1.667 Gearbox",
+              "id": "32166"
+            },
+            {
+              "desc": "Technic Beam  3 x  3 x  0.5 Liftarm Bent 90",
+              "id": "32056"
+            },
+            {
+              "desc": "Technic Beam  5 x  3 x  0.5 Liftarm Triangle",
+              "id": "2905"
+            },
+            {
+              "desc": "Plate  3 x  3 Heart Shape",
+              "id": "39613"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "168315c"
+          ],
+          "query": "Looking for that sticker 1.8 x 0.8 technic supercar gearbox 3&4 white element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Technic Connector Block  3 x  6 x  1.667 Gearbox",
+              "id": "32166"
+            },
+            {
+              "desc": "Technic Axle  4",
+              "id": "3705"
+            },
+            {
+              "desc": "Technic Axle  3",
+              "id": "4519"
+            },
+            {
+              "desc": "Technic Rotor  2 Blade with 4 Studs",
+              "id": "32124"
+            },
+            {
+              "desc": "Technic Connector Block  4 x  5 x  7.667",
+              "id": "32489"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "168315c"
+          ],
+          "query": "Search for sticker 1.8 x 0.8 technic supercar gearbox 3&4 white peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Technic Connector Block  3 x  6 x  1.667 Gearbox",
+              "id": "32166"
+            },
+            {
+              "desc": "Technic Axle  4",
+              "id": "3705"
+            },
+            {
+              "desc": "Technic Axle  3",
+              "id": "4519"
+            },
+            {
+              "desc": "Technic Gear  4 Knob",
+              "id": "32072"
+            },
+            {
+              "desc": "Technic Beam  3",
+              "id": "32523"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "973phj"
+          ],
+          "query": "Minifig Torso with Black Tie",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Torso with Integral Arms",
+              "id": "17"
+            },
+            {
+              "desc": "Minifig Bowtie",
+              "id": "27151"
+            },
+            {
+              "desc": "Minifig Torso Skeleton with Thin Shoulder Pins",
+              "id": "6260"
+            },
+            {
+              "desc": "Minifig Mechanical Torso",
+              "id": "30375"
+            },
+            {
+              "desc": "Minifig Mechanical Torso with 4 Side Attachment Cylinders",
+              "id": "54275"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "973phj"
+          ],
+          "query": "Find the minifig torso with sweater, medium nougat chevrons, tan shirt and black tie for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Skeleton Leg",
+              "id": "6266"
+            },
+            {
+              "desc": "Minifig Hips and Legs Short without Hole",
+              "id": "41879a"
+            },
+            {
+              "desc": "Minifig Hips and Skirt",
+              "id": "36036"
+            },
+            {
+              "desc": "Minifig Head with Hollow Stud",
+              "id": "3626c"
+            },
+            {
+              "desc": "Minifig Tail Fluffy",
+              "id": "18277"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "973phj"
+          ],
+          "query": "I need a minifig torso with sweater, medium nougat chevrons, tan shirt and black tie piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Plate  3 x  3 Heart Shape",
+              "id": "39613"
+            },
+            {
+              "desc": "Arch  1 x  6 x  2 with Thin Top",
+              "id": "15254"
+            },
+            {
+              "desc": "Arch  1 x  6 x  2 with Very Thin Top",
+              "id": "12939"
+            },
+            {
+              "desc": "Arch  1 x  5 x  4 with Thin Walls",
+              "id": "14395"
+            },
+            {
+              "desc": "Slope Brick 33  3 x  1 Inverted with Notch, Stud Blocker and Thin Front",
+              "id": "4287c"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "973phj"
+          ],
+          "query": "Looking for that minifig torso with sweater, medium nougat chevrons, tan shirt and black tie element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Sack with Hand Grab",
+              "id": "10169"
+            },
+            {
+              "desc": "Minifig Hat Conical Asian with Curved Sides",
+              "id": "26007"
+            },
+            {
+              "desc": "Minifig Hat Fez",
+              "id": "85975"
+            },
+            {
+              "desc": "Minifig Hat Bowler",
+              "id": "95674"
+            },
+            {
+              "desc": "Minifig Hat with Wide Brim Down",
+              "id": "13788"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "973phj"
+          ],
+          "query": "Search for minifig torso with sweater, medium nougat chevrons, tan shirt and black tie peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Head with Hollow Stud",
+              "id": "3626c"
+            },
+            {
+              "desc": "Minifig Head with Blocked Hollow Stud",
+              "id": "3626b"
+            },
+            {
+              "desc": "Minifig Head with Vented Stud",
+              "id": "28621"
+            },
+            {
+              "desc": "Minifig Hair Long with One Front Lock",
+              "id": "85974"
+            },
+            {
+              "desc": "Minifig Hair Long with French Braid",
+              "id": "59363"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "11477pz2"
+          ],
+          "query": "Find the slope brick curved 2 x 1 with 2 metallic silver lines for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Slope Brick Curved  2 x  1",
+              "id": "11477"
+            },
+            {
+              "desc": "Slope Brick Curved  2 x  1 with Cutout Left",
+              "id": "29120"
+            },
+            {
+              "desc": "Slope Brick Curved  2 x  1 with Cutout Right",
+              "id": "29119"
+            },
+            {
+              "desc": "Slope Brick Curved  1 x  2 x   2/3 with Fin without Studs",
+              "id": "47458"
+            },
+            {
+              "desc": "Brick  1 x  2 with Curved Top",
+              "id": "37352"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "11477pz2"
+          ],
+          "query": "I need a slope brick curved 2 x 1 with 2 metallic silver lines piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Slope Brick Curved  2 x  1",
+              "id": "11477"
+            },
+            {
+              "desc": "Slope Brick Curved  2 x  1 with Cutout Right",
+              "id": "29119"
+            },
+            {
+              "desc": "Slope Brick Curved  2 x  1 with Cutout Left",
+              "id": "29120"
+            },
+            {
+              "desc": "Slope Brick Curved  1 x  2 x   2/3 with Fin without Studs",
+              "id": "47458"
+            },
+            {
+              "desc": "Brick  1 x  2 with Curved Top",
+              "id": "37352"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "11477pz2"
+          ],
+          "query": "Looking for that slope brick curved 2 x 1 with 2 metallic silver lines element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Slope Brick Curved  2 x  1",
+              "id": "11477"
+            },
+            {
+              "desc": "Slope Brick Curved  2 x  1 with Cutout Right",
+              "id": "29119"
+            },
+            {
+              "desc": "Slope Brick Curved  2 x  1 with Cutout Left",
+              "id": "29120"
+            },
+            {
+              "desc": "Slope Brick Curved  1 x  2 x   2/3 with Fin without Studs",
+              "id": "47458"
+            },
+            {
+              "desc": "Brick  1 x  2 with Curved Top",
+              "id": "37352"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "11477pz2"
+          ],
+          "query": "Search for slope brick curved 2 x 1 with 2 metallic silver lines peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Slope Brick Curved  2 x  1",
+              "id": "11477"
+            },
+            {
+              "desc": "Slope Brick Curved  2 x  1 with Cutout Right",
+              "id": "29119"
+            },
+            {
+              "desc": "Slope Brick Curved  2 x  1 with Cutout Left",
+              "id": "29120"
+            },
+            {
+              "desc": "Slope Brick Curved  1 x  2 x   2/3 with Fin without Studs",
+              "id": "47458"
+            },
+            {
+              "desc": "Brick  1 x  2 with Curved Top",
+              "id": "37352"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "42610c01"
+          ],
+          "query": "Wheel Rim 8 Offset Tread",
+          "rank": 13,
+          "top": [
+            {
+              "desc": "Wheel Rim  6.4 x  8 with Tyre  8/ 75 x  8 Offset Tread",
+              "id": "4624c04"
+            },
+            {
+              "desc": "Wheel Rim  6.4 x 11 with  8 Y-Shaped Spokes with Tyre  6.4/ 75 x  8 Shallow Offset Tread with Centre Band",
+              "id": "93595c01"
+            },
+            {
+              "desc": "Tyre  8/ 75 x  8 Offset Tread",
+              "id": "4084"
+            },
+            {
+              "desc": "Wheel Rim  6.4 x  8 with Tyre  6/ 50 x  8 Offset Tread",
+              "id": "4624c01"
+            },
+            {
+              "desc": "Wheel Rim  6.4 x  8 with Tyre  6/ 50 x  8 Offset Tread with Centre Band",
+              "id": "4624c02"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "14639p03"
+          ],
+          "query": "Find the duplo car base 2 x 6 with bottom tube, with lavender wheels with fake bolts for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Duplo Brick  1 x  2 x  2 with Bottom Tube",
+              "id": "76371"
+            },
+            {
+              "desc": "Duplo Plate  2 x  6",
+              "id": "98233"
+            },
+            {
+              "desc": "Tile  2 x  6",
+              "id": "69729"
+            },
+            {
+              "desc": "Plate  2 x  6",
+              "id": "3795"
+            },
+            {
+              "desc": "Ladder Holder  2 x  6",
+              "id": "87913"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "14639p03"
+          ],
+          "query": "I need a duplo car base 2 x 6 with bottom tube, with lavender wheels with fake bolts piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Duplo Plate  2 x  6",
+              "id": "98233"
+            },
+            {
+              "desc": "Duplo Brick  1 x  2 x  2 with Bottom Tube",
+              "id": "76371"
+            },
+            {
+              "desc": "Plate  2 x  6",
+              "id": "3795"
+            },
+            {
+              "desc": "Plate  2 x  6 with Two Rounded Corners",
+              "id": "18980"
+            },
+            {
+              "desc": "Bracket  2 x  6 -  1 x  6 Up with Rounded Corners",
+              "id": "64570"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "14639p03"
+          ],
+          "query": "Looking for that duplo car base 2 x 6 with bottom tube, with lavender wheels with fake bolts element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Duplo Plate  2 x  6",
+              "id": "98233"
+            },
+            {
+              "desc": "Duplo Brick  1 x  2 x  2 with Bottom Tube",
+              "id": "76371"
+            },
+            {
+              "desc": "Plate  2 x  6",
+              "id": "3795"
+            },
+            {
+              "desc": "Bracket  2 x  6 -  1 x  6 Up with Rounded Corners",
+              "id": "64570"
+            },
+            {
+              "desc": "Ladder Holder  2 x  6",
+              "id": "87913"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "14639p03"
+          ],
+          "query": "Search for duplo car base 2 x 6 with bottom tube, with lavender wheels with fake bolts peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Duplo Brick  1 x  2 x  2 with Bottom Tube",
+              "id": "76371"
+            },
+            {
+              "desc": "Duplo Plate  2 x  6",
+              "id": "98233"
+            },
+            {
+              "desc": "Plate  2 x  6",
+              "id": "3795"
+            },
+            {
+              "desc": "Tile  2 x  6",
+              "id": "69729"
+            },
+            {
+              "desc": "Bracket  2 x  6 -  1 x  6 Up with Rounded Corners",
+              "id": "64570"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "6429457b"
+          ],
+          "query": "Sticker 1.9 x on Yellow",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Brick  1 x  1 x  1.667 with Studs on 1 Side",
+              "id": "32952"
+            },
+            {
+              "desc": "Panel  1 x  6 x  3 with  1 x  3 Studs on Sides",
+              "id": "98280"
+            },
+            {
+              "desc": "Brick  1 x  1 with Stud on 1 Side",
+              "id": "87087"
+            },
+            {
+              "desc": "Roadsign Clip-on  2 x  2 Square",
+              "id": "30258"
+            },
+            {
+              "desc": "Hinge Plate  1 x  2 Locking with Dual Finger on End Vertical with Groove on Short Side",
+              "id": "44302a"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "6429457b"
+          ],
+          "query": "Find the sticker 1.9 x 1.2 with black and red flight controls on yellow for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Hinge Control Stick",
+              "id": "4593"
+            },
+            {
+              "desc": "Minifig Mechanical Legs",
+              "id": "30376"
+            },
+            {
+              "desc": "Electric 9V Battery Box  4 x 14 x  4 Bottom with Red Buttons Complete",
+              "id": "2847c02"
+            },
+            {
+              "desc": "Minifig Hips and Legs with Integral Legs",
+              "id": "15"
+            },
+            {
+              "desc": "Animal Leg Segmented with Bar  0.5L",
+              "id": "15064"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "6429457b"
+          ],
+          "query": "I need a sticker 1.9 x 1.2 with black and red flight controls on yellow piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Plate  3 x  3 Heart Shape",
+              "id": "39613"
+            },
+            {
+              "desc": "Plate  1 x  1 with Clip Vertical (Thin U-Clip)",
+              "id": "4085b"
+            },
+            {
+              "desc": "Plate  1 x  1 with Clip Vertical (Thin C-Clip)",
+              "id": "4085a"
+            },
+            {
+              "desc": "Wheel Rim 14 x 18 with Holes on Both Sides (Needs Work)",
+              "id": "55981"
+            },
+            {
+              "desc": "Technic Beam  3 x  3 x  0.5 Liftarm Bent 90",
+              "id": "32056"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "6429457b"
+          ],
+          "query": "Looking for that sticker 1.9 x 1.2 with black and red flight controls on yellow element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Brick  1 x  1 with Conductive Element and Stud on Opposite Sides",
+              "id": "15411"
+            },
+            {
+              "desc": "Container Lifting Grab Tool Rubber",
+              "id": "2649"
+            },
+            {
+              "desc": "Arm Piece Grab Jaw",
+              "id": "4221"
+            },
+            {
+              "desc": "Minifig Sack with Hand Grab",
+              "id": "10169"
+            },
+            {
+              "desc": "Animal Cat Standing Looking Forward",
+              "id": "13786"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "6429457b"
+          ],
+          "query": "Search for sticker 1.9 x 1.2 with black and red flight controls on yellow peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Metal Detector without Stud on Search Head",
+              "id": "93106"
+            },
+            {
+              "desc": "Hinge Control Stick",
+              "id": "4593"
+            },
+            {
+              "desc": "Electric 9V Battery Box  4 x 14 x  4 Bottom with Red Buttons Complete",
+              "id": "2847c02"
+            },
+            {
+              "desc": "Plate  2 x  2 with Red Wheels (Complete)",
+              "id": "122c01"
+            },
+            {
+              "desc": "Brick  2 x  4 with 4 Red Axle Bushes and Red Underside",
+              "id": "7049a"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "6636d03"
+          ],
+          "query": "Find the tile 1 x 6 with white \"mkiii 42055\" on dark blue and yellow stripe sticker for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Tile  1 x  6",
+              "id": "6636"
+            },
+            {
+              "desc": "Brick  1 x  6",
+              "id": "3009"
+            },
+            {
+              "desc": "Plate  1 x  6",
+              "id": "3666"
+            },
+            {
+              "desc": "Slope Brick 10  6 x  1",
+              "id": "4569"
+            },
+            {
+              "desc": "Arch  1 x  6 x  2 with Thin Top",
+              "id": "15254"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "6636d03"
+          ],
+          "query": "I need a tile 1 x 6 with white \"mkiii 42055\" on dark blue and yellow stripe sticker piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Arch  1 x  6 x  2 with Thin Top",
+              "id": "15254"
+            },
+            {
+              "desc": "Tile  1 x  6",
+              "id": "6636"
+            },
+            {
+              "desc": "Plate  1 x  6",
+              "id": "3666"
+            },
+            {
+              "desc": "Plate  1 x  6 with Train Wagon End",
+              "id": "6583"
+            },
+            {
+              "desc": "Plate  3 x  3 Heart Shape",
+              "id": "39613"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "6636d03"
+          ],
+          "query": "Looking for that tile 1 x 6 with white \"mkiii 42055\" on dark blue and yellow stripe sticker element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Tile  1 x  6",
+              "id": "6636"
+            },
+            {
+              "desc": "Plate  1 x  6",
+              "id": "3666"
+            },
+            {
+              "desc": "Brick  1 x  6",
+              "id": "3009"
+            },
+            {
+              "desc": "Slope Brick 10  6 x  1",
+              "id": "4569"
+            },
+            {
+              "desc": "Windscreen  1 x  6 x  3",
+              "id": "64453"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "6636d03"
+          ],
+          "query": "Search for tile 1 x 6 with white \"mkiii 42055\" on dark blue and yellow stripe sticker peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Tile  1 x  6",
+              "id": "6636"
+            },
+            {
+              "desc": "Plate  1 x  6",
+              "id": "3666"
+            },
+            {
+              "desc": "Brick  1 x  6",
+              "id": "3009"
+            },
+            {
+              "desc": "Slope Brick 10  6 x  1",
+              "id": "4569"
+            },
+            {
+              "desc": "Windscreen  1 x  6 x  3",
+              "id": "64453"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "67329"
+          ],
+          "query": "Brick 1 x 3 Sides",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Duplo Brick  1 x  3 x  2 Round Top with Cut Away Sides",
+              "id": "14222"
+            },
+            {
+              "desc": "Brick  1 x  3 x  5 without Inner Ridges",
+              "id": "3755a"
+            },
+            {
+              "desc": "Brick  1 x  3 with Red \"Shell\" Sticker on Both Sides",
+              "id": "3622d05"
+            },
+            {
+              "desc": "Brick  1 x  3 x  5 with Inner Ridges",
+              "id": "3755b"
+            },
+            {
+              "desc": "Brick  1 x  3",
+              "id": "3622"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "6285381cc01"
+          ],
+          "query": "Sticker 0.8 x Background (Formed)",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Sticker  1.8 x  1.9 with Logos on Red Background (Formed)",
+              "id": "6177954qc01"
+            },
+            {
+              "desc": "Sticker  1.5 x  0.8 with Headlamp on Black Background (Formed)",
+              "id": "6009194ec01"
+            },
+            {
+              "desc": "Sticker  0.8 x  2 with Black Stripe on Transparent Background (Formed)",
+              "id": "6285381ac01"
+            },
+            {
+              "desc": "Sticker  3.0 x  1.8 with Black Stripe on White Background (Formed)",
+              "id": "6142617tc01"
+            },
+            {
+              "desc": "Sticker  1.9 x  3.8 with Black Stripe on White Background (Formed)",
+              "id": "6142617ec01"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "6285381cc01"
+          ],
+          "query": "Find the sticker 0.8 x 3.0 with black line and orange light on transparent background (formed) for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Window  1 x  4 x  6 with Fixed Transparent Light Blue Glass",
+              "id": "6160c01"
+            },
+            {
+              "desc": "Window  4 x  4 x  3 Roof with Centre Bar with Fixed Transparent Light Blue Glass",
+              "id": "6159c01"
+            },
+            {
+              "desc": "Window  1 x  4 x  6 with Fixed Transparent Green Glass",
+              "id": "6160c02"
+            },
+            {
+              "desc": "Window  1 x  4 x  6 with Fixed Transparent Dark Blue Glass",
+              "id": "6160c03"
+            },
+            {
+              "desc": "Plate  1 x  1 with Tooth In-line",
+              "id": "49668"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "6285381cc01"
+          ],
+          "query": "I need a sticker 0.8 x 3.0 with black line and orange light on transparent background (formed) piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Plate  3 x  3 Heart Shape",
+              "id": "39613"
+            },
+            {
+              "desc": "Window  1 x  4 x  6 with Fixed Transparent Light Blue Glass",
+              "id": "6160c01"
+            },
+            {
+              "desc": "Plate  1 x  1 with Clip Light Type 1",
+              "id": "4081a"
+            },
+            {
+              "desc": "Window  4 x  4 x  3 Roof with Centre Bar with Fixed Transparent Light Blue Glass",
+              "id": "6159c01"
+            },
+            {
+              "desc": "Plate  1 x  1 with Tooth In-line",
+              "id": "49668"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "6285381cc01"
+          ],
+          "query": "Looking for that sticker 0.8 x 3.0 with black line and orange light on transparent background (formed) element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Window  1 x  4 x  6 with Fixed Transparent Light Blue Glass",
+              "id": "6160c01"
+            },
+            {
+              "desc": "Brick  1 x  1 with Conductive Element and Stud on Opposite Sides",
+              "id": "15411"
+            },
+            {
+              "desc": "Window  4 x  4 x  3 Roof with Centre Bar with Fixed Transparent Light Blue Glass",
+              "id": "6159c01"
+            },
+            {
+              "desc": "Arm Piece Grab Jaw",
+              "id": "4221"
+            },
+            {
+              "desc": "Container Lifting Grab Tool Rubber",
+              "id": "2649"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "6285381cc01"
+          ],
+          "query": "Search for sticker 0.8 x 3.0 with black line and orange light on transparent background (formed) peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Metal Detector without Stud on Search Head",
+              "id": "93106"
+            },
+            {
+              "desc": "Window  1 x  4 x  6 with Fixed Transparent Light Blue Glass",
+              "id": "6160c01"
+            },
+            {
+              "desc": "Window  4 x  4 x  3 Roof with Centre Bar with Fixed Transparent Light Blue Glass",
+              "id": "6159c01"
+            },
+            {
+              "desc": "Window  1 x  4 x  6 with Fixed Transparent Dark Blue Glass",
+              "id": "6160c03"
+            },
+            {
+              "desc": "Window  1 x  4 x  6 with Fixed Transparent Green Glass",
+              "id": "6160c02"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3846p4n"
+          ],
+          "query": "Minifig Shield Triangular Black Background",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Shield Triangular",
+              "id": "3846"
+            },
+            {
+              "desc": "Minifig Shield Oval",
+              "id": "92747"
+            },
+            {
+              "desc": "Minifig Shield Ovoid",
+              "id": "2586"
+            },
+            {
+              "desc": "Minifig Shield Pentagonal Jagged",
+              "id": "22409"
+            },
+            {
+              "desc": "Minifig Shield Round Bowed",
+              "id": "75902"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3846p4n"
+          ],
+          "query": "Find the minifig shield triangular with red dragon head on black background for a LEGO build",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Shield Triangular",
+              "id": "3846"
+            },
+            {
+              "desc": "Minifig Weapon Sword Hilt with Dragon Head",
+              "id": "36017"
+            },
+            {
+              "desc": "Animal Dragon Head",
+              "id": "6027"
+            },
+            {
+              "desc": "Minifig Helmet Castle with Dragon Crown Top",
+              "id": "6122"
+            },
+            {
+              "desc": "Minifig Shield Oval",
+              "id": "92747"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3846p4n"
+          ],
+          "query": "I need a minifig shield triangular with red dragon head on black background piece for my build; the distinctive shape, printed details, and dimensions should match this catalogue part.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Shield Triangular",
+              "id": "3846"
+            },
+            {
+              "desc": "Minifig Weapon Sword Hilt with Dragon Head",
+              "id": "36017"
+            },
+            {
+              "desc": "Animal Dragon Baby (Needs Work)",
+              "id": "41535"
+            },
+            {
+              "desc": "Plate  3 x  3 Heart Shape",
+              "id": "39613"
+            },
+            {
+              "desc": "Minifig Torso Skeleton with Thin Shoulder Pins",
+              "id": "6260"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3846p4n"
+          ],
+          "query": "Looking for that minifig shield triangular with red dragon head on black background element, the one you'd grab for a model with these specific details.",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Shield Triangular",
+              "id": "3846"
+            },
+            {
+              "desc": "Minifig Weapon Sword Hilt with Dragon Head",
+              "id": "36017"
+            },
+            {
+              "desc": "Minifig Hat Ninja Wrap Smooth",
+              "id": "2187"
+            },
+            {
+              "desc": "Minifig Hat Ninja Wrap",
+              "id": "24496"
+            },
+            {
+              "desc": "Minifig Container D-Basket",
+              "id": "4523"
+            }
+          ]
+        },
+        {
+          "expected": [
+            "3846p4n"
+          ],
+          "query": "Search for minifig shield triangular with red dragon head on black background peice",
+          "rank": null,
+          "top": [
+            {
+              "desc": "Minifig Metal Detector without Stud on Search Head",
+              "id": "93106"
+            },
+            {
+              "desc": "Minifig Shield Triangular",
+              "id": "3846"
+            },
+            {
+              "desc": "Minifig Weapon Sword Hilt with Dragon Head",
+              "id": "36017"
+            },
+            {
+              "desc": "Animal Dragon Head",
+              "id": "6027"
+            },
+            {
+              "desc": "Minifig Helmet Castle with Dragon Crown Top",
+              "id": "6122"
+            }
+          ]
+        }
+      ],
+      "mrr50": 0.6138298579688286,
+      "p95_ms": 11.625542000000001,
+      "profile": "lexical",
+      "queries": 400,
+      "split": "dev",
+      "top1": 0.585,
+      "top10": 0.66,
+      "top5": 0.6525
+    }
+  ],
+  "split": "dev"
+}

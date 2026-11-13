@@ -1,0 +1,41 @@
+[workspace]
+resolver = "3"
+members = ["crates/ldraw", "crates/render", "crates/physics", "crates/engine", "crates/search", "crates/store", "crates/ops", "cli", "app"]
+# Each spike under spikes/ is its own standalone cargo project.
+exclude = ["spikes"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+
+[workspace.dependencies]
+ldraw = { path = "crates/ldraw" }
+render = { path = "crates/render" }
+physics = { path = "crates/physics" }
+engine = { path = "crates/engine" }
+search = { path = "crates/search" }
+store = { path = "crates/store" }
+ops = { path = "crates/ops" }
+cli = { path = "cli", package = "cad-cli" }
+glam = { version = "0.34", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+memmap2 = "0.9"
+miniz_oxide = "0.8"
+parking_lot = "0.12"
+rayon = "1.12"
+thiserror = "2"
+serde_json = "1"
+wgpu = "30"
+bytemuck = { version = "1.25", features = ["derive"] }
+pollster = "1"
+png = "0.18"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+debug = "line-tables-only"

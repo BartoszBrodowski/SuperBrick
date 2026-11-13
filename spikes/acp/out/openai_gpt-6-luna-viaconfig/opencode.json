@@ -1,0 +1,41 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "cad": {
+      "command": [
+        "/Users/lev/code/lego/cad/spikes/acp/target/release/acp-spike",
+        "mcp-stdio",
+        "--socket",
+        "/var/folders/8b/2hd26wg95jb6c25zvlvqz6b80000gn/T/cad-acp-91323.sock"
+      ],
+      "enabled": true,
+      "type": "local"
+    }
+  },
+  "model": "openai/gpt-6-luna",
+  "permission": {
+    "bash": "deny",
+    "edit": "deny",
+    "glob": "deny",
+    "grep": "deny",
+    "list": "deny",
+    "read": "deny",
+    "webfetch": "deny"
+  },
+  "provider": "<copied from the user's opencode config, not saved>",
+  "providers": "<copied from the user's opencode config, not saved>",
+  "tools": {
+    "bash": false,
+    "edit": false,
+    "glob": false,
+    "grep": false,
+    "list": false,
+    "patch": false,
+    "read": false,
+    "task": false,
+    "todoread": false,
+    "todowrite": false,
+    "webfetch": false,
+    "write": false
+  }
+}

@@ -1,0 +1,8 @@
+GPU: Apple M2 (Metal), surface Bgra8Unorm
+library opened in 26 ms
+idle viewports, chat streaming             120 frames: interval p50 16.7 ms, p95 17.5 ms, max 45.8 ms, 2 over 25 ms; ui() CPU p50 0.12 ms, p95 1.20 ms
+both viewports orbiting, chat streaming    120 frames: interval p50 16.6 ms, p95 18.2 ms, max 19.4 ms, 0 over 25 ms; ui() CPU p50 2.34 ms, p95 2.84 ms
+  Build      11060 parts, 4.4M tris, loaded in 152 ms, last redraw encode 0.54 ms, 123 redraws
+  Subbuild 1 286 parts, 0.2M tris, loaded in 32 ms, last redraw encode 0.36 ms, 122 redraws
+  chat streamed 223 tokens
+  screenshot /Users/lev/code/lego/cad/spikes/ui/out/screenshot.png

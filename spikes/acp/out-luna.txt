@@ -1,0 +1,17 @@
+[openai/gpt-6-luna] initialize in 692 ms: protocol 1, agent {"name":"OpenCode","version":"2.2.5"}
+  promptCapabilities {"embeddedContext":true,"image":true}  mcpCapabilities {"http":true,"sse":false}
+  session/new in 1869 ms: ses_e393d7290ffeGwARjnTWwqlY0L, current model ?, 0 models offered, modes null
+  1 mcp       PASS in 10358 ms (first text 10309 ms): stop="end_turn" reply="1"
+      cad tool calls: ["add {\"color\":4,\"part\":\"3001\",\"x\":0,\"y\":0,\"z\":0}", "summary {}"]
+      ACP tool_call: ["execute [other] pending", "execute [other] pending"]  updates: ["call_9f017bc37a9f4e6db85888ce70ee452c -> in_progress", "call_9f017bc37a9f4e6db85888ce70ee452c -> in_progress", "call_9f017bc37a9f4e6db85888ce70ee452c -> completed", "call_9393654ac12e40099774dafea65ec573 -> in_progress", "call_9393654ac12e40099774dafea65ec573 -> in_progress", "call_9393654ac12e40099774dafea65ec573 -> completed"]
+      updates {"agent_message_chunk": 1, "available_commands_update": 1, "tool_call": 2, "tool_call_update": 6, "usage_update": 1}, thought chars 0
+  2 image     PASS in 1365 ms (first text 1220 ms): stop="end_turn" reply="Blue circle"
+      updates {"agent_message_chunk": 1, "usage_update": 1}, thought chars 0
+  3 tool-img  PASS in 3924 ms (first text 3844 ms): stop="end_turn" reply="Green triangle"
+      cad tool calls: ["look {}"]
+      ACP tool_call: ["execute [other] pending"]  updates: ["call_13712cdd594146d781c9a060817da179 -> in_progress", "call_13712cdd594146d781c9a060817da179 -> in_progress", "call_13712cdd594146d781c9a060817da179 -> completed"]
+      updates {"agent_message_chunk": 1, "tool_call": 1, "tool_call_update": 3, "usage_update": 1}, thought chars 0
+  4 sandbox   PASS in 10535 ms (first text 10410 ms): stop="end_turn" reply="CANNOT"
+      ACP tool_call: ["grep [search] pending", "execute [other] pending"]  updates: ["call_b9c504b314e04d97833a16595b41c1be -> in_progress", "call_b9c504b314e04d97833a16595b41c1be -> completed", "call_0c0e593817d24da985d0e55bc674abc9 -> in_progress", "call_0c0e593817d24da985d0e55bc674abc9 -> in_progress", "call_0c0e593817d24da985d0e55bc674abc9 -> in_progress", "call_0c0e593817d24da985d0e55bc674abc9 -> completed"]
+      updates {"agent_message_chunk": 1, "tool_call": 2, "tool_call_update": 6, "usage_update": 1}, thought chars 0
+  MCP connections from opencode: 1; scratch folder: []

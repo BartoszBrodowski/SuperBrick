@@ -1,0 +1,15 @@
+[package]
+name = "agent"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+engine.workspace = true
+search.workspace = true
+ldraw.workspace = true
+render.workspace = true
+serde_json.workspace = true
+base64 = "0.22"
+png.workspace = true
+libc = "0.2"

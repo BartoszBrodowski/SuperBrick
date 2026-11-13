@@ -1,0 +1,16 @@
+[package]
+name = "search"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ldraw.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rayon.workspace = true
+csv = "1"
+flate2 = "1"
+safetensors = "0.8"
+tokenizers = { version = "0.23", default-features = false, features = ["onig"] }
+memmap2.workspace = true

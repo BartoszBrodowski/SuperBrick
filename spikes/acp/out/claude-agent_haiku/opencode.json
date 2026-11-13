@@ -1,0 +1,16 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "claude-agent/haiku",
+  "permission": {
+    "bash": "deny",
+    "edit": "deny",
+    "webfetch": "deny"
+  },
+  "tools": {
+    "bash": false,
+    "edit": false,
+    "patch": false,
+    "webfetch": false,
+    "write": false
+  }
+}

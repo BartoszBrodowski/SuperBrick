@@ -1,0 +1,18 @@
+[package]
+name = "store"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "SuperBrick .sb project files: SQLite-backed LDraw trees, history, drafts and assets."
+
+[dependencies]
+engine.workspace = true
+ldraw.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+miniz_oxide.workspace = true
+rusqlite = { version = "0.37", features = ["bundled"] }
+blake3 = "1"
+
+[dev-dependencies]
+glam.workspace = true

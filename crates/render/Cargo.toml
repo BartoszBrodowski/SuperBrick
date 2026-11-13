@@ -1,0 +1,15 @@
+[package]
+name = "render"
+description = "wgpu renderer for flattened LDraw scenes: instanced parts, instanced studs with covered-stud culling, edge and conditional lines, offscreen frames"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ldraw.workspace = true
+glam.workspace = true
+rayon.workspace = true
+wgpu.workspace = true
+bytemuck.workspace = true
+pollster.workspace = true
+png.workspace = true

@@ -1,0 +1,24 @@
+[package]
+name = "cad-cli"
+description = "SuperBrick development commands: library stats, round-trip checks, flatten timings, synthetic models"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "sb-dev"
+path = "src/bin/sb-dev.rs"
+
+[dependencies]
+ldraw.workspace = true
+glam.workspace = true
+rayon.workspace = true
+render.workspace = true
+physics.workspace = true
+serde_json.workspace = true
+engine.workspace = true
+search.workspace = true

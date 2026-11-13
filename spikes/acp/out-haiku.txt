@@ -1,0 +1,12 @@
+[claude-agent/haiku] initialize in 692 ms: protocol 1, agent {"name":"OpenCode","version":"2.2.5"}
+  promptCapabilities {"embeddedContext":true,"image":true}  mcpCapabilities {"http":true,"sse":false}
+  session/new in 1846 ms: ses_e393d72b1ffeiDT0qivs82k8KH, current model ?, 0 models offered, modes null
+  1 mcp       FAIL in 9774 ms (first text - ms): stop="session/prompt: {\"code\":-32603,\"data\":{\"errorName\":\"provider.unknown\",\"service\":\"session\"},\"message\":\"Internal error: Not logged in · Run `claude auth login` in a terminal\"}" reply=""
+      updates {"available_commands_update": 1, "config_option_update": 1}, thought chars 0
+  2 image     FAIL in 141 ms (first text - ms): stop="session/prompt: {\"code\":-32603,\"data\":{\"errorName\":\"provider.unknown\",\"service\":\"session\"},\"message\":\"Internal error: Not logged in · Run `claude auth login` in a terminal\"}" reply=""
+      updates {}, thought chars 0
+  3 tool-img  FAIL in 42 ms (first text - ms): stop="session/prompt: {\"code\":-32603,\"data\":{\"errorName\":\"provider.unknown\",\"service\":\"session\"},\"message\":\"Internal error: Not logged in · Run `claude auth login` in a terminal\"}" reply=""
+      updates {}, thought chars 0
+  4 sandbox   PASS in 59 ms (first text - ms): stop="session/prompt: {\"code\":-32603,\"data\":{\"errorName\":\"provider.unknown\",\"service\":\"session\"},\"message\":\"Internal error: Not logged in · Run `claude auth login` in a terminal\"}" reply=""
+      updates {}, thought chars 0
+  MCP connections from opencode: 1; scratch folder: []

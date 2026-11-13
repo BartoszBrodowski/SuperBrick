@@ -1,0 +1,10 @@
+[package]
+name = "physics"
+description = "Voxel occupancy, stud connections and pair relations for placed parts; a port of bench-next/physics.py"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ldraw.workspace = true
+glam.workspace = true
