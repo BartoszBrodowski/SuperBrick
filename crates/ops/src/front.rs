@@ -270,7 +270,43 @@ fn write_images(dir: &Path, reply: &Reply, index: usize, tool: &str) -> Result<V
         std::fs::write(&p, &img.png).map_err(|e| e.to_string())?;
         paths.push(p);
     }
+    prune_images(dir);
     Ok(paths)
+}
+
+/// Keep only the newest pictures `sb` wrote in `dir` (`SB_KEEP_IMAGES`, default 40), so a
+/// long agent run never fills the disk. Only files named like ours are touched.
+fn prune_images(dir: &Path) {
+    let keep = ldraw::app_env("KEEP_IMAGES")
+        .and_then(|v| v.to_str()?.parse::<usize>().ok())
+        .unwrap_or(40);
+    let ours = |name: &str| {
+        let Some(stem) = name.strip_suffix(".png") else { return false };
+        let parts: Vec<&str> = stem.split('-').collect();
+        parts.len() == 4
+            && [0, 1, 3].iter().all(|&i| !parts[i].is_empty() && parts[i].bytes().all(|b| b.is_ascii_digit()))
+            && parts[2].bytes().all(|b| b.is_ascii_lowercase() || b == b'_')
+    };
+    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    let mut files: Vec<(String, PathBuf)> = entries
+        .flatten()
+        .filter_map(|e| {
+            let name = e.file_name().into_string().ok()?;
+            ours(&name).then(|| (name, e.path()))
+        })
+        .collect();
+    if files.len() <= keep {
+        return;
+    }
+    // Names start with a millisecond stamp, so sorting by (stamp, rest) is oldest first.
+    files.sort_by_key(|(n, _)| {
+        let stamp: u128 = n.split('-').next().and_then(|s| s.parse().ok()).unwrap_or(0);
+        (stamp, n.clone())
+    });
+    let excess = files.len() - keep;
+    for (_, path) in files.into_iter().take(excess) {
+        let _ = std::fs::remove_file(path);
+    }
 }
 
 // ---------------------------------------------------------------- MCP
