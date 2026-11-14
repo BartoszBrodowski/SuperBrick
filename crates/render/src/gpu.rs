@@ -76,6 +76,9 @@ pub const FLAG_PICK_HIDDEN: u32 = 64;
 pub const FLAG_FADE: u32 = 128;
 /// Problem part drawn solid red (not hatched), so it shows through hatched blockers.
 pub const FLAG_ERROR: u32 = 256;
+/// Perspective edge-line pull towards the eye, as a fraction of the distance (about two pixels of
+/// depth at a 30° field of view on a 1000-pixel-high view).
+const LINE_PULL: f32 = 1e-3;
 pub const PICK_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R32Uint;
 
 fn vertex_layout(stride: usize, attrs: &[wgpu::VertexAttribute]) -> wgpu::VertexBufferLayout<'_> {
@@ -354,7 +357,12 @@ pub(crate) fn view_globals(cam: &Camera, size: (u32, u32)) -> Globals {
         view_proj: cam.view_proj(aspect).to_cols_array_2d(),
         eye: cam.eye().extend(1.0).to_array(),
         light: light.extend(0.0).to_array(),
-        viewport: [size.0 as f32, size.1 as f32, 2e-4, 0.0],
+        // See `pulled` in shader.wgsl.
+        viewport: if cam.ortho {
+            [size.0 as f32, size.1 as f32, 2e-4, 0.0]
+        } else {
+            [size.0 as f32, size.1 as f32, 0.0, LINE_PULL]
+        },
     }
 }
 

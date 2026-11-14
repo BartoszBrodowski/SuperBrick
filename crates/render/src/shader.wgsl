@@ -4,7 +4,8 @@ struct Globals {
     view_proj: mat4x4<f32>,
     eye: vec4<f32>,
     light: vec4<f32>,
-    // x, y: viewport size in pixels; z: line depth pull (NDC); w: unused
+    // x, y: viewport size in pixels; z: line depth pull (NDC, orthographic); w: line pull towards
+    // the eye as a fraction of its distance (perspective)
     viewport: vec4<f32>,
 };
 
@@ -114,8 +115,14 @@ struct LineOut {
     @location(0) color: vec4<f32>,
 };
 
-fn pulled(c: vec4<f32>) -> vec4<f32> {
-    var o = c;
+// Edge lines lie exactly on their faces, so they are drawn slightly nearer the eye to win the depth
+// test. In perspective the pull is a fraction of the distance to the eye (viewport.w), along the
+// view ray so the line does not move on screen: a constant step in pixels at any zoom. A constant
+// NDC offset grew to whole LDU behind walls when the near plane came close, and hidden studs
+// showed through tiles and brick walls. Orthographic depth is linear, so it keeps an NDC pull (z).
+fn pulled(wp: vec3<f32>) -> vec4<f32> {
+    let p = wp + (g.eye.xyz - wp) * g.viewport.w;
+    var o = g.view_proj * vec4<f32>(p, 1.0);
     o.z = o.z - g.viewport.z * o.w;
     return o;
 }
@@ -123,7 +130,7 @@ fn pulled(c: vec4<f32>) -> vec4<f32> {
 @vertex
 fn vs_line(@location(0) pos: vec3<f32>, @location(1) code: u32, inst: Inst) -> LineOut {
     var o: LineOut;
-    o.clip = pulled(g.view_proj * vec4<f32>(world(inst, pos), 1.0));
+    o.clip = pulled(world(inst, pos));
     if (hidden(inst)) {
         o.clip = vec4<f32>(0.0, 0.0, -2.0, 1.0);
     }
@@ -146,7 +153,6 @@ fn vs_cond(
     @location(9) c2: vec3<f32>,
     inst: Inst,
 ) -> LineOut {
-    let here = g.view_proj * vec4<f32>(world(inst, pos), 1.0);
     // Both vertices of the segment must reach the same verdict, or the hidden one's off-screen
     // position turns the segment into a stray line toward the screen centre. So run the side test
     // in a fixed endpoint order (lexicographic on local coordinates), with bit-identical inputs.
@@ -171,7 +177,7 @@ fn vs_cond(
     if (s1 * s2 < 0.0 || hidden(inst)) {
         o.clip = vec4<f32>(0.0, 0.0, -2.0, 1.0);
     } else {
-        o.clip = pulled(here);
+        o.clip = pulled(world(inst, pos));
     }
     o.color = resolve_color(code, inst.color);
     if ((inst.flags & 128u) != 0u) {
