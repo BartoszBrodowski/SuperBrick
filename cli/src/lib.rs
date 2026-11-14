@@ -15,6 +15,7 @@ use rayon::prelude::*;
 mod product;
 mod relbench;
 mod search_bench;
+mod symmetry;
 
 pub type Res<T> = Result<T, Box<dyn Error>>;
 
@@ -31,14 +32,18 @@ const USAGE: &str = "usage:
   sb-dev flatten <model> [--low]       flatten a model and mesh its parts; print counts and timings
   sb-dev mesh <part> [--low]           print one part's flattened geometry summary
   sb-dev relbench [golden.json]...       time physics::relation against the python bench, pair by pair
+  sb-dev symmetry <model> [--axis x|y|z] [--plane P] [--min LDU3] [--probe K] [--inside] [--json]
+                                       solid regions with no mirror image across the plane (default: z, model middle);
+                                       --inside compares whole filled part volumes, the inner structure included
   sb-dev synth --parts N --out FILE [--seed S]   write a synthetic bonded-brick city of N parts
   sb-dev render <model> [--out FILE.png] [--size 1600x1000] [--studs baked|instanced|culled|all]
-             [--no-edges] [--low] [--frames N]   offscreen GPU render: PNG, timings, orbit frame times";
+             [--no-edges] [--low] [--frames N]
+             [--zoom F] [--yaw DEG] [--pitch DEG] [--target X,Y,Z] [--ortho]   offscreen GPU render: PNG, timings, orbit frame times";
 
 /// Development subcommands `sb` hands to [`run`].
 pub const SUBCOMMANDS: &[&str] = &[
     "stats", "roundtrip", "flatten", "mesh", "synth", "render", "relbench", "validate", "parity",
-    "search", "search-eval", "search-bench", "search-sets", "commands", "apply", "mcp-stdio",
+    "symmetry", "search", "search-eval", "search-bench", "search-sets", "commands", "apply", "mcp-stdio",
 ];
 
 /// Whether `sb` should hand these arguments to [`run`] rather than open the editor.
@@ -56,6 +61,7 @@ pub fn run(args: &[String]) -> ExitCode {
         Some("mesh") => cmd_mesh(rest),
         Some("synth") => cmd_synth(rest),
         Some("render") => cmd_render(rest),
+        Some("symmetry") => symmetry::cmd_symmetry(rest),
         Some("relbench") => relbench::cmd_relbench(rest),
         Some("validate") => product::validate(rest),
         Some("parity") => product::parity(rest),
@@ -539,7 +545,21 @@ fn cmd_render(args: &[String]) -> Res<bool> {
         let off = Offscreen::new(&gpu, 4, w, h);
         gpu.wait();
         let upload_ms = t.elapsed().as_secs_f64() * 1e3;
-        let cam = Camera::framing(scene.bounds.0, scene.bounds.1, w as f32 / h as f32);
+        let mut cam = Camera::framing(scene.bounds.0, scene.bounds.1, w as f32 / h as f32);
+        if let Some(z) = opt(args, "--zoom") {
+            cam.dist *= z.parse::<f32>()?;
+        }
+        if let Some(v) = opt(args, "--yaw") {
+            cam.yaw = v.parse::<f32>()?.to_radians();
+        }
+        if let Some(v) = opt(args, "--pitch") {
+            cam.pitch = v.parse::<f32>()?.to_radians();
+        }
+        if let Some(v) = opt(args, "--target") {
+            let c: Vec<f32> = v.split(',').map(str::parse).collect::<Result<_, _>>()?;
+            cam.target = glam::Vec3::new(c[0], c[1], c[2]);
+        }
+        cam.ortho = flag(args, "--ortho");
         let t = Instant::now();
         off.render(&gpu, &r, &cam);
         let px = off.read_rgba(&gpu);
