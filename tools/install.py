@@ -53,7 +53,9 @@ def main():
     release = Path(metadata["target_directory"]) / "release"
     atomic_copy(release / "sb-dev", prefix / "bin/sb-dev")
     if args.app:
-        app = build_app(root, release / "sb", prefix / "share/superbrick", args.app.expanduser().resolve(), python)
+        version = next(p["version"] for p in metadata["packages"] if p["name"] == "cad-app")
+        app = build_app(root, release / "sb", prefix / "share/superbrick", args.app.expanduser().resolve(), python,
+                        version=version)
         launcher = f'#!/bin/sh\n# SuperBrick launcher: runs the app bundle binary (name and icon in the Dock).\nexec "{app}/Contents/MacOS/sb" "$@"\n'
         command.parent.mkdir(parents=True, exist_ok=True)
         if os.path.lexists(command):
