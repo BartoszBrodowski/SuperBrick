@@ -25,31 +25,44 @@ struct Supplier {
     url: &'static str,
     info: &'static str,
     csv: bool,
+    /// LEGO Pick a Brick `elementId,quantity` format (needs element-ID mapping).
+    pab: bool,
 }
-const SUPPLIERS: [Supplier; 4] = [
+const SUPPLIERS: [Supplier; 5] = [
     Supplier {
         name: "BrickLink",
         url: "https://www.bricklink.com/v2/wanted/upload.page",
         csv: false,
+        pab: false,
         info: "Upload the exported .ldr to a Wanted List; review part/colour mappings, then use Buy All to compare sellers. Login required. No API credentials are stored by CAD.",
     },
     Supplier {
         name: "BuyMeBricks",
         url: "https://buymebricks.com/upload",
         csv: false,
+        pab: false,
         info: "Upload the exported .ldr for the supplier's current prices and availability. Review unavailable parts separately; the available subtotal is not necessarily the full-build total.",
     },
     Supplier {
         name: "Wobrick",
         url: "https://wobrick.com/toolkit/",
         csv: true,
+        pab: false,
         info: "Upload the exported CSV as Rebrickable format. This tool's documented fields use LDraw part/colour IDs. Review matching, missing items and shipping on the site.",
     },
     Supplier {
         name: "JoyGoBricks",
         url: "https://joygobricks.com/pages/faqs",
         csv: true,
+        pab: false,
         info: "Request a quote using the site's contact instructions and attach the exported CSV. Their FAQ describes a parts-list quote with an unavailable-parts report, usually within 24 hours—not an instant pricing API.",
+    },
+    Supplier {
+        name: "LEGO Pick a Brick",
+        url: "https://www.lego.com/pick-and-build/pick-a-brick",
+        csv: true,
+        pab: true,
+        info: "Saves an elementId,quantity CSV (≤200 lines per file, extra files are numbered). Use the page's bulk 'upload a list' option, then review the bag. Parts with no known LEGO element ID are listed and left out; Pick a Brick only stocks a subset of elements.",
     },
 ];
 
@@ -131,7 +144,7 @@ impl Panel {
         egui::CollapsingHeader::new("Suppliers — check the full list").default_open(true).show(ui,|ui|{
             ui.small("Buttons save an inventory file and open the supplier. You upload/send it yourself. Nothing is purchased or transmitted automatically.");
             for supplier in SUPPLIERS {
-                let label=if supplier.name=="JoyGoBricks" {"Export CSV & request quote"}else if supplier.csv {"Export CSV & check prices"}else {"Export LDraw & check prices"};
+                let label=if supplier.pab {"Export element CSV & open Pick a Brick"}else if supplier.name=="JoyGoBricks" {"Export CSV & request quote"}else if supplier.csv {"Export CSV & check prices"}else {"Export LDraw & check prices"};
                 if ui.add_enabled(ready && self.inventory.pieces>0 && (self.inventory.warnings.is_empty()||self.allow_unresolved),egui::Button::new(format!("{} · {label}",supplier.name))).on_hover_text(supplier.info).clicked() {
                     self.export(st,Some(supplier),ui);
                 }
@@ -252,6 +265,10 @@ impl Panel {
             self.status="Build changed while choosing the export file. Inventory will refresh; please export again.".into();
             return;
         }
+        if supplier.is_some_and(|s| s.pab) {
+            self.export_pab(&path, st, supplier.unwrap(), ui);
+            return;
+        }
         let data = if csv {
             self.inventory.upload_csv()
         } else {
@@ -271,6 +288,37 @@ impl Panel {
             }
             Err(e) => self.status = format!("Export failed: {e}"),
         }
+    }
+}
+impl Panel {
+    fn export_pab(&mut self, path: &Path, st: &State, s: Supplier, ui: &egui::Ui) {
+        let Some(sets) = search::sets::Sets::get() else {
+            self.status = "Element-ID table (sets.bin) is not installed; cannot build a Pick a Brick list.".into();
+            return;
+        };
+        let pab = self.inventory.pick_a_brick(sets);
+        if pab.files.is_empty() {
+            self.status = format!("No LEGO element IDs found for this build ({} lots unmapped).", pab.missing.len());
+            return;
+        }
+        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("build-parts");
+        let mut saved = Vec::new();
+        for (i, data) in pab.files.iter().enumerate() {
+            let target = if i == 0 { path.to_owned() } else { path.with_file_name(format!("{stem}-{}.csv", i + 1)) };
+            if let Err(e) = write_export(&target, st.snapshot.model.path.as_deref(), data.as_bytes()) {
+                self.status = format!("Export failed: {e}");
+                return;
+            }
+            saved.push(target);
+        }
+        self.last_export = saved.first().cloned();
+        ui.ctx().open_url(egui::OpenUrl::new_tab(s.url));
+        self.status = format!(
+            "Saved {} Pick a Brick file(s); upload each on the page just opened. {} lot(s) have no element ID and are NOT in the list{}",
+            saved.len(),
+            pab.missing.len(),
+            if pab.missing.is_empty() { ".".into() } else { format!(": {}", pab.missing.iter().take(5).cloned().collect::<Vec<_>>().join("; ")) }
+        );
     }
 }
 fn write_export(path: &Path, source: Option<&Path>, bytes: &[u8]) -> Result<(), String> {

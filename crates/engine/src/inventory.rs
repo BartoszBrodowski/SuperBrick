@@ -10,6 +10,12 @@ pub struct Lot {
     pub color: i32,
     pub quantity: usize,
 }
+/// Pick a Brick upload files plus the lots that could not be mapped to an element ID.
+#[derive(Clone, Debug, Default)]
+pub struct PickABrick {
+    pub files: Vec<String>,
+    pub missing: Vec<String>,
+}
 #[derive(Clone, Debug, Default)]
 pub struct Inventory {
     pub lots: Vec<Lot>,
@@ -74,6 +80,39 @@ impl Inventory {
             );
         }
         out
+    }
+    /// LEGO Pick a Brick bulk-upload CSVs (`elementId,quantity`; ≤200 lines each, ≤999 per line).
+    /// Several element IDs can share a part/colour; the newest (highest) is used. Lots without
+    /// an element ID, or beyond the per-line cap, are reported in `missing`, never dropped silently.
+    pub fn pick_a_brick(&self, sets: &search::sets::Sets) -> PickABrick {
+        const MAX_LINES: usize = 200;
+        const MAX_QTY: usize = 999;
+        let mut lines: Vec<(String, usize)> = Vec::new();
+        let mut missing = Vec::new();
+        for l in &self.lots {
+            let part = l.part.trim_end_matches(".dat");
+            let Some(id) = sets.elements_for_ldraw(part, l.color).last() else {
+                missing.push(format!("{}× {part} (LDraw colour {}): no LEGO element ID", l.quantity, l.color));
+                continue;
+            };
+            let mut left = l.quantity;
+            while left > 0 {
+                let q = left.min(MAX_QTY);
+                lines.push((id.clone(), q));
+                left -= q;
+            }
+        }
+        let files = lines
+            .chunks(MAX_LINES)
+            .map(|chunk| {
+                let mut out = String::from("elementId,quantity\n");
+                for (id, q) in chunk {
+                    out += &format!("{id},{q}\n");
+                }
+                out
+            })
+            .collect();
+        PickABrick { files, missing }
     }
     /// One type-1 line per counted instance. Suppliers perform their own catalogue
     /// mapping; never silently treat LDraw IDs as BrickLink colour/part IDs.
@@ -180,5 +219,21 @@ mod tests {
         assert_eq!(inv.pieces, 1);
         assert!(!inv.warnings.is_empty());
         assert!(inv.upload_ldr().to_uppercase().contains("0X2ABCDEF"));
+    }
+    #[test]
+    fn pick_a_brick_round_trips_template_element_ids() {
+        let Some(sets) = search::sets::Sets::get() else { return };
+        for id in ["300321", "300121"] {
+            let e = sets.element(id).expect("template element known");
+            let colour = sets.elements_for_ldraw(e.part.as_deref().unwrap(), e.color.unwrap());
+            assert!(colour.iter().any(|x| x == id), "{id} not found via LDraw reverse lookup");
+        }
+        let inv = Inventory {
+            lots: vec![Lot { part: "3004.dat".into(), color: 99999, quantity: 3 }],
+            pieces: 3,
+            warnings: vec![],
+        };
+        let out = inv.pick_a_brick(sets);
+        assert!(out.files.is_empty() && out.missing.len() == 1);
     }
 }

@@ -79,6 +79,8 @@ pub struct Sets {
     colors: HashMap<i32, (Option<i32>, String)>,
     elements: HashMap<String, (u32, i32)>,
     by_item: HashMap<(u32, i32), Vec<String>>,
+    /// (LDraw part without ".dat", LDraw colour) → element IDs, ascending.
+    by_ldraw: HashMap<(String, i32), Vec<String>>,
     sets: Vec<SetRec>,
     by_num: HashMap<String, usize>,
 }
@@ -155,11 +157,29 @@ impl Sets {
             .enumerate()
             .map(|(i, s)| (s.num.to_lowercase(), i))
             .collect();
+        let mut by_ldraw: HashMap<(String, i32), Vec<String>> = HashMap::new();
+        for (&(part, color), ids) in &by_item {
+            let (Some(ldraw), Some(code)) = (
+                parts[part as usize].ldraw.as_ref(),
+                colors.get(&color).and_then(|c| c.0),
+            ) else {
+                continue;
+            };
+            by_ldraw
+                .entry((ldraw.clone(), code))
+                .or_default()
+                .extend(ids.iter().cloned());
+        }
+        for ids in by_ldraw.values_mut() {
+            ids.sort_by_key(|id| (id.len(), id.clone()));
+            ids.dedup();
+        }
         Ok(Sets {
             parts,
             colors,
             elements,
             by_item,
+            by_ldraw,
             sets,
             by_num,
         })
@@ -188,6 +208,15 @@ impl Sets {
         let id = id.trim();
         let &(part, color) = self.elements.get(id)?;
         Some(self.item(part, color, Some(id)))
+    }
+
+    /// LEGO element IDs for an LDraw part (with or without ".dat") in an LDraw colour,
+    /// ascending (newest last). Empty when Rebrickable lists none.
+    pub fn elements_for_ldraw(&self, part: &str, color: i32) -> &[String] {
+        let part = part.trim_end_matches(".dat");
+        self.by_ldraw
+            .get(&(part.to_string(), color))
+            .map_or(&[], Vec::as_slice)
     }
 
     /// The element IDs among the query's tokens, resolved.
