@@ -24,7 +24,7 @@ pub fn schema() -> Value {
 - mirror: {ids, axis:\"x\"|\"y\"|\"z\", pivot?}.
 - copy: {ids, by, count?:1}.
 - remove: {ids}. paint: {ids, color}.
-- connect: {ids, source:{part,leaf?,index?}, target:{part,leaf?,index?}, pose?} joins connector to connector (see project inspect).
+- connect: {source:{part,index}, target:{part,index}, pose?} joins connector to connector (indexes from project inspect); the source part and everything connected to it moves.
 - hinge: {part, angle, at?, joint?, axis?:0, detach?:[joint ids]} turns the side holding `part` about a hinge/turntable/ball joint; `at` is the hinge piece. A complete hinge (one part holding both halves, e.g. 1927) is split into its halves first (automatic when it is the only one rigidly joining `part`).\n- split: {ids} replaces a shortcut part (complete hinge, turntable) by its pieces, same step.
 - group / subbuild: {ids, name}. hide / lock: {ids, value?:true}.
 - step: {label?} ends the construction step here (`0 STEP`). restep: {ids, after} moves parts to the end of the step that part `after` is in. add and place also take after:<part id> to put the new parts in that part's (earlier) step.
@@ -433,7 +433,8 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
             tx.apply(Cmd::Paint { ids, color })?;
         }
         "connect" => {
-            let ids = op_ids(s, tx.model(), op, file)?;
+            // The source part's connected group moves; the engine wants every part of the file listed.
+            let ids: Vec<Id> = tx.model().parts.values().filter(|p| p.file == file).map(|p| p.id).collect();
             let source = endpoint(op.get("source").ok_or("connect needs \"source\"")?)?;
             let target = endpoint(op.get("target").ok_or("connect needs \"target\"")?)?;
             let pose = op.get("pose").and_then(Value::as_u64).unwrap_or(0) as usize;

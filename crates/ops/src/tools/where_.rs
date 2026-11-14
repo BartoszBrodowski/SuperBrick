@@ -141,11 +141,27 @@ fn find(
         } else {
             format!("{} parts ({})", ids.len(), census(s, view, ids, 3))
         };
-        let req = json!({"action": "drag", "moving": ids, "source": {"part": ids[0]}, "near": near,
-                         "all": true, "radius": radius, "limit": limit, "budget": 4096});
-        let res = engine::connectors::request(view, file, req)?;
+        // Any part of the group may be the one that makes the connection (a leg's bar, not its
+        // bracket), so try each as the source and pool the seats.
+        let mut found = Vec::new();
+        let mut failure = None;
+        for &source in ids.iter().take(16) {
+            let req = json!({"action": "drag", "moving": ids, "source": {"part": source}, "near": near,
+                             "all": true, "radius": radius, "limit": limit, "budget": 4096});
+            match engine::connectors::request(view, file, req) {
+                Ok(res) => found.extend(res["candidates"].as_array().cloned().unwrap_or_default()),
+                Err(e) => failure = Some(e),
+            }
+        }
+        if found.is_empty() {
+            if let Some(e) = failure {
+                if !e.contains("No legal") {
+                    return Err(e);
+                }
+            }
+        }
         let mut out = Vec::new();
-        for c in res["candidates"].as_array().into_iter().flatten() {
+        for c in &found {
             let r: DMat3 = serde_json::from_value(c["rotation"].clone()).map_err(|e| e.to_string())?;
             let t: DVec3 = serde_json::from_value(c["translation"].clone()).map_err(|e| e.to_string())?;
             let mut cmds = Vec::new();
