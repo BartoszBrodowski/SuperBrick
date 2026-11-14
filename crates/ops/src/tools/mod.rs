@@ -1,12 +1,13 @@
 //! The tools. Each takes JSON arguments and returns a [`Reply`]; `TOOLS` describes them for MCP
 //! and `sb help`.
+mod compare;
 mod edit;
 mod find;
 mod look;
 mod project;
 mod publish;
 mod select;
-mod verify;
+pub(crate) mod verify;
 mod where_;
 
 use crate::args::Result;
@@ -15,7 +16,6 @@ use engine::{Id, Model};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 
-pub(crate) use verify::problems;
 
 pub struct Tool {
     pub name: &'static str,

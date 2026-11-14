@@ -454,10 +454,10 @@ fn decide(s: &mut Session, args: &Value, action: &str) -> Result<Reply> {
     }
 }
 
-type Counts = std::collections::BTreeMap<(String, i32), u32>;
+pub(crate) type Counts = std::collections::BTreeMap<(String, i32), u32>;
 
 /// Part number without ".dat", after following the library's "~Moved to" redirections (3023 -> 3023b).
-fn part_key(lib: &ldraw::Library, name: &str) -> String {
+pub(crate) fn part_key(lib: &ldraw::Library, name: &str) -> String {
     let n = lib.canonical_part(name.trim()).to_lowercase();
     n.strip_suffix(".dat").unwrap_or(&n).to_string()
 }
@@ -472,11 +472,15 @@ fn capped(items: Vec<String>, max: usize) -> String {
     t
 }
 
-fn counts_from(lib: &ldraw::Library, list: &[Value]) -> Result<Counts> {
+pub(crate) fn counts_from(lib: &ldraw::Library, list: &[Value]) -> Result<Counts> {
     let mut want = Counts::new();
     for v in list {
         let part = v.get("part").and_then(Value::as_str).ok_or("each inventory entry needs \"part\"")?;
-        let color = v.get("color").and_then(Value::as_i64).ok_or("each inventory entry needs a numeric \"color\"")? as i32;
+        let color = match v.get("color") {
+            Some(Value::Number(n)) => n.as_i64().ok_or("colour must be a whole number")? as i32,
+            Some(Value::String(name)) => super::edit::colour_code(name)?,
+            _ => return Err("each entry needs \"color\" (a number or a name)".into()),
+        };
         let qty = v.get("qty").or_else(|| v.get("quantity")).and_then(Value::as_u64).unwrap_or(1) as u32;
         *want.entry((part_key(lib, part), color)).or_default() += qty;
     }

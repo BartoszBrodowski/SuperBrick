@@ -13,7 +13,7 @@ pub fn schema() -> Value {
         "type": "object",
         "properties": {
             "part": {"type": "string", "description": "Part number to place (\"3001\"); or give ids to move existing parts."},
-            "color": {"type": "integer"},
+            "color": {"type": ["integer", "string"], "description": "LDraw colour number or name (\"white\", \"light bluish gray\")."},
             "rot": {"description": "Orientation to try first: 9 numbers (LDraw row order) or a shorthand such as \"yaw90\"."},
             "ids": ids_prop("Existing parts to move as one rigid piece (instead of part)"),
             "near": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "Point to search around."},
@@ -32,6 +32,8 @@ pub fn schema() -> Value {
 
 struct Candidate {
     cmds: Vec<Cmd>,
+    /// Found by the connector engine, whose bench check proved the seat legal (clips, pins, bars...).
+    bench: bool,
     /// Parts to draw as the ghost.
     ghosts: Vec<PartSpec>,
     /// Where the label goes (the ghost's middle).
@@ -79,7 +81,7 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
     let items: Vec<Value> = cands
         .iter()
         .enumerate()
-        .map(|(i, c)| json!({"label": (i + 1).to_string(), "at": units.from_ldu(c.origin), "note": c.note, "cmds": c.cmds}))
+        .map(|(i, c)| json!({"label": (i + 1).to_string(), "at": units.from_ldu(c.origin), "note": c.note, "cmds": c.cmds, "bench": c.bench}))
         .collect();
     let tree = s.store.working(&s.branch)?.tree;
     let user = s.user.clone();
@@ -151,7 +153,7 @@ fn find(
             if angle.abs() > 1e-6 {
                 cmds.push(Cmd::Rotate { ids: ids.to_vec(), axis, angle, pivot: DVec3::ZERO, free: true });
             }
-            cmds.push(Cmd::Move { ids: ids.to_vec(), delta: t, free: false });
+            cmds.push(Cmd::Move { ids: ids.to_vec(), delta: t, free: true });
             let ghosts: Vec<PartSpec> = ids
                 .iter()
                 .filter_map(|id| view.parts.get(id))
@@ -160,12 +162,12 @@ fn find(
             let at = ghosts.iter().map(|g| g.pos).sum::<DVec3>() / ghosts.len().max(1) as f64;
             let note = if angle.abs() > 1e-6 { format!("turned {angle:.0}°") } else { String::new() };
             let origin = ghosts.first().map_or(at, |g| g.pos);
-            out.push(Candidate { cmds, ghosts, at, origin, note });
+            out.push(Candidate { cmds, ghosts, at, origin, note, bench: true });
         }
         return Ok((out, what));
     }
     let name = args::part_name(args::str_arg(args, "part").ok_or("where needs \"part\" or \"ids\"")?);
-    let color = args.get("color").and_then(Value::as_i64).unwrap_or(71) as i32;
+    let color = super::edit::colour_arg(args, 71)?;
     let rot = match args.get("rot") {
         Some(r) => args::rotation(r)?,
         None => DMat3::IDENTITY,
@@ -182,7 +184,12 @@ fn find(
         for c in res["candidates"].as_array().into_iter().flatten() {
             let pose: engine::connectors::Pose = serde_json::from_value(c["poses"][0].clone()).map_err(|e| e.to_string())?;
             let p = PartSpec { pos: pose.pos, rot: pose.rot, ..spec.clone() };
-            out.push(candidate_for(s, file, p, rot));
+            let mut c = candidate_for(s, file, p, rot);
+            c.bench = true;
+            if let Some(Cmd::Add { free, .. }) = c.cmds.first_mut() {
+                *free = true;
+            }
+            out.push(c);
         }
     } else {
         for p in s.engine.stud_candidates(file, &spec, near, facing, &[], radius, limit)? {
@@ -197,7 +204,7 @@ fn candidate_for(s: &Session, file: usize, p: PartSpec, wanted: DMat3) -> Candid
     let turned = (p.rot - wanted).to_cols_array().iter().any(|v| v.abs() > 1e-6);
     let note = if turned { format!("rot {:?}", args::rot_rows(p.rot).map(|v| v.round() as i64)) } else { String::new() };
     let origin = p.pos;
-    Candidate { cmds: vec![Cmd::Add { file, parts: vec![p.clone()], free: false }], ghosts: vec![p], at, origin, note }
+    Candidate { cmds: vec![Cmd::Add { file, parts: vec![p.clone()], free: false }], ghosts: vec![p], at, origin, note, bench: false }
 }
 
 /// Fingerprint of the space a candidate fills (vertex positions and colours, 1/4 LDU grid).

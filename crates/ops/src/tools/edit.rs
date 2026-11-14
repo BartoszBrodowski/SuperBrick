@@ -25,7 +25,7 @@ pub fn schema() -> Value {
 - copy: {ids, by, count?:1}.
 - remove: {ids}. paint: {ids, color}.
 - connect: {ids, source:{part,leaf?,index?}, target:{part,leaf?,index?}, pose?} joins connector to connector (see project inspect).
-- hinge: {part, angle, joint?, axis?:0, detach?:[joint ids]} turns the part's rigid chunk about a hinge/turntable/ball joint.
+- hinge: {part, angle, at?, joint?, axis?:0, detach?:[joint ids]} turns the side holding `part` about a hinge/turntable/ball joint; `at` is the hinge piece. A complete hinge (one part holding both halves, e.g. 1927) is split into its halves first (automatic when it is the only one rigidly joining `part`).\n- split: {ids} replaces a shortcut part (complete hinge, turntable) by its pieces, same step.
 - group / subbuild: {ids, name}. hide / lock: {ids, value?:true}.
 - step: {label?} ends the construction step here (`0 STEP`). restep: {ids, after} moves parts to the end of the step that part `after` is in. add and place also take after:<part id> to put the new parts in that part's (earlier) step.
 color is an LDraw number or a name (\"red\", \"light bluish gray\", \"lbg\").",
@@ -36,7 +36,9 @@ color is an LDraw number or a name (\"red\", \"light bluish gray\", \"lbg\").",
             "units": units_prop(),
             "file": {"type": "integer", "description": "Model file index (0 = main)."},
             "views": views_prop(),
-            "images": {"type": "boolean", "description": "Return a picture (default true)."}
+            "images": {"type": "boolean", "description": "Return a picture (default true)."},
+            "compare": super::compare::schema(),
+            "callout": {"type": "array", "items": {"type": "object"}, "description": "The booklet callout for this step: [{part, color, qty}]. The batch is refused unless the parts it adds, plus parts a `place` attaches (a sub-build), match it exactly."}
         },
         "additionalProperties": false
     })
@@ -53,7 +55,7 @@ fn default_colour(s: &Session) -> i32 {
         .unwrap_or(71)
 }
 
-fn colour_arg(v: &Value, fallback: i32) -> Result<i32> {
+pub(crate) fn colour_arg(v: &Value, fallback: i32) -> Result<i32> {
     match v.get("color").or_else(|| v.get("colour")) {
         None | Some(Value::Null) => Ok(fallback),
         Some(Value::String(name)) => colour_code(name),
@@ -145,6 +147,9 @@ struct Done {
     note: Option<String>,
     /// A group made by this op: its name and parts (kept as a named selection too).
     group: Option<(String, Vec<Id>)>,
+    /// Parts a `place` added or moved, and whether the bench proved that seat (connector candidates).
+    placed: Vec<Id>,
+    bench: bool,
 }
 
 /// Resolve an op's ids against the transaction's current model.
@@ -164,6 +169,38 @@ fn centre(s: &Ctx, model: &Model, ids: &[Id]) -> DVec3 {
 }
 
 /// The `step` argument of an edit: true (use the edit's label), a label, or false/absent.
+/// Refuse the batch unless the parts it adds equal `list` ([{part, color, qty}]), as counted in a booklet callout.
+fn check_callout(ctx: &Ctx, list: &Value, original: &std::collections::HashSet<Id>, moved: &std::collections::HashSet<Id>, model: &Model, file: usize) -> Result<()> {
+    use super::project::{counts_from, part_key, Counts};
+    let lib: &ldraw::Library = ctx.lib;
+    let list = list.as_array().ok_or("callout is a list of {part, color, qty}")?;
+    let want = counts_from(lib, list)?;
+    let mut got = Counts::new();
+    for p in model.parts.values().filter(|p| p.file == file && (!original.contains(&p.id) || moved.contains(&p.id))) {
+        *got.entry((part_key(lib, &p.name), p.color)).or_default() += 1;
+    }
+    if want == got {
+        return Ok(());
+    }
+    let fmt = |m: &Counts, other: &Counts| -> Vec<String> {
+        m.iter().filter_map(|(k, n)| {
+            let o = other.get(k).copied().unwrap_or(0);
+            (*n > o).then(|| format!("{}× {} {} ({})", n - o, k.0, super::colour_name(lib, k.1), k.1))
+        }).collect()
+    };
+    let missing = fmt(&want, &got);
+    let extra = fmt(&got, &want);
+    let mut t = String::from("the callout doesn't match the parts this edit adds:");
+    if !missing.is_empty() {
+        t.push_str(&format!(" missing {}.", missing.join(", ")));
+    }
+    if !extra.is_empty() {
+        t.push_str(&format!(" not in the callout {}.", extra.join(", ")));
+    }
+    t.push_str(" Recount the callout box, or fix the parts.");
+    Err(t)
+}
+
 fn step_label(v: Option<&Value>, label: &str) -> Result<Option<Option<String>>> {
     Ok(match v {
         None | Some(Value::Null) | Some(Value::Bool(false)) => None,
@@ -173,10 +210,109 @@ fn step_label(v: Option<&Value>, label: &str) -> Result<Option<Option<String>>> 
     })
 }
 
+
+/// Apply a move or turn. When its only collisions are bench-proven joints (clips, bars, windows)
+/// whose two parts move together, apply it without the stud-only collision check.
+fn apply_rigid(s: &Ctx, tx: &mut DraftTx, cmd: Cmd) -> Result<()> {
+    let err = match tx.apply(cmd.clone()) {
+        Ok(_) => return Ok(()),
+        Err(e) => e,
+    };
+    let moved: std::collections::HashSet<Id> = cmd.ids().iter().copied().collect();
+    let unchecked = match cmd {
+        Cmd::Move { ids, delta, .. } => Cmd::Move { ids, delta, free: true },
+        Cmd::Rotate { ids, axis, angle, pivot, .. } => Cmd::Rotate { ids, axis, angle, pivot, free: true },
+        _ => return Err(err),
+    };
+    let only_joints = tx
+        .engine()
+        .last_failure
+        .as_ref()
+        .and_then(|f| f.get("collisions"))
+        .and_then(Value::as_array)
+        .is_some_and(|list| {
+            !list.is_empty()
+                && list.iter().all(|c| match (c.get("moving").and_then(Value::as_u64), c.get("blocker").and_then(Value::as_u64)) {
+                    (Some(m), Some(b)) => moved.contains(&m) && moved.contains(&b) && s.joints.iter().any(|j| j.joins(m, b)),
+                    _ => false,
+                })
+        });
+    if !only_joints {
+        return Err(err);
+    }
+    tx.apply(unchecked)?;
+    Ok(())
+}
+
+/// The real pieces a shortcut part stands for (a complete hinge 1927 = base 2429 + top 2430),
+/// placed where the shortcut is; None for an ordinary part.
+fn components(lib: &ldraw::Library, name: &str, color: i32, pos: DVec3, rot: DMat3, depth: usize) -> Option<Vec<PartSpec>> {
+    if depth > 4 {
+        return None;
+    }
+    let text = lib.read_text(name).ok()?;
+    let shortcut = text.lines().take(12).any(|l| {
+        let l = l.trim();
+        (l.starts_with("0 !LDRAW_ORG") && (l.contains("Shortcut") || l.contains("Alias"))) || l.starts_with("0 ~Moved to")
+    });
+    if !shortcut {
+        return None;
+    }
+    let mut out = Vec::new();
+    for line in text.lines() {
+        let t: Vec<&str> = line.split_whitespace().collect();
+        if t.len() < 15 || t[0] != "1" {
+            continue;
+        }
+        let n: Vec<f64> = t[2..14].iter().map(|x| x.parse().ok()).collect::<Option<_>>()?;
+        let c: i32 = t[1].parse().ok()?;
+        let c = if c == 16 { color } else { c };
+        let sub = t[14..].join(" ");
+        let local = DMat3::from_cols_array(&[n[3], n[6], n[9], n[4], n[7], n[10], n[5], n[8], n[11]]);
+        let (p, r) = (pos + rot * DVec3::new(n[0], n[1], n[2]), rot * local);
+        match components(lib, &sub, c, p, r, depth + 1) {
+            Some(v) => out.extend(v),
+            None => out.push(PartSpec { name: sub, color: c, pos: p, rot: r, id: None }),
+        }
+    }
+    (!out.is_empty()).then_some(out)
+}
+
+fn splittable(lib: &ldraw::Library, name: &str) -> bool {
+    components(lib, name, 16, DVec3::ZERO, DMat3::IDENTITY, 0).is_some_and(|v| v.len() >= 2)
+}
+
+/// Replace a shortcut part by its pieces, in the same step; the first piece keeps the id.
+fn split_part(s: &Ctx, tx: &mut DraftTx, id: Id) -> Result<Vec<Id>> {
+    let p = tx.model().parts.get(&id).cloned().ok_or_else(|| format!("no part #{id}"))?;
+    let mut specs = components(s.lib, &p.name, p.color, p.pos, p.rot, 0)
+        .filter(|v| v.len() >= 2)
+        .ok_or_else(|| format!("#{id} {} is a single piece; only shortcut parts such as a complete hinge (1927) split", p.name))?;
+    let anchor = tx
+        .model()
+        .parts
+        .values()
+        .filter(|q| q.id != id && q.file == p.file && q.step == p.step)
+        .map(|q| q.id)
+        .next();
+    let before: std::collections::HashSet<Id> = tx.model().parts.keys().copied().collect();
+    specs[0].id = Some(id);
+    tx.apply(Cmd::Remove { ids: vec![id] })?;
+    tx.apply(Cmd::Add { file: p.file, parts: specs, free: true })?;
+    let mut halves: Vec<Id> = vec![id];
+    halves.extend(tx.model().parts.keys().filter(|k| !before.contains(k)).copied());
+    if let Some(after) = anchor {
+        tx.apply(Cmd::Restep { ids: halves.clone(), after })?;
+    }
+    Ok(halves)
+}
+
 /// Turn one op into commands and apply them inside the transaction.
 fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, colour: i32) -> Result<Done> {
     let kind = args::str_arg(op, "op").ok_or("each op needs \"op\" (add, place, move, ...)")?.to_ascii_lowercase();
     let free = op.get("free").and_then(Value::as_bool).unwrap_or(false);
+    let mut placed: Vec<Id> = Vec::new();
+    let mut bench = false;
     let mut note = None;
     let mut group = None;
     // `after`: the parts this op adds join the construction step of that part (their lines go
@@ -207,6 +343,9 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
                 let item = items
                     .get(pick.wrapping_sub(1))
                     .ok_or_else(|| format!("{from} has candidates 1-{}", items.len()))?;
+                let before: std::collections::HashMap<Id, u64> =
+                    tx.model().parts.iter().map(|(id, p)| (*id, p.content_hash())).collect();
+                bench = item["bench"].as_bool().unwrap_or(false);
                 for c in item["cmds"].as_array().into_iter().flatten() {
                     let mut cmd: Cmd = serde_json::from_value(c.clone()).map_err(|e| format!("candidate {from}/{pick}: {e}"))?;
                     if let (Cmd::Add { parts, .. }, Some(col)) = (&mut cmd, op.get("color").and_then(Value::as_i64)) {
@@ -216,6 +355,7 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
                     }
                     tx.apply(cmd)?;
                 }
+                placed = tx.model().parts.iter().filter(|(id, p)| before.get(*id) != Some(&p.content_hash())).map(|(id, _)| *id).collect();
                 note = Some(format!("{from} #{pick}"));
             } else {
                 let mut part = spec(&{
@@ -256,7 +396,7 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
             } else {
                 return Err("move needs \"by\" or \"to\"".into());
             };
-            tx.apply(Cmd::Move { ids, delta, free })?;
+            apply_rigid(s, tx, Cmd::Move { ids, delta, free })?;
         }
         "rotate" | "turn" => {
             let ids = op_ids(s, tx.model(), op, file)?;
@@ -266,7 +406,7 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
                 Some(p) => args::point(p, units)?,
                 None => centre(s, tx.model(), &ids),
             };
-            tx.apply(Cmd::Rotate { ids, axis, angle, pivot, free })?;
+            apply_rigid(s, tx, Cmd::Rotate { ids, axis, angle, pivot, free })?;
         }
         "mirror" | "flip" | "invert" => {
             let ids = op_ids(s, tx.model(), op, file)?;
@@ -299,18 +439,82 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
             let pose = op.get("pose").and_then(Value::as_u64).unwrap_or(0) as usize;
             tx.apply(Cmd::Connect { ids, file, source, target, pose })?;
         }
+        "split" => {
+            let ids = op_ids(s, tx.model(), op, file)?;
+            let mut out = Vec::new();
+            for id in ids {
+                let halves = split_part(s, tx, id)?;
+                out.push(format!("#{id} into {}", fmt_ids(halves.iter().copied())));
+            }
+            note = Some(format!("split {}", out.join("; ")));
+        }
         "hinge" | "articulate" => {
             let clicked = op
                 .get("part")
                 .and_then(Value::as_u64)
                 .ok_or("hinge needs \"part\": the id of a part on the side that turns")?;
             let angle = op.get("angle").and_then(args::num).ok_or("hinge needs \"angle\" in degrees")?;
+            let mut at = op.get("at").and_then(Value::as_u64);
+            if at == Some(clicked) {
+                return Err("hinge: \"part\" is a part on the side that turns, \"at\" the hinge piece; they can't be the same".into());
+            }
+            let mut notes = Vec::new();
+            let mut halves: Vec<Id> = Vec::new();
+            if at.is_none() && op.get("joint").is_none() {
+                // A complete hinge (one LDraw part holding both halves) rigidly joins the two sides:
+                // if exactly one sits in the turning part's rigid chunk, that is the hinge meant.
+                let analysis = engine::connectors::analyze(tx.model(), file)?;
+                let chunk = analysis.graph.rigid_chunk(clicked)?;
+                let model = tx.model();
+                let found: Vec<Id> = chunk
+                    .iter()
+                    .copied()
+                    .filter(|id| model.parts.get(id).is_some_and(|p| splittable(s.lib, &p.name)))
+                    .collect();
+                match found.len() {
+                    0 => {}
+                    1 => at = Some(found[0]),
+                    _ => {
+                        return Err(format!(
+                            "#{clicked} is rigidly joined through several complete hinges/turntables ({}); pass \"at\": the one to turn",
+                            fmt_ids(found.iter().copied())
+                        ))
+                    }
+                }
+            }
+            if let Some(h) = at {
+                let name = tx.model().parts.get(&h).map(|p| p.name.clone()).ok_or_else(|| format!("no part #{h}"))?;
+                if splittable(s.lib, &name) {
+                    halves = split_part(s, tx, h)?;
+                    notes.push(format!("split #{h} {} into {}", name.trim_end_matches(".dat"), fmt_ids(halves.iter().copied())));
+                }
+            }
             let analysis = engine::connectors::analyze(tx.model(), file)?;
             let pivots = analysis.graph.pivots(clicked)?;
-            let joint = match op.get("joint").and_then(Value::as_u64) {
-                Some(j) if pivots.contains(&j) => j,
-                Some(j) => return Err(format!("joint {j} does not turn part #{clicked}; joints that do: {pivots:?}")),
-                None => *pivots.first().ok_or_else(|| format!("part #{clicked} is not on a hinge, turntable or ball joint"))?,
+            let turns = |j: &engine::joints::Joint| !j.motion.rotation_axes().is_empty();
+            let joint = if let Some(j) = op.get("joint").and_then(Value::as_u64) {
+                if !pivots.contains(&j) {
+                    return Err(format!("joint {j} does not turn part #{clicked}; joints that do: {pivots:?}"));
+                }
+                j
+            } else if !halves.is_empty() {
+                analysis
+                    .graph
+                    .joints
+                    .iter()
+                    .find(|j| turns(j) && halves.contains(&j.a) && halves.contains(&j.b))
+                    .map(|j| j.id)
+                    .ok_or("the connector bench found no hinge between the split halves")?
+            } else if let Some(h) = at {
+                analysis
+                    .graph
+                    .joints
+                    .iter()
+                    .find(|j| turns(j) && pivots.contains(&j.id) && (j.a == h || j.b == h))
+                    .map(|j| j.id)
+                    .ok_or_else(|| format!("#{h} has no hinge, turntable or ball joint that turns #{clicked}"))?
+            } else {
+                *pivots.first().ok_or_else(|| format!("part #{clicked} is not on a hinge, turntable or ball joint"))?
             };
             let art = analysis.graph.articulate(clicked, joint)?;
             let axis = op.get("axis").and_then(Value::as_u64).unwrap_or(0) as usize;
@@ -321,8 +525,9 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
                     art.detach
                 ));
             }
-            tx.apply(art.rotation(axis, angle, &detach)?)?;
-            note = Some(format!("joint {joint}, {} parts turn", art.moving.len()));
+            apply_rigid(s, tx, art.rotation(axis, angle, &detach)?)?;
+            notes.push(format!("joint {joint}, {} parts turn", art.moving.len()));
+            note = Some(notes.join("; "));
         }
         "group" => {
             let ids = op_ids(s, tx.model(), op, file)?;
@@ -365,10 +570,19 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
             note = Some(format!("{}moved to the end of step {} (the step of #{after})", note.map(|n| format!("{n}, ")).unwrap_or_default(), v["step"]));
         }
     }
-    Ok(Done { kind, note, group })
+    Ok(Done { kind, note, group, placed, bench })
 }
 
 pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
+    // `images:false` holds for this call only; the session's own setting comes back afterwards.
+    let images = s.images;
+    let reply = run_once(s, args);
+    s.images = images;
+    reply
+}
+
+fn run_once(s: &mut Session, args: &Value) -> Result<Reply> {
+    super::compare::view(args)?;
     let ops = args.get("ops").and_then(Value::as_array).cloned().ok_or("edit needs \"ops\": a list of operations")?;
     if ops.is_empty() {
         return Err("\"ops\" is empty".into());
@@ -379,7 +593,7 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
     let units = s.units(args)?;
     let dry = args.get("dry_run").and_then(Value::as_bool).unwrap_or(false);
     let label = args::str_arg(args, "label").unwrap_or("").to_string();
-    if let Some(false) = args.get("images").and_then(Value::as_bool) {
+    if args.get("compare").is_none() && args.get("images").and_then(Value::as_bool) == Some(false) {
         s.images = false;
     }
     let view = s.view();
@@ -394,9 +608,15 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
         let mut failed: Option<usize> = None;
         let mut done: Vec<Done> = Vec::new();
         s.engine.drafts.next = s.engine.drafts.next.max(s.store.reserve_draft_ids(1)?);
+        // Joints placed from connector seats, keyed to their relative pose (older records are
+        // converted here, while their parts are still where they were put).
+        let view = s.view();
+        let joints: Vec<super::verify::BenchJoint> = super::verify::bench_joints(s, &view).into_iter().filter(|j| j.holds(&view)).collect();
+        super::verify::record_bench_joints(s, &view, &[])?;
         let Session { engine, store, lib, user: who, last, .. } = &mut *s;
-        let ctx = Ctx { lib: &*lib, store: &*store, user: who.as_str(), last: last.as_slice() };
+        let ctx = Ctx { lib: &*lib, store: &*store, user: who.as_str(), last: last.as_slice(), joints: &joints };
         let result = engine.propose_with(&user, turn, &label, dry, |tx| {
+            let original: std::collections::HashSet<Id> = tx.model().parts.keys().copied().collect();
             // Inside a batch, "last" means what the earlier ops of this batch made or changed.
             let mut batch_last: Vec<Id> = Vec::new();
             for (i, op) in ops.iter().enumerate() {
@@ -408,8 +628,10 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
                     let changed: Vec<Id> = tx.model().parts.iter()
                         .filter(|(id, p)| before.get(*id) != Some(&p.content_hash()))
                         .map(|(id, _)| *id).collect();
-                    if !changed.is_empty() {
-                        batch_last = changed;
+                    for id in changed {
+                        if !batch_last.contains(&id) {
+                            batch_last.push(id);
+                        }
                     }
                 }
                 match applied {
@@ -420,6 +642,11 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
                         return Err(if ops.len() > 1 { format!("op {} ({kind}): {e}", i + 1) } else { e });
                     }
                 }
+            }
+            // `callout`: the parts this batch adds must be exactly the booklet's callout.
+            if let Some(list) = args.get("callout") {
+                let moved: std::collections::HashSet<Id> = done.iter().flat_map(|d| d.placed.iter().copied()).collect();
+                check_callout(&ctx, list, &original, &moved, tx.model(), file)?;
             }
             // `step`: close the batch as one construction step (`0 STEP`, labelled).
             if let Some(label) = step_label(args.get("step"), &label)? {
@@ -508,8 +735,16 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
         // Problems the change introduced (new floating parts, collisions with free placement).
         let model = p.effective;
         let mut bad = Vec::new();
+        // Connector seats the bench proved legal: its overlap test models clips and bars, SuperBrick's doesn't.
+        let trusted: std::collections::HashSet<Id> = done.iter().filter(|d| d.bench).flat_map(|d| d.placed.iter().copied()).collect();
         if !focus.is_empty() && model.flat(file).len() <= 4000 {
-            let pr = super::problems(s, &model, file);
+            let pr = super::verify::problems_with(s, &model, file, &trusted);
+            if !dry {
+                let mut seats: Vec<(Id, Id)> =
+                    pr.joints.iter().copied().filter(|(a, b)| trusted.contains(a) || trusted.contains(b)).collect();
+                seats.extend(trusted.iter().map(|&t| (t, t)));
+                super::verify::record_bench_joints(s, &model, &seats)?;
+            }
             for id in &focus {
                 if let Some(st) = pr.by_id.get(id) {
                     if st.iter().any(|x| x == "FLOATING" || x == "COLLISION") {
@@ -544,11 +779,18 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
             shot.whole = true;
             shot.intent = crate::planner::Intent::Whole;
         }
+        if let Some(v) = super::compare::view(args)? {
+            shot.views = Views::Angles(vec![v]);
+            shot.whole = true;
+            shot.intent = crate::planner::Intent::Whole;
+            shot.id_badges = false;
+        }
         let (img, err) = s.picture(&model, shot);
         if let Some(e) = err {
             text.push(' ');
             text.push_str(&e);
         }
+        let img = super::compare::attach(args, img)?;
         let mut reply = Reply::ok(text, data).image(img);
         reply.ok = true;
         return Ok(reply);
@@ -684,6 +926,12 @@ fn failure(s: &mut Session, view: &Model, file: usize, ops: &[Value], failed: Op
     }
     if let Some(a) = alternatives {
         text.push_str(&a);
+    }
+    if !clashes.is_empty() {
+        text.push_str(
+            " If this is a clip, bar, pin, hinge or other non-stud seat, this check can't see the joint: find the seat with \
+             where {part, near_ids, connectors:true} and place it from there (those seats are checked by the connector bench).",
+        );
     }
     if !shot.roles.is_empty() || !shot.extra.is_empty() || !shot.boxes.is_empty() {
         let n = census(s, view, &shot.roles.keys().copied().collect::<Vec<_>>(), 4);

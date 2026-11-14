@@ -284,3 +284,51 @@ fn element_ids_sets_and_inventory() {
     let r = call(&mut s, "project", json!({"action": "inventory", "against": "40809"}));
     assert!(r.ok && r.text.contains("set 40809-1"), "{}", r.text);
 }
+
+#[test]
+fn callout_and_booklet_compare() {
+    let path = project("callout");
+    let mut s = Session::open(&path, "claude", lib()).unwrap();
+    // The parts a step adds must match the booklet's callout; a miscount changes nothing.
+    let r = call(&mut s, "edit", json!({"images": false, "callout": [{"part": "3001", "color": 4, "qty": 2}], "ops": [brick([0.0, 0.0, 0.0])]}));
+    assert!(!r.ok && r.text.contains("missing 1× 3001"), "{}", r.text);
+    let r = call(&mut s, "edit", json!({"images": false, "callout": [{"part": "3001", "color": "red", "qty": 1}], "ops": [brick([0.0, 0.0, 0.0])]}));
+    assert!(r.ok, "{}", r.text);
+    // compare: a page image beside the model, one picture even with images:false.
+    let page = path.with_extension("png");
+    let img = render::RgbaImage { width: 200, height: 100, pixels: vec![255; 200 * 100 * 4] };
+    std::fs::write(&page, render::encode_png_fast(&img)).unwrap();
+    let r = call(&mut s, "edit", json!({"images": false, "compare": {"page": page, "box": [0.0, 0.0, 1.0, 1.0]}, "ops": [brick([0.0, -24.0, 0.0])]}));
+    assert!(r.ok, "{}", r.text);
+    assert_eq!(r.images.len(), 1);
+    assert!(r.images[0].width > r.images[0].height);
+    // A missing page is refused before anything is proposed.
+    let before = call(&mut s, "project", json!({"action": "drafts"})).text;
+    let r = call(&mut s, "edit", json!({"compare": {"page": "/no/such/page.png"}, "ops": [brick([0.0, -48.0, 0.0])]}));
+    assert!(!r.ok);
+    assert_eq!(call(&mut s, "project", json!({"action": "drafts"})).text, before);
+}
+
+#[test]
+fn batch_last_accumulates_and_subbuild_callout_counts_moved_parts() {
+    let path = project("subbuild");
+    let mut s = Session::open(&path, "claude", lib()).unwrap();
+    assert!(call(&mut s, "edit", json!({"images": false, "ops": [brick([0.0, 0.0, 0.0])]})).ok);
+    // Built off to the side: "last" inside the batch covers both plates, so the group holds both.
+    let r = call(&mut s, "edit", json!({"images": false, "ops": [
+        {"op": "add", "part": "3024", "color": "yellow", "at": [400, 0, 0]},
+        {"op": "add", "part": "3024", "color": "yellow", "at": [400, -8, 0]},
+        {"op": "group", "ids": "last", "name": "pair"}]}));
+    assert!(r.ok);
+    let r = call(&mut s, "where", json!({"ids": "pair", "near": [0, -24, 0], "limit": 2}));
+    assert!(r.ok, "{}", r.text);
+    assert!(r.text.contains("2 parts"), "{}", r.text);
+    let set = r.data["set"].as_str().unwrap().to_string();
+    // Attaching the sub-build carries its callout: a miscount is refused, the right count passes.
+    let wrong = call(&mut s, "edit", json!({"images": false, "callout": [{"part": "3024", "color": "yellow", "qty": 1}],
+        "ops": [{"op": "place", "from": set, "pick": 1}]}));
+    assert!(!wrong.ok);
+    let right = call(&mut s, "edit", json!({"images": false, "callout": [{"part": "3024", "color": "yellow", "qty": 2}],
+        "ops": [{"op": "place", "from": set, "pick": 1}]}));
+    assert!(right.ok, "{}", right.text);
+}

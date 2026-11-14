@@ -231,7 +231,7 @@ impl Session {
     }
 
     pub fn ctx(&self) -> Ctx<'_> {
-        Ctx { lib: &self.lib, store: &self.store, user: &self.user, last: &self.last }
+        Ctx { lib: &self.lib, store: &self.store, user: &self.user, last: &self.last, joints: &[] }
     }
     pub fn resolve(&self, model: &Model, refs: &[IdRef], file: usize) -> Result<Vec<Id>> {
         self.ctx().resolve(model, refs, file)
@@ -272,6 +272,8 @@ pub struct Ctx<'a> {
     pub store: &'a Store,
     pub user: &'a str,
     pub last: &'a [Id],
+    /// Bench-proven joints (clips, bars, windows) that hold in the model being edited.
+    pub(crate) joints: &'a [tools::verify::BenchJoint],
 }
 
 impl Ctx<'_> {

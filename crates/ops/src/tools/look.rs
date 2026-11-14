@@ -11,6 +11,7 @@ pub fn schema() -> Value {
         "properties": {
             "ids": ids_prop("Parts to look at (ids, a selection \"sN\" or \"last\"); omit for the whole model"),
             "views": views_prop(),
+            "compare": super::compare::schema(),
             "isolate": {"type": "boolean", "description": "Draw only the focus parts."},
             "dim": {"type": "boolean", "description": "Grey out everything except the focus (default true when ids are given)."},
             "hide": ids_prop("Parts not to draw (to see inside)"),
@@ -108,6 +109,9 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
     shot.dim_rest = dim && !isolate && !ids.is_empty();
     shot.id_badges = args.get("badges").and_then(Value::as_bool).unwrap_or(!ids.is_empty() && ids.len() <= 40);
     shot.views = views_arg(args.get("views"))?.unwrap_or(Views::Auto(2));
+    if let Some(v) = super::compare::view(args)? {
+        shot.views = Views::Angles(vec![v]);
+    }
     shot.intent = if ids.is_empty() { crate::planner::Intent::Whole } else { crate::planner::Intent::Inspect };
     let focus = if ids.is_empty() {
         view.parts.keys().copied().collect::<Vec<_>>()
@@ -125,6 +129,7 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
         text.push_str(&format!(" Box {} to {} ({}).", b["min"], b["max"], b["units"].as_str().unwrap_or("")));
     }
     let (img, e) = s.picture(&view, shot);
+    let img = super::compare::attach(args, img)?;
     if let Some(e) = e {
         text.push(' ');
         text.push_str(&e);
