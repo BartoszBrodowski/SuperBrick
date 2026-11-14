@@ -28,6 +28,44 @@ def _on_surface(points,colors,tris,triangle_colors,tol=.035):
         if not np.all(hit.any(axis=1)):return False
     return True
 
+# Approximate mirror match (see _mirror_part): largest allowed deviation (LDU) and deviating share of area.
+_MIRROR_APPROX_MAX=1.0
+_MIRROR_APPROX_AREA=.05
+
+def _surface_distance(points,colors,tris,triangle_colors,limit=np.inf):
+    """Exact distance from each point to the nearest same-colour triangle; stops early (returning what it
+    has, with the offending chunk) once some point is farther than `limit`."""
+    a=tris[:,0];b=tris[:,1];c=tris[:,2];ab=b-a;ac=c-a
+    def seg(p,x,y):
+        xy=y-x;t=np.clip(np.sum((p-x)*xy,axis=2)/np.maximum(np.sum(xy*xy,axis=1),1e-12),0,1)
+        return np.linalg.norm(p-(x+t[...,None]*xy),axis=2)
+    out=np.full(len(points),np.inf)
+    for start in range(0,len(points),32):
+        p=points[start:start+32,None,:];ap=p-a
+        d1=np.sum(ab*ap,axis=2);d2=np.sum(ac*ap,axis=2);bp=p-b;d3=np.sum(ab*bp,axis=2);d4=np.sum(ac*bp,axis=2)
+        cp=p-c;d5=np.sum(ab*cp,axis=2);d6=np.sum(ac*cp,axis=2)
+        va=d3*d6-d5*d4;vb=d5*d2-d1*d6;vc=d1*d4-d3*d2;den=va+vb+vc;den=np.where(np.abs(den)<1e-12,1e-12,den)
+        v=vb/den;w=vc/den;inside=(v>=0)&(w>=0)&(v+w<=1)
+        face=np.linalg.norm(p-(a+v[...,None]*ab+w[...,None]*ac),axis=2)
+        d=np.minimum(np.minimum(seg(p,a,b),seg(p,b,c)),seg(p,a,c));d=np.where(inside,np.minimum(face,d),d)
+        d=np.where(colors[start:start+32,None]==triangle_colors[None,:],d,np.inf)
+        out[start:start+32]=d.min(1)
+        if np.any(out[start:start+32]>limit):break
+    return out
+
+def _mirror_deviation(desired,dcol,transformed,tcol):
+    """(largest deviation, deviating share of area) of two meshes both ways, or None past the limits."""
+    worst=(0.,0.)
+    for x,xcol,y,ycol in ((desired,dcol,transformed,tcol),(transformed,tcol,desired,dcol)):
+        d=np.maximum(_surface_distance(x.reshape(-1,3),np.repeat(xcol,3),y,ycol,_MIRROR_APPROX_MAX).reshape(-1,3).max(1),
+                     _surface_distance(x.mean(1),xcol,y,ycol,_MIRROR_APPROX_MAX))
+        if d.max()>_MIRROR_APPROX_MAX:return None
+        area=.5*np.linalg.norm(np.cross(x[:,1]-x[:,0],x[:,2]-x[:,0]),axis=1)
+        share=area[d>.035].sum()/max(area.sum(),1e-9)
+        if share>_MIRROR_APPROX_AREA:return None
+        worst=(max(worst[0],float(d.max())),max(worst[1],float(share)))
+    return worst
+
 @lru_cache(maxsize=256)
 def _mirror_part(name):
     import ldraw,itertools,re
@@ -52,6 +90,7 @@ def _mirror_part(name):
             R=np.eye(3)[:,perm]*signs
             if np.linalg.det(R)>.9:rotations.append(R)
     rotations.sort(key=lambda R:(-float(np.trace(R)),tuple(R.flatten())))
+    near=[]
     for candidate in candidates:
         mesh=lib.geom(candidate,'std');tri=mesh.tris.astype(float)
         if not len(tri):continue
@@ -59,6 +98,7 @@ def _mirror_part(name):
         for R in rotations:
             transformed=(tri-c)@R.T+center
             if not np.allclose(transformed.min((0,1)),desired.min((0,1)),atol=.035) or not np.allclose(transformed.max((0,1)),desired.max((0,1)),atol=.035):continue
+            near.append((candidate,R,c,transformed,mesh.tcol))
             # Equivalent planar surfaces may use different diagonal vertices.
             if signature(transformed-center)!=wanted:
                 if not _on_surface(desired.reshape(-1,3),np.repeat(source.tcol,3),transformed,mesh.tcol):continue
@@ -66,6 +106,16 @@ def _mirror_part(name):
             if not _on_surface(desired.mean(1),source.tcol,transformed,mesh.tcol):continue
             if not _on_surface(transformed.mean(1),mesh.tcol,desired,source.tcol):continue
             return candidate,R,center-R@c
+    # No exact match. LDraw draws curves as polygons whose phase can be chiral: the axl3hol* axle-hole
+    # primitives are four-fold pinwheels, so a symmetric brick whose only mirror plane contains the axle
+    # axis (92013) matches its own mirror image only to ~0.7 LDU, and only around the hole. Accept the
+    # closest pose whose every deviation is small and whose deviating surface is a sliver of the part;
+    # real left/right differences (wedges, fairings, handed gears) are many LDU over large areas.
+    best=None
+    for candidate,R,c,transformed,tcol in near:
+        dev=_mirror_deviation(desired,source.tcol,transformed,tcol)
+        if dev is not None and (best is None or dev<best[0]):best=(dev,(candidate,R,center-R@c))
+    if best:return best[1]
     raise ValueError(f'{name}: no verified symmetric geometry or left/right counterpart found; mirror refused')
 
 def mirror_specs(req):
@@ -93,7 +143,11 @@ def _drag_index(key):
             for m in physics.snap_links(a,b)[0]:
                 for index,c,conn in ((i,m.ia,a.conns[m.ia]),(j,m.ib,b.conns[m.ib])):
                     # Partial engagement on a long bar/axle leaves its exposed span usable.
-                    if m.type in ('stud','side-stud','ball','hinge') or (conn.length>0 and m.engage>=conn.length-.5):occupied.add((index,c))
+                    # A stud fills an anti-stud, but an open stud's hole goes on past the recess
+                    # (a pin can still enter from the other end), so only a full engagement uses it up.
+                    full=conn.length>0 and m.engage>=conn.length-.5
+                    bar_hole=conn.gender=='F' and any(s[1]<5 for s in getattr(conn,'secs',()))
+                    if m.type in ('ball','hinge') or full or (m.type in ('stud','side-stud') and not bar_hole):occupied.add((index,c))
     grid={}
     for j,hidden,b in rows:
         if hidden:continue
@@ -285,9 +339,11 @@ def run(req):
                         # Connector frames may themselves be tilted by any angle. Also retain
                         # the current free twist where the connector permits it, not just quarters.
                         angles=(req.get('twist',0),90,180,270,aligned,aligned+180) if drag else (req.get('twist',0),90,180,270)
+                        ball=None
                         for angle in dict.fromkeys(round(x%360,6) for x in angles):
                             for flip in (False,True):
                                 for R,t,m in snaps.mate(local,world,angle,flip):
+                                    if m.dof=='ball': ball=m
                                     # Seat fully, then preserve the part's facing direction before
                                     # minimizing travel. Origin distance alone tips/flips a plate
                                     # just because its hinge is offset from that origin. Use the
@@ -300,6 +356,17 @@ def run(req):
                                     if drag:
                                         score=(round(float(np.linalg.norm(world.pos-near)),3),round(turn,6),-round(float(m.engage),3),round(travel,6))
                                     candidates.append((score,R,t,endpoint))
+                        if ball is not None:
+                            # A ball joint turns freely, so the frames' quarter twists are only
+                            # samples. Also offer the piece exactly as it is, just moved onto the
+                            # ball: a mirrored leg's socket frame has the other handedness, and every
+                            # frame-aligned pose would swing it into its neighbour.
+                            t=np.asarray(world.pos,float)-np.asarray(local.pos,float)
+                            travel=float(np.linalg.norm(t))
+                            score=(-round(float(ball.engage),3),0.0,0.0,round(travel,6))
+                            if drag:
+                                score=(round(float(np.linalg.norm(world.pos-near)),3),0.0,-round(float(ball.engage),3),round(travel,6))
+                            candidates.append((score,np.eye(3),t,endpoint))
         candidates.sort(key=lambda x:x[0]); seen=set(); legal=[]
         found=set()
         for _,R,t,endpoint in candidates:

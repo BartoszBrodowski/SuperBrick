@@ -2,7 +2,7 @@
 //! remain explicitly outside the current native validator's completeness guarantee.
 use super::{Cmd, Engine, Id, PartSpec, Result};
 use glam::{DMat3, DVec3};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Opaque, revision-stamped result of an isolated placement solve.
 pub struct PreparedPlacement {
@@ -25,6 +25,9 @@ impl PreparedPlacement {
 #[derive(Default)]
 pub struct NativePlacementCache {
     validator: super::validation::Validator,
+}
+fn ids_or_part_empty(moving: &[physics::Body]) -> bool {
+    moving.is_empty()
 }
 impl super::Snapshot {
     /// Diagnostic only: actual collision checks still include all hidden geometry.
@@ -81,9 +84,38 @@ impl super::Snapshot {
                 .map(|b| physics::Body::new(b.shape, b.r, b.t + DVec3::Y * dy))
                 .collect();
         }
+        let mut blockers = self.hidden_overlapping(&mut e, file, &moving, ids);
+        if blockers.is_empty() && !ids_or_part_empty(&moving) {
+            // The cursor pose itself may overlap nothing hidden while the pose the solver *would*
+            // have chosen is blocked by a hidden piece: re-solve with hidden pieces removed and
+            // report the ones that overlap that pose.
+            blockers = self
+                .hidden_blockers_of_resolved_pose(
+                    e.lib.clone(), file, ids, part, near, rotation, ground,
+                )
+                .unwrap_or_default();
+        }
+        blockers
+    }
+    fn hidden_overlapping(
+        &self,
+        e: &mut Engine,
+        file: usize,
+        moving: &[physics::Body],
+        ids: &[Id],
+    ) -> Vec<Id> {
+        let flat = self.model.flat(file);
+        let index: std::collections::HashMap<_, _> = self
+            .model
+            .parts
+            .values()
+            .map(|p| ((0, p.file, p.line), p))
+            .collect();
         let mut blockers = BTreeSet::new();
         for p in &flat {
-            if is_moving(p)
+            if index
+                .get(&(0, file, p.root_line))
+                .is_some_and(|v| ids.contains(&v.id))
                 || !p
                     .ancestors
                     .iter()
@@ -102,6 +134,60 @@ impl super::Snapshot {
             }
         }
         blockers.into_iter().collect()
+    }
+    /// Hidden pieces that stop the solver's preferred pose (found by solving without them).
+    fn hidden_blockers_of_resolved_pose(
+        &self,
+        lib: std::sync::Arc<ldraw::Library>,
+        file: usize,
+        ids: &[Id],
+        part: &PartSpec,
+        near: DVec3,
+        rotation: DMat3,
+        ground: bool,
+    ) -> Result<Vec<Id>> {
+        let hidden: Vec<Id> = self
+            .model
+            .parts
+            .values()
+            .filter(|p| p.file == file && p.hidden && !ids.contains(&p.id))
+            .map(|p| p.id)
+            .collect();
+        if hidden.is_empty() {
+            return Ok(vec![]);
+        }
+        let mut e = self.fork(lib);
+        e.apply_for_preview(Cmd::Remove { ids: hidden })?;
+        let solved = self.prepare_with_engine(
+            &mut e,
+            file,
+            ids.to_vec(),
+            part.clone(),
+            near,
+            DVec3::ZERO,
+            ground,
+            false,
+            rotation,
+            false,
+        )?;
+        let flat = solved.prepared.model.flat(file);
+        let moving: Vec<_> = flat
+            .iter()
+            .filter(|p| {
+                solved
+                    .prepared
+                    .model
+                    .parts
+                    .values()
+                    .any(|v| solved.prepared.ids.contains(&v.id) && v.file == file && v.line == p.root_line)
+            })
+            .filter_map(|p| {
+                e.validator
+                    .shape(&e.lib, &p.name)
+                    .map(|s| physics::Body::new(s, p.rot, p.pos))
+            })
+            .collect();
+        Ok(self.hidden_overlapping(&mut e, file, &moving, &solved.prepared.ids))
     }
     pub fn prepare_placement(
         &self,
@@ -275,20 +361,27 @@ impl Engine {
                 p.revision = self.revision + 1;
             }
         }
+        // The preview ran in a fork without this engine's id reserver, so ids it gave new parts
+        // were never reserved: other processes (or this engine's next block) can hand them out
+        // again. Give every new part an id from this engine's own allocator instead.
+        let old = std::mem::take(&mut prepared.model.parts);
+        let mut renamed = BTreeMap::new();
+        for (id, mut p) in old {
+            if !self.model.parts.contains_key(&id) {
+                let fresh = self.allocate();
+                renamed.insert(id, fresh);
+                p.id = fresh;
+            }
+            prepared.model.parts.insert(p.id, p);
+        }
+        for id in &mut prepared.ids {
+            if let Some(fresh) = renamed.get(id) {
+                *id = *fresh;
+            }
+        }
         self.undo.push(self.model.clone());
         self.redo.clear();
         self.revision += 1;
-        let top = prepared
-            .model
-            .parts
-            .keys()
-            .next_back()
-            .copied()
-            .unwrap_or(0)
-            + 1;
-        if self.reserve.is_none() || top <= self.block_end {
-            self.next_id = self.next_id.max(top);
-        }
         prepared.model.selection = prepared.ids.iter().copied().collect();
         self.model = prepared.model;
         self.refresh_drafts();

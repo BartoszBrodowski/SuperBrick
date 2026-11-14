@@ -564,3 +564,41 @@ fn both_ball_socket_families_expose_three_axes_and_rotate() {
         assert!(accepted, "no legal ball rotation: {name}");
     }
 }
+#[test]
+fn ball_connect_keeps_the_moving_piece_turned_as_it_is() {
+    // A ball joint turns freely, so connecting must not force the socket's frame onto the
+    // ball's quarter twists. A mirrored leg has a left-handed socket frame; every frame-aligned
+    // pose swung it into its neighbour and the connect was refused.
+    let (c, s) = (33f64.to_radians().cos(), 33f64.to_radians().sin());
+    let text = format!(
+        "1 4 0 0 0 1 0 0 0 1 0 0 0 1 57909.dat\n1 1 160 -30 40 -1 0 0 0 {c} {s} 0 {s} {mc}  92013.dat\n",
+        mc = -c
+    );
+    let doc = ldraw::Document::parse(text.as_bytes(), "roll.ldr");
+    let mut e = Engine::new(Arc::new(ldraw::Library::open_default().unwrap()), doc, None);
+    let before = e.model.parts[&2].rot;
+    let a: connectors::Analysis = serde_json::from_value(
+        connectors::request(&e.model, 0, serde_json::json!({"action":"endpoints"})).unwrap(),
+    )
+    .unwrap();
+    let socket = a.connectors.iter().find(|c| c.part == 2 && c.label == "ball socket").unwrap();
+    let ball = a.connectors.iter().find(|c| c.part == 1 && c.label == "ball").unwrap();
+    e.execute(Cmd::Connect {
+        ids: vec![1, 2],
+        file: 0,
+        source: socket.endpoint(),
+        target: ball.endpoint(),
+        pose: 0,
+    })
+    .unwrap();
+    let after = &e.model.parts[&2];
+    assert!((after.rot - before).to_cols_array().iter().all(|d| d.abs() < 1e-6), "{:?}", after.rot);
+    assert!(
+        connectors::analyze(&e.model, 0)
+            .unwrap()
+            .graph
+            .joints
+            .iter()
+            .any(|j| matches!(j.motion, engine::joints::Motion::Ball { .. }))
+    );
+}

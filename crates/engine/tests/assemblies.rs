@@ -64,6 +64,48 @@ fn assembly_clipboard_places_as_one_transaction_without_mutating_original() {
     assert_eq!(e.model.doc.to_bytes(), before);
 }
 #[test]
+fn pasted_assembly_ids_come_from_the_reserved_block() {
+    // Like the app: ids come from a shared project counter, reserved lazily in blocks.
+    let mut e = engine();
+    let counter = Arc::new(std::sync::Mutex::new(3u64));
+    let shared = counter.clone();
+    e.set_id_reserver(Box::new(move || {
+        let mut c = shared.lock().unwrap();
+        let start = *c;
+        *c += 100;
+        Some((start, start + 100))
+    }));
+    e.execute(Cmd::Select { ids: vec![1, 2] }).unwrap();
+    let snapshot = e.snapshot();
+    let parts = snapshot.copied_assembly().unwrap();
+    let solution = snapshot
+        .prepare_assembly(
+            e.lib.clone(),
+            None,
+            0,
+            parts,
+            DVec3::new(120., 0., 0.),
+            DVec3::NEG_Y,
+            true,
+            false,
+            DMat3::IDENTITY,
+        )
+        .unwrap();
+    let pasted: Vec<u64> =
+        serde_json::from_value(e.commit_placement(solution.prepared).unwrap()["ids"].clone())
+            .unwrap();
+    // The pasted parts' ids were reserved, so no later block can hand them out again.
+    assert!(pasted.iter().all(|id| *id < *counter.lock().unwrap()));
+    // Mirroring the paste (remove + add) used to fail with "part id already exists".
+    e.execute(Cmd::Mirror {
+        ids: pasted,
+        axis: 0,
+        pivot: DVec3::new(120., 0., 0.),
+    })
+    .unwrap();
+    assert_eq!(e.model.parts.len(), 4);
+}
+#[test]
 fn mirrors_are_proper_rotations_and_chiral_counterparts_are_verified() {
     let e = engine();
     let original = PartSpec {

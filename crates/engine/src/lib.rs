@@ -600,14 +600,20 @@ impl Engine {
             }
             return id;
         }
-        if self.next_id >= self.block_end {
-            if let Some((start, end)) = self.reserve.as_mut().and_then(|f| f()) {
-                self.next_id = start;
-                self.block_end = end;
+        // Never hand out an id a part already has, even if the counter fell behind.
+        let id = loop {
+            if self.next_id >= self.block_end {
+                if let Some((start, end)) = self.reserve.as_mut().and_then(|f| f()) {
+                    self.next_id = start;
+                    self.block_end = end;
+                }
             }
-        }
-        let id = self.next_id;
-        self.next_id += 1;
+            let id = self.next_id;
+            self.next_id += 1;
+            if !self.model.parts.contains_key(&id) {
+                break id;
+            }
+        };
         if let Some(r) = &mut self.recorded {
             r.push(id);
         }
