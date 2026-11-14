@@ -567,9 +567,12 @@ impl Mechanical {
                     .filter(|c| {
                         let hidden = snapshot.model.parts.get(&c.part).is_some_and(|p| p.hidden);
                         !hidden
-                            && [0.0, 4.0, -4.0].iter().any(|d| {
-                                occlusion.visible(cam.eye().as_dvec3(), c.position + c.axis * *d)
-                            })
+                            && occlusion.marker_visible(
+                                cam.eye().as_dvec3(),
+                                c.position,
+                                c.axis,
+                                &c.label,
+                            )
                     })
                     .map(|c| (c.part, c.leaf, c.index))
                     .collect();

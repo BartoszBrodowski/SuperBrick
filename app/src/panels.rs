@@ -481,6 +481,26 @@ fn colour_picker(st: &mut State, ui: &mut egui::Ui) {
             ui.close();
         }
         ui.separator();
+        if st.colour_commonality.is_empty() {
+            if let Some(s) = st.search.as_ref() {
+                for part in &s.cat.parts {
+                    for c in &part.colors {
+                        *st.colour_commonality.entry(*c).or_default() += 1;
+                    }
+                }
+            }
+        }
+        ui.horizontal(|ui| {
+            ui.label("Sort:");
+            ui.selectable_value(&mut st.colour_by_commonality, false, "Number")
+                .on_hover_text("Standard LEGO/LDraw colour number order");
+            ui.selectable_value(&mut st.colour_by_commonality, true, "Commonality")
+                .on_hover_text("Colours that the most different parts come in first");
+        });
+        let mut order: Vec<_> = st.lib.colors.by_code.iter().filter(|(id, _)| **id != 16 && **id != 24).collect();
+        if st.colour_by_commonality {
+            order.sort_by_key(|(id, _)| (std::cmp::Reverse(st.colour_commonality.get(*id).copied().unwrap_or(0)), **id));
+        }
         egui::ScrollArea::vertical()
             .max_height(300.0)
             .show(ui, |ui| {
@@ -488,15 +508,12 @@ fn colour_picker(st: &mut State, ui: &mut egui::Ui) {
                     .spacing([3.0, 3.0])
                     .show(ui, |ui| {
                         let mut n = 0;
-                        for (id, c) in &st.lib.colors.by_code {
-                            if *id == 16 || *id == 24 {
-                                continue;
-                            }
+                        for (id, c) in order {
                             let (rect, response) = ui
                                 .allocate_exact_size(egui::vec2(25.0, 25.0), egui::Sense::click());
                             paint_swatch(ui, rect.shrink(2.0), c.rgb, c.alpha, !st.all_colors && *id == st.color);
                             if response
-                                .on_hover_text(format!("{} · {id}", c.name))
+                                .on_hover_text(format!("{} · {id} · {} parts", c.name, st.colour_commonality.get(id).copied().unwrap_or(0)))
                                 .clicked()
                             {
                                 if st.all_colors {
@@ -808,7 +825,7 @@ pub fn inspector(st: &mut State, ui: &mut egui::Ui) {
                 let index=row.uid.saturating_sub(1);
                 let name=st.report_flat.get(index).map(|p|p.name.as_str()).unwrap_or("unknown piece");
                 if ui.add_enabled(current,egui::Button::new(format!("Locate #{} · {} · {:?}",row.uid,name,row.status))).clicked(){
-                    let mut indices=vec![index];indices.extend(&row.collides);st.issue_serial+=1;
+                    let mut indices=vec![index];indices.extend(&row.collides);st.issue_note=None;st.issue_serial+=1;
                     st.issue=Some((st.report_file,indices,st.report_revision,st.issue_serial));
                     if let Some(p)=st.report_flat.get(index){if let Some(id)=st.snapshot.model.id_at(st.report_file,p.root_line){st.command(Cmd::Select{ids:vec![id]});}}
                 }
@@ -902,7 +919,7 @@ pub fn checker(st: &mut State, ui: &mut egui::Ui) {
             if pair.warning {for reason in &pair.reasons {ui.label(reason);}}
             if ui.add_enabled(current,egui::Button::new("Show reviewed connection")).clicked(){locate=Some(vec![pair.a,pair.b]);}
         }}
-        if let Some(indices)=locate {st.issue_serial+=1;st.issue=Some((st.report_file,indices,st.report_revision,st.issue_serial));}
+        if let Some(indices)=locate {st.issue_note=None;st.issue_serial+=1;st.issue=Some((st.report_file,indices,st.report_revision,st.issue_serial));}
         ui.separator();for note in &report.limitations {ui.small(note);}
     });
 }
@@ -1007,6 +1024,10 @@ pub fn drafts(st: &mut State, ui: &mut egui::Ui) {
                                 let r = st.handle.call(move |e| e.accept(&s, Some(vec![id])));
                                 st.result(r);
                             }
+                        }
+                        if matches!(op.state.as_str(), "stale" | "blocked") {
+                            ui.add_enabled(false, egui::Button::new("Accept").small())
+                                .on_disabled_hover_text(format!("Can't accept: {}. Reject it and ask the agent to redo it.", op.reason));
                         }
                         if live(&op.state) && ui.small_button("Reject").on_hover_text("Reject with the note above").clicked() {
                             let s = user.clone();

@@ -559,7 +559,9 @@ pub fn ui(st: &mut State, i: usize, ui: &mut egui::Ui) {
             ui.painter_at(rect).text(
                 rect.left_top() + egui::vec2(12., 12.),
                 egui::Align2::LEFT_TOP,
-                if contact_review {
+                if let Some(note) = &st.issue_note {
+                    note.as_str()
+                } else if contact_review {
                     "Checker X-ray · yellow contact review (not a draft blocker)"
                 } else if cleared {
                     "Checker X-ray · blue reviewed connection (cleared)"
@@ -567,7 +569,9 @@ pub fn ui(st: &mut State, i: usize, ui: &mut egui::Ui) {
                     "Checker X-ray · red issue / amber neighbour"
                 },
                 egui::FontId::proportional(14.),
-                if contact_review {
+                if st.issue_note.is_some() {
+                    egui::Color32::LIGHT_RED
+                } else if contact_review {
                     egui::Color32::YELLOW
                 } else if cleared {
                     egui::Color32::LIGHT_BLUE

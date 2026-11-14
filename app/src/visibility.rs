@@ -10,6 +10,9 @@ struct Body {
     lo: DVec3,
     hi: DVec3,
 }
+/// Distance from a ball joint's centre at which its marker is tested: just outside the
+/// 12.8 LDU ball and the ~14 LDU socket cup around it.
+const BALL_PROBE: f64 = 16.0;
 pub struct Occlusion {
     bodies: Vec<Body>,
 }
@@ -49,6 +52,18 @@ impl Occlusion {
             })
             .collect();
         Self { bodies }
+    }
+    /// Whether a connector marker can be seen: a point on the connector's axis near its
+    /// position must be in view. A ball's or socket's position is the sphere centre, always
+    /// inside its own part, so for those the side of the sphere facing the camera is probed.
+    pub fn marker_visible(&self, eye: DVec3, position: DVec3, axis: DVec3, label: &str) -> bool {
+        let ball = (label == "ball" || label == "ball socket")
+            .then(|| position + (eye - position).normalize_or_zero() * BALL_PROBE);
+        [0.0, 4.0, -4.0]
+            .iter()
+            .map(|d| position + axis * *d)
+            .chain(ball)
+            .any(|p| self.visible(eye, p))
     }
     pub fn visible(&self, eye: DVec3, point: DVec3) -> bool {
         let length = eye.distance(point);
@@ -119,5 +134,26 @@ mod tests {
         let eye = DVec3::new(0., 12., -200.);
         assert!(oc.visible(eye, DVec3::new(0., 12., -40.)));
         assert!(!oc.visible(eye, DVec3::new(0., 12., 40.)));
+    }
+    #[test]
+    fn ball_and_socket_markers_are_not_hidden_by_their_own_part() {
+        let lib = Arc::new(ldraw::Library::open_default().unwrap());
+        // 57909's ball and 92013's socket both sit at local (40, 10, 0).
+        for part in ["57909.dat", "92013.dat"] {
+            let line = format!("1 0 0 0 0 1 0 0 0 1 0 0 0 1 {part}\n");
+            let doc = ldraw::Document::parse(line.as_bytes(), "test.ldr");
+            let e = engine::Engine::new(lib.clone(), doc, None);
+            let oc = Occlusion::new(&e.snapshot(), 0, &lib);
+            let centre = DVec3::new(40., 10., 0.);
+            let eye = DVec3::new(200., 10., -150.);
+            let label = if part == "57909.dat" { "ball" } else { "ball socket" };
+            if label == "ball" {
+                assert!(!oc.visible(eye, centre), "the ball's centre is inside the ball");
+            }
+            assert!(oc.marker_visible(eye, centre, DVec3::Y, label), "{part}: marker hidden");
+            // Seen through the brick body from the far side, it stays hidden.
+            let behind = DVec3::new(-200., 10., 0.);
+            assert!(!oc.marker_visible(behind, centre, DVec3::Y, label), "{part}: seen through the brick");
+        }
     }
 }

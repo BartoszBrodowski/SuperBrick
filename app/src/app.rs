@@ -50,6 +50,9 @@ pub struct State {
     pub tool: Tool,
     pub color: i32,
     pub all_colors: bool,
+    /// Colour picker order: false = LEGO/LDraw number, true = by how many parts come in the colour.
+    pub colour_by_commonality: bool,
+    pub colour_commonality: std::collections::HashMap<i32, usize>,
     pub show_hidden: bool,
     pub place: Option<String>,
     pub place_rot: glam::DMat3,
@@ -98,6 +101,8 @@ pub struct State {
     pub report_flat: Vec<ldraw::FlatPart>,
     pub issue: Option<(usize, Vec<usize>, u64, u64)>,
     pub issue_serial: u64,
+    /// Replaces the checker caption on the X-ray overlay (e.g. why an operation refused).
+    pub issue_note: Option<String>,
     pub inspect_delta: [f64; 3],
     pub angle: f64,
     pub suppliers: crate::suppliers::Panel,
@@ -291,6 +296,34 @@ impl State {
             Ok(v) => v.to_string(),
             Err(e) => format!("Refused: {e}"),
         };
+    }
+    /// Shared X-ray: highlight flat-part `indices` of `file` in red and fly the camera to them.
+    /// Used by the checker and by any tool that wants to point at the parts that made it fail.
+    pub fn show_xray(&mut self, file: usize, indices: Vec<usize>, note: Option<String>) {
+        if indices.is_empty() {
+            return;
+        }
+        self.issue_serial += 1;
+        self.issue_note = note;
+        self.issue = Some((file, indices, self.snapshot.revision, self.issue_serial));
+    }
+    /// X-ray the selected parts whose part file is `name` (flat indices in the active panel).
+    pub fn xray_selected_named(&mut self, file: usize, name: &str, note: String) {
+        let lines: std::collections::BTreeSet<_> = self
+            .ids()
+            .iter()
+            .filter_map(|id| self.snapshot.model.parts.get(id).map(|p| p.line))
+            .collect();
+        let indices: Vec<usize> = self
+            .snapshot
+            .model
+            .flat(file)
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| lines.contains(&p.root_line) && p.name.eq_ignore_ascii_case(name))
+            .map(|(i, _)| i)
+            .collect();
+        self.show_xray(file, indices, Some(note));
     }
     pub fn ids(&self) -> Vec<u64> {
         self.snapshot.model.selection.iter().copied().collect()
@@ -698,6 +731,8 @@ impl App {
             tool: Tool::Select,
             color: start_color,
             all_colors: false,
+            colour_by_commonality: false,
+            colour_commonality: Default::default(),
             show_hidden: false,
             place: None,
             place_rot: glam::DMat3::IDENTITY,
@@ -745,6 +780,7 @@ impl App {
             report_flat: vec![],
             issue: None,
             issue_serial: 0,
+            issue_note: None,
             inspect_delta: [0.0; 3],
             angle: 90.0,
             home: args.file.is_none(),
@@ -820,7 +856,16 @@ impl App {
                     self.st.message =
                         "Mirror verified and applied; Undo restores the original".into()
                 }
-                Err(e) => self.st.message = format!("Mirror refused: {e}"),
+                Err(e) => {
+                    // Errors read "<part>.dat: reason"; X-ray every selected copy of that part.
+                    if let Some((name, _)) = e.split_once(": ") {
+                        if name.ends_with(".dat") {
+                            let file = self.st.views[self.st.active].file;
+                            self.st.xray_selected_named(file, name, format!("Mirror refused · {e}"));
+                        }
+                    }
+                    self.st.message = format!("Mirror refused: {e}")
+                }
             }
         }
         self.st.snapshot = self.st.handle.snapshot();
@@ -956,6 +1001,7 @@ impl App {
                                 })
                                 .or_else(|| report.reviewed.first().map(|r| vec![r.a, r.b]));
                             if let Some(indices) = indices {
+                                self.st.issue_note = None;
                                 self.st.issue_serial += 1;
                                 self.st.issue = Some((
                                     self.st.report_file,
@@ -1079,6 +1125,27 @@ impl App {
             if self.st.tool == Tool::Hide {
                 ui.menu_button("Hide options", |ui| {
                     ui.checkbox(&mut self.st.show_hidden, "Show hidden pieces");
+                    let hidden: Vec<_> = self
+                        .st
+                        .snapshot
+                        .model
+                        .parts
+                        .values()
+                        .filter(|p| p.hidden)
+                        .map(|p| p.id)
+                        .collect();
+                    let label = format!("Show all ({} hidden)", hidden.len());
+                    if ui
+                        .add_enabled(!hidden.is_empty(), egui::Button::new(label))
+                        .on_hover_text("Unhide every hidden piece in the project (one undo step)")
+                        .clicked()
+                    {
+                        self.st.command(Cmd::Hide {
+                            ids: hidden,
+                            value: false,
+                        });
+                        ui.close();
+                    }
                     ui.label("Click a piece to hide/unhide it. Hidden pieces still collide.");
                 });
             }
