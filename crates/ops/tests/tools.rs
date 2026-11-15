@@ -214,6 +214,20 @@ fn verify_reports_collisions_listed_on_one_row() {
 }
 
 #[test]
+fn verify_lists_what_chosen_parts_connect_to() {
+    let path = project("connections");
+    let mut s = Session::open(&path, "claude", lib()).unwrap();
+    let r = call(&mut s, "edit", json!({"images": false, "ops": [brick([0.0, 0.0, 0.0]), brick([0.0, -24.0, 0.0])]}));
+    assert!(r.ok, "{}", r.text);
+    let r = call(&mut s, "verify", json!({"ids": [2]}));
+    assert!(r.ok, "{}", r.text);
+    assert!(r.text.contains("Connections:") && r.text.contains("#2 ") && r.text.contains("#1 (8 stud)"), "{}", r.text);
+    let c = r.data["connections"].as_array().unwrap();
+    assert_eq!(c.len(), 1, "{}", r.data);
+    assert_eq!((c[0]["id"].as_u64(), c[0]["with"].as_u64(), c[0]["types"]["stud"].as_u64()), (Some(2), Some(1), Some(8)));
+}
+
+#[test]
 fn steps_export_and_argument_checks() {
     let path = project("steps");
     let mut s = Session::open(&path, "claude", lib()).unwrap();

@@ -15,7 +15,7 @@ pub fn schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "ids": ids_prop("Only report problems involving these parts"),
+            "ids": ids_prop("Only report problems involving these parts; for up to 12 parts, also list what each is connected to (and how)"),
             "between": {"type": "object", "description": "Strength between two regions: {a: ids, b: ids}. Reports how many connections hold them together at the weakest cut, and where.",
                         "properties": {"a": {}, "b": {}}},
             "weakest": {"description": "Find the weakest point of the group containing these ids (or true for the largest group)."},
@@ -222,6 +222,33 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
     for w in report.colour_warnings.iter().take(3) {
         text.push_str(&format!(" {}", w.message));
     }
+    // What each chosen part is connected to (a few parts only: the answer to "what does this grip?").
+    let mut connections = Vec::new();
+    if !focus.is_empty() && focus.len() <= 12 {
+        let mut lines = Vec::new();
+        for r in report.rows.iter().filter(|r| r.id.is_some_and(|id| focus.contains(&id))) {
+            let id = r.id.unwrap_or_default();
+            let with: Vec<String> = r
+                .links
+                .iter()
+                .map(|l| {
+                    let other = report.row(l.with).and_then(|o| o.id).map_or(format!("uid {}", l.with), |o| format!("#{o}"));
+                    let kinds = l.types.iter().map(|(k, n)| if *n > 1 { format!("{n} {k}") } else { k.clone() }).collect::<Vec<_>>().join("+");
+                    connections.push(json!({"id": id, "with": report.row(l.with).and_then(|o| o.id), "types": l.types, "dof": l.dof}));
+                    format!("{other} ({kinds})")
+                })
+                .collect();
+            lines.push(format!(
+                "#{id} {} [{}]: {}",
+                r.label,
+                r.status.join(", "),
+                if with.is_empty() { "nothing".to_string() } else { with.join(", ") }
+            ));
+        }
+        if !lines.is_empty() {
+            text.push_str(&format!("\nConnections:\n{}", lines.join("\n")));
+        }
+    }
     let statuses: BTreeMap<&str, usize> =
         engine::checker::STATUSES.iter().map(|&st| (st, report.count(st))).filter(|(_, n)| *n > 0).collect();
     let data = json!({
@@ -232,6 +259,7 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
         "floating": floating,
         "loose": loose,
         "unverified": unverified,
+        "connections": connections,
     });
     let mut shot = Shot::new(file, if ok { "no problems".to_string() } else { format!("{} problems", lines.len()) });
     let bad: BTreeSet<Id> = clashes.iter().flat_map(|c| [c.a, c.b]).chain(floating.iter().flatten().copied()).collect();
