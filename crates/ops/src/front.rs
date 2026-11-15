@@ -476,7 +476,7 @@ fn handle(server: &mut Server, msg: &Value) -> Option<Value> {
             let version = if ["2024-11-05", "2025-03-26", "2025-06-18"].contains(&asked) { asked } else { "2025-06-18" };
             Ok(json!({
                 "protocolVersion": version,
-                "capabilities": {"tools": {"listChanged": false}},
+                "capabilities": {"tools": {"listChanged": true}},
                 "serverInfo": {"name": "superbrick", "version": env!("CARGO_PKG_VERSION")},
                 "instructions": INSTRUCTIONS,
             }))
@@ -500,24 +500,171 @@ fn handle(server: &mut Server, msg: &Value) -> Option<Value> {
 }
 
 /// Serve MCP on stdin/stdout until stdin closes.
+///
+/// A running server notices a reinstall (`tools/install.py` replacing its binary or the connector
+/// and checker modules beside it) before the next tool call, and re-executes the new binary in
+/// place: the client keeps its pipes and sees no restart, open projects and the agent name carry
+/// over, and the new process tells the client when the tool list changed.
 pub fn mcp(user: &str, project: Option<PathBuf>) -> Result<(), String> {
     if !crate::valid_user(user) {
         return Err(format!("invalid user name {user:?}"));
     }
     let mut server = Server { user: user.to_string(), lib: None, sessions: HashMap::new(), current: None };
-    if let Some(p) = project {
-        server.open(&p, false, None)?;
+    let mut out = std::io::stdout().lock();
+    let mut pending = Vec::new();
+    match reload::resume() {
+        Some(h) => {
+            server.user = h.user.clone();
+            for path in &h.open {
+                if let Err(e) = server.open(path, false, None) {
+                    eprintln!("sb mcp: after reloading, could not reopen {}: {e}", path.display());
+                }
+            }
+            server.current = h.current.clone().filter(|c| server.sessions.contains_key(c));
+            eprintln!("sb mcp: reloaded the newly installed {}", std::env::current_exe().map(|e| e.display().to_string()).unwrap_or_default());
+            if h.tools != reload::fingerprint(&tool_list().to_string()) {
+                writeln!(out, "{}", json!({"jsonrpc": "2.0", "method": "notifications/tools/list_changed"}))
+                    .and_then(|_| out.flush())
+                    .map_err(|e| e.to_string())?;
+            }
+            pending = h.pending;
+        }
+        None => {
+            if let Some(p) = project {
+                server.open(&p, false, None)?;
+            }
+        }
     }
-    serve(&mut server, std::io::stdin().lock(), std::io::stdout().lock())
+    let mut watch = reload::Watch::new();
+    let input = std::io::stdin();
+    #[cfg(unix)]
+    let input = {
+        // Read through our own buffer (not the process-wide stdin one) so the bytes read ahead of
+        // the current message can be handed to the reloaded process.
+        use std::os::fd::AsFd;
+        match input.as_fd().try_clone_to_owned() {
+            Ok(fd) => Box::new(std::fs::File::from(fd)) as Box<dyn std::io::Read>,
+            Err(_) => {
+                watch = None;
+                Box::new(input) as Box<dyn std::io::Read>
+            }
+        }
+    };
+    #[cfg(not(unix))]
+    let input = {
+        watch = None;
+        Box::new(input) as Box<dyn std::io::Read>
+    };
+    let mut lines = Lines::new(pending, input);
+    loop {
+        match serve(&mut server, &mut lines, &mut out, watch.as_mut())? {
+            Served::Closed => return Ok(()),
+            Served::Reload(line) => {
+                let mut pending = line.into_bytes();
+                pending.push(b'\n');
+                pending.extend(lines.leftover());
+                let handoff = reload::Handoff {
+                    user: server.user.clone(),
+                    open: server.sessions.keys().cloned().collect(),
+                    current: server.current.clone(),
+                    tools: reload::fingerprint(&tool_list().to_string()),
+                    pending,
+                };
+                // Close the projects first: sessions hand back unused ids when dropped.
+                server.sessions.clear();
+                let err = reload::exec(&handoff);
+                // Still here: the new binary did not start. Reopen and carry on with this one.
+                eprintln!("sb mcp: not reloaded: {err}");
+                for path in &handoff.open {
+                    let _ = server.open(path, false, None);
+                }
+                server.current = handoff.current.clone();
+                if let Some(w) = watch.as_mut() {
+                    w.accept();
+                }
+                lines = Lines::new(handoff.pending, Box::new(std::io::empty()) as Box<dyn std::io::Read>).then(lines);
+            }
+        }
+    }
 }
 
-fn serve(server: &mut Server, input: impl BufRead, mut output: impl Write) -> Result<(), String> {
-    for line in input.lines() {
+/// Lines of input: queued bytes first (handed over by a reload), then a reader.
+struct Lines<R> {
+    queued: std::collections::VecDeque<u8>,
+    reader: std::io::BufReader<R>,
+    rest: Option<Box<Lines<Box<dyn std::io::Read>>>>,
+}
+
+impl<R: std::io::Read> Lines<R> {
+    fn new(queued: Vec<u8>, reader: R) -> Lines<R> {
+        Lines { queued: queued.into(), reader: std::io::BufReader::new(reader), rest: None }
+    }
+
+    /// Continue with `rest` once this input is used up.
+    fn then(mut self, rest: Lines<Box<dyn std::io::Read>>) -> Lines<R> {
+        self.rest = Some(Box::new(rest));
+        self
+    }
+
+    fn next(&mut self) -> Option<std::io::Result<String>> {
+        let mut buf = Vec::new();
+        while let Some(b) = self.queued.pop_front() {
+            buf.push(b);
+            if b == b'\n' {
+                return Some(Ok(String::from_utf8_lossy(&buf).trim_end().to_string()));
+            }
+        }
+        match self.reader.read_until(b'\n', &mut buf) {
+            Ok(0) if buf.is_empty() => match self.rest.as_mut() {
+                Some(rest) => rest.next(),
+                None => None,
+            },
+            Ok(_) => Some(Ok(String::from_utf8_lossy(&buf).trim_end().to_string())),
+            Err(e) => Some(Err(e)),
+        }
+    }
+
+    /// Take everything read ahead but not yet served.
+    fn leftover(&mut self) -> Vec<u8> {
+        let mut out: Vec<u8> = self.queued.drain(..).collect();
+        out.extend_from_slice(self.reader.buffer());
+        let n = self.reader.buffer().len();
+        self.reader.consume(n);
+        if let Some(rest) = self.rest.as_mut() {
+            out.extend(rest.leftover());
+        }
+        out
+    }
+}
+
+enum Served {
+    Closed,
+    /// A tool call arrived after a reinstall: hand it to the new binary.
+    Reload(String),
+}
+
+fn serve<R: std::io::Read>(
+    server: &mut Server,
+    input: &mut Lines<R>,
+    mut output: impl Write,
+    mut watch: Option<&mut reload::Watch>,
+) -> Result<Served, String> {
+    while let Some(line) = input.next() {
         let line = line.map_err(|e| e.to_string())?;
         if line.trim().is_empty() {
             continue;
         }
-        let reply = match serde_json::from_str::<Value>(&line) {
+        let parsed = serde_json::from_str::<Value>(&line);
+        let calls_tool = |m: &Value| m.get("method").and_then(Value::as_str) == Some("tools/call");
+        let wants_tool = match &parsed {
+            Ok(Value::Array(batch)) => batch.iter().any(calls_tool),
+            Ok(msg) => calls_tool(msg),
+            Err(_) => false,
+        };
+        if wants_tool && watch.as_mut().is_some_and(|w| w.changed()) {
+            return Ok(Served::Reload(line));
+        }
+        let reply = match parsed {
             Ok(Value::Array(batch)) => {
                 let out: Vec<Value> = batch.iter().filter_map(|m| handle(server, m)).collect();
                 (!out.is_empty()).then(|| Value::Array(out))
@@ -530,7 +677,132 @@ fn serve(server: &mut Server, input: impl BufRead, mut output: impl Write) -> Re
             output.flush().map_err(|e| e.to_string())?;
         }
     }
-    Ok(())
+    Ok(Served::Closed)
+}
+
+/// Self-reload of `sb mcp` after a reinstall.
+mod reload {
+    use serde::{Deserialize, Serialize};
+    use std::path::PathBuf;
+    use std::time::SystemTime;
+
+    const RESUME: &str = "SB_MCP_RESUME";
+
+    /// What a reloaded server picks up from the one it replaced.
+    #[derive(Serialize, Deserialize)]
+    pub struct Handoff {
+        pub user: String,
+        pub open: Vec<PathBuf>,
+        pub current: Option<PathBuf>,
+        /// Fingerprint of the old tool list: the new server announces a change.
+        pub tools: u64,
+        /// Input read ahead but not served, starting with the tool call that triggered the reload.
+        pub pending: Vec<u8>,
+    }
+
+    /// FNV-1a: a fingerprint that stays the same across builds.
+    pub fn fingerprint(text: &str) -> u64 {
+        text.bytes().fold(0xcbf29ce484222325, |h, b| (h ^ b as u64).wrapping_mul(0x100000001b3))
+    }
+
+    type Stamp = Option<(SystemTime, u64)>;
+
+    fn stamp(path: &PathBuf) -> Stamp {
+        let m = std::fs::metadata(path).ok()?;
+        Some((m.modified().ok()?, m.len()))
+    }
+
+    /// The installed files whose change means new code: this binary and the Python modules of the
+    /// connector and checker service. The installer copies with modification times kept, so an
+    /// unchanged reinstall changes nothing.
+    pub struct Watch {
+        files: Vec<PathBuf>,
+        seen: Vec<Stamp>,
+    }
+
+    impl Watch {
+        pub fn new() -> Option<Watch> {
+            if std::env::var_os("SB_MCP_NO_RELOAD").is_some() {
+                return None;
+            }
+            let mut files = vec![std::env::current_exe().ok()?];
+            if let Some(dir) = ldraw::installed_share("connectors") {
+                if let Ok(entries) = std::fs::read_dir(dir.join("bench")) {
+                    let mut py: Vec<PathBuf> = entries
+                        .flatten()
+                        .map(|e| e.path())
+                        .filter(|p| p.extension().is_some_and(|x| x == "py"))
+                        .collect();
+                    py.sort();
+                    files.extend(py);
+                }
+            }
+            let seen = files.iter().map(stamp).collect();
+            Some(Watch { files, seen })
+        }
+
+        #[cfg(test)]
+        pub fn of(files: Vec<PathBuf>) -> Watch {
+            let seen = files.iter().map(stamp).collect();
+            Watch { files, seen }
+        }
+
+        pub fn changed(&self) -> bool {
+            // A file that is missing right now is being replaced: wait for the next call.
+            self.files.iter().zip(&self.seen).any(|(f, s)| {
+                let now = stamp(f);
+                now.is_some() && now != *s
+            })
+        }
+
+        /// Take the current files as the baseline (after a reload that did not happen).
+        pub fn accept(&mut self) {
+            self.seen = self.files.iter().map(stamp).collect();
+        }
+    }
+
+    /// Replace this process with the installed binary, same arguments, handing over `h`.
+    /// Returns only when that failed.
+    pub fn exec(h: &Handoff) -> String {
+        let exe = match std::env::current_exe() {
+            Ok(e) => e,
+            Err(e) => return e.to_string(),
+        };
+        // A binary that does not start would take the server down: try it first.
+        match std::process::Command::new(&exe).arg("tools").stdin(std::process::Stdio::null()).output() {
+            Ok(o) if o.status.success() => {}
+            Ok(o) => return format!("{} tools failed: {}", exe.display(), String::from_utf8_lossy(&o.stderr).trim()),
+            Err(e) => return format!("{}: {e}", exe.display()),
+        }
+        let path = std::env::temp_dir().join(format!("sb-mcp-{}-{}.json", std::process::id(), h.tools));
+        let data = match serde_json::to_vec(h) {
+            Ok(d) => d,
+            Err(e) => return e.to_string(),
+        };
+        if let Err(e) = std::fs::write(&path, data) {
+            return format!("{}: {e}", path.display());
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            let err = std::process::Command::new(&exe).args(std::env::args_os().skip(1)).env(RESUME, &path).exec();
+            let _ = std::fs::remove_file(&path);
+            err.to_string()
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = std::fs::remove_file(&path);
+            "reloading needs exec (unix only)".into()
+        }
+    }
+
+    /// The handoff left by the process this one replaced, if any.
+    pub fn resume() -> Option<Handoff> {
+        let path = PathBuf::from(std::env::var_os(RESUME)?);
+        let data = std::fs::read(&path).ok()?;
+        let _ = std::fs::remove_file(&path);
+        serde_json::from_slice(&data).ok()
+    }
 }
 
 #[cfg(test)]
@@ -583,12 +855,47 @@ mod tests {
             "\n"
         );
         let mut out = Vec::new();
-        serve(&mut server, input.as_bytes(), &mut out).unwrap();
+        let mut lines = Lines::new(Vec::new(), input.as_bytes());
+        assert!(matches!(serve(&mut server, &mut lines, &mut out, None).unwrap(), Served::Closed));
         let lines: Vec<Value> = String::from_utf8(out).unwrap().lines().map(|l| serde_json::from_str(l).unwrap()).collect();
         assert_eq!(lines.len(), 3, "the notification gets no reply");
         assert_eq!(lines[0]["result"]["serverInfo"]["name"], "superbrick");
         assert_eq!(lines[1]["result"]["tools"].as_array().unwrap().len(), TOOLS.len());
         assert_eq!(lines[2]["result"]["isError"], true);
+    }
+
+    #[test]
+    fn a_reinstall_hands_the_next_tool_call_and_what_follows_to_the_new_binary() {
+        let dir = std::env::temp_dir().join(format!("sb-reload-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let installed = dir.join("sb");
+        std::fs::write(&installed, "old").unwrap();
+        let mut watch = reload::Watch::of(vec![installed.clone()]);
+        assert!(!watch.changed());
+        let mut server = Server { user: "claude".into(), lib: None, sessions: HashMap::new(), current: None };
+        let call = r#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"look","arguments":{}}}"#;
+        let after = r#"{"jsonrpc":"2.0","id":3,"method":"ping"}"#;
+        let input = format!("{}\n{call}\n{after}\n", r#"{"jsonrpc":"2.0","id":1,"method":"ping"}"#);
+        let mut lines = Lines::new(Vec::new(), input.as_bytes());
+        std::fs::write(&installed, "new code").unwrap();
+        assert!(watch.changed());
+        let mut out = Vec::new();
+        let served = serve(&mut server, &mut lines, &mut out, Some(&mut watch)).unwrap();
+        assert_eq!(String::from_utf8(out).unwrap().lines().count(), 1, "a ping is answered by the old binary");
+        let Served::Reload(line) = served else { panic!("the tool call should trigger the reload") };
+        assert_eq!(line, call);
+        assert_eq!(lines.leftover(), format!("{after}\n").into_bytes());
+        assert!(lines.next().is_none(), "nothing is served twice");
+        // A handoff that did not happen: the pending input comes first, then the rest.
+        let mut retry = Lines::new(format!("{call}\n").into_bytes(), Box::new(std::io::empty()) as Box<dyn std::io::Read>)
+            .then(Lines::new(b"tail\n".to_vec(), Box::new(std::io::empty()) as Box<dyn std::io::Read>));
+        assert_eq!(retry.next().unwrap().unwrap(), call);
+        assert_eq!(retry.next().unwrap().unwrap(), "tail");
+        assert!(retry.next().is_none());
+        watch.accept();
+        assert!(!watch.changed());
+        assert_ne!(reload::fingerprint("a"), reload::fingerprint("b"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
