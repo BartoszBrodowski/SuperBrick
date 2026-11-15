@@ -469,3 +469,24 @@ fn corner_anchors_ops_files_and_dropped_clashes() {
     assert_eq!(agent.view().flat(0).len(), 3);
     assert!(r.text.contains("1 of 2 dropped"), "{}", r.text);
 }
+
+#[test]
+fn rotate_keeps_parts_on_their_turntable() {
+    let path = project("turntable");
+    let mut s = Session::open(&path, "claude", lib()).unwrap();
+    let r = call(&mut s, "edit", json!({"images": false, "ops": [{"op": "add", "free": true, "parts": [
+        {"part": "3958", "color": 71, "at": [0, 0, 0]},
+        {"part": "3403", "color": 0, "at": [0, -24, 0]},
+        {"part": "3404", "color": 15, "at": [0, -35, 0]},
+        {"part": "3001", "color": 4, "at": [0, -59, 0]}]}]}));
+    assert!(r.ok);
+    // A pivot off the turntable's axis would tear the top off its base.
+    let r = call(&mut s, "edit", json!({"dry_run": true, "images": false, "ops": [
+        {"op": "rotate", "ids": [3, 4], "axis": "y", "angle": 45, "pivot": [40, 0, 40]}]}));
+    assert!(!r.ok, "off-axis pivot accepted: {}", r.text);
+    assert!(r.text.contains("turntable") || r.text.contains("axis"), "{}", r.text);
+    // Without a pivot the top and what sits on it turn about the turntable.
+    let r = call(&mut s, "edit", json!({"dry_run": true, "images": false, "ops": [
+        {"op": "rotate", "ids": [3, 4], "axis": "y", "angle": 45}]}));
+    assert!(r.ok, "{}", r.text);
+}

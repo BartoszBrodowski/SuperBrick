@@ -49,7 +49,12 @@ pub fn views_arg(v: Option<&Value>) -> Result<Option<Views>> {
                         let pitch = args::num(&p[1]).ok_or("views: pitch must be a number")? as f32;
                         out.push((yaw.rem_euclid(360.0), pitch.clamp(-89.5, 89.5)));
                     }
-                    _ => return Err("views: use names (\"front\", \"iso\") or [yaw, pitch] pairs".into()),
+                    Value::Object(o) if o.contains_key("yaw") || o.contains_key("pitch") => {
+                        let yaw = o.get("yaw").map(|v| args::num(v).ok_or("views: yaw must be a number")).transpose()?.unwrap_or(0.0) as f32;
+                        let pitch = o.get("pitch").map(|v| args::num(v).ok_or("views: pitch must be a number")).transpose()?.unwrap_or(0.0) as f32;
+                        out.push((yaw.rem_euclid(360.0), pitch.clamp(-89.5, 89.5)));
+                    }
+                    _ => return Err("views: use names (\"front\", \"iso\"), [yaw, pitch] pairs or {yaw, pitch}".into()),
                 }
             }
             if out.is_empty() {

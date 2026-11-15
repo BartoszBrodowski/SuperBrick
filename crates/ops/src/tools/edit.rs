@@ -20,7 +20,7 @@ pub fn schema() -> Value {
 - add: {part:\"3001\", color:4, at:[x,y,z], rot:\"yaw90\"} or {parts:[{part,color,at,rot},...]} or {ldraw:\"1 15 0 -24 0 1 0 0 0 1 0 0 0 1 3001.dat\\n...\"} (LDraw lines, LDU, row order). at is the part's LDraw origin. anchor:\"corner\" (on the op or a part) makes at the low corner of the turned part's body box instead (least x, y and z in grid units: left, bottom, front), studs left out. drop_clashes:true leaves out parts that clash with the model and says how many (not checked against each other). free:true skips the collision check.
 - place: {from:\"c3\", pick:2, color?} places candidate 2 of a `where` result; or {part, color, near:[x,y,z] or near_ids, rot?} snaps to the nearest legal stud seat.
 - move: {ids, by:[dx,dy,dz]} or {ids, to:[x,y,z]} (the first part's origin goes there).
-- rotate: {ids, axis:\"y\" or [x,y,z], angle:90, pivot?} (pivot defaults to the parts' centre).
+- rotate: {ids, axis:\"y\" or [x,y,z], angle:90, pivot?} (pivot defaults to the turntable, hinge or ball they sit on, else their centre; a turn off that joint is refused).
 - mirror: {ids, axis:\"x\"|\"y\"|\"z\", pivot?}.
 - pattern: {part, color?, rot?, at, along:[{by:[dx,dy,dz], count}, ...1-3], bond?:{offset:[dx,dy,dz], row?}} repeats a cell (part, or parts:[{part,at,rot,color}] / ldraw relative to at) along each direction, first fastest. bond shifts odd rows of direction `row` (default the last) by offset (running bond). E.g. a 1x4 wall 8 long, 10 high: {op:\"pattern\", part:\"3010\", at:[0,0,0], along:[{by:[80,0,0],count:8},{by:[0,-24,0],count:10}], bond:{offset:[40,0,0]}}.
 - fill: {part, from, to, rot?, bond?:true, ends?:\"3004\"} fills a box (opposite corners) with layers of that brick, bottom up, rows along its long side; bond offsets odd layers by half a brick and ends closes the row ends.
@@ -152,6 +152,37 @@ struct Done {
     group: Option<(String, Vec<Id>)>,
     /// Parts a `place` added or moved.
     placed: Vec<Id>,
+    /// A rotate: the parts it turned and the joints that held them to the rest before.
+    turned: Option<(Vec<Id>, Vec<String>)>,
+}
+
+/// Joints between a set of parts and the rest of the model (None when the
+/// connector service is unavailable).
+fn boundary(model: &Model, file: usize, ids: &[Id]) -> Option<Vec<engine::joints::Joint>> {
+    let set: std::collections::HashSet<Id> = ids.iter().copied().collect();
+    let analysis = engine::connectors::analyze(model, file).ok()?;
+    Some(analysis.graph.joints.into_iter().filter(|j| set.contains(&j.a) != set.contains(&j.b)).collect())
+}
+
+fn joint_text(j: &engine::joints::Joint) -> String {
+    format!("#{}-#{} {}", j.a, j.b, j.label)
+}
+
+/// The turntable, hinge or ball the parts sit on, when every turning joint at
+/// their edge shares one line parallel to `axis`: its point and a description.
+fn bearing(edge: &[engine::joints::Joint], axis: DVec3) -> Option<(DVec3, String)> {
+    let axis = axis.normalize_or_zero();
+    let turning: Vec<&engine::joints::Joint> = edge.iter()
+        .filter(|j| match &j.motion {
+            engine::joints::Motion::Ball { .. } => true,
+            m => m.rotation_axes().iter().any(|a| a.normalize_or_zero().dot(axis).abs() > 0.999),
+        })
+        .collect();
+    let first = turning.first()?;
+    if turning.iter().any(|j| (j.point - first.point).cross(axis).length() > 0.5) {
+        return None;
+    }
+    Some((first.point, joint_text(first)))
 }
 
 /// Resolve an op's ids against the transaction's current model.
@@ -283,6 +314,7 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
     let mut placed: Vec<Id> = Vec::new();
     let mut note = None;
     let mut group = None;
+    let mut turned = None;
     // `after`: the parts this op adds join the construction step of that part (their lines go
     // right after its line), instead of the step being built at the end of the file.
     let anchor = match op.get("after") {
@@ -396,11 +428,32 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
             let ids = op_ids(s, tx.model(), op, file)?;
             let axis = args::axis(op.get("axis").unwrap_or(&json!("y")))?;
             let angle = op.get("angle").and_then(args::num).ok_or("rotate needs \"angle\" in degrees")?;
-            let pivot = match op.get("pivot") {
-                Some(p) => args::point(p, units)?,
-                None => centre(s, tx.model(), &ids),
+            let explicit = match op.get("pivot") {
+                Some(p) => Some(args::point(p, units)?),
+                None => None,
             };
-            tx.apply(Cmd::Rotate { ids, axis, angle, pivot, free })?;
+            let mut pivot = explicit.unwrap_or_else(|| centre(s, tx.model(), &ids));
+            let mut held = Vec::new();
+            if !free {
+                if let Some(edge) = boundary(tx.model(), file, &ids) {
+                    // Parts on a turntable or hinge turn about it, never off it.
+                    if let Some((point, what)) = bearing(&edge, axis) {
+                        match explicit {
+                            Some(p) if (p - point).cross(axis.normalize_or_zero()).length() > 0.5 => {
+                                return Err(format!(
+                                    "these parts turn on {what}, whose axis passes through {:?}; turning them about {:?} would lift them off it. Leave out \"pivot\" (they then turn about that joint) or use {{op:\"hinge\", part, angle}}.",
+                                    units.from_ldu(point), units.from_ldu(p)
+                                ));
+                            }
+                            Some(_) => {}
+                            None => pivot = point,
+                        }
+                    }
+                    held = edge.iter().map(joint_text).collect();
+                }
+            }
+            tx.apply(Cmd::Rotate { ids: ids.clone(), axis, angle, pivot, free })?;
+            turned = Some((ids, held));
         }
         "mirror" | "flip" | "invert" => {
             let ids = op_ids(s, tx.model(), op, file)?;
@@ -565,7 +618,7 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
             note = Some(format!("{}moved to the end of step {} (the step of #{after})", note.map(|n| format!("{n}, ")).unwrap_or_default(), v["step"]));
         }
     }
-    Ok(Done { kind, note, group, placed })
+    Ok(Done { kind, note, group, placed, turned })
 }
 
 pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
@@ -671,6 +724,21 @@ fn run_once(s: &mut Session, args: &Value) -> Result<Reply> {
                     }
                     _ => e,
                 });
+            }
+            // A rotate must not leave its parts held by nothing (a figure turned off its turntable).
+            for (i, d) in done.iter().enumerate() {
+                let Some((ids, held)) = &d.turned else { continue };
+                if held.is_empty() {
+                    continue;
+                }
+                if boundary(tx.model(), file, ids).is_some_and(|now| now.is_empty()) {
+                    failed = Some(i);
+                    let shown: Vec<&str> = held.iter().take(3).map(String::as_str).collect();
+                    return Err(format!(
+                        "op {} (rotate): the turn lifts {} off everything that held them (before: {}); after the batch nothing does. Turn them about the joint they sit on (leave out \"pivot\"), use hinge, or move them back onto a seat in the same batch.",
+                        i + 1, fmt_ids(ids.iter().copied()), shown.join(", ")
+                    ));
+                }
             }
             // `callout`: the parts this batch adds must be exactly the booklet's callout.
             if let Some(list) = args.get("callout") {

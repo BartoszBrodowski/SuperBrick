@@ -405,6 +405,52 @@ impl Session {
     }
 }
 
+/// `--user human` writes straight into the shared model, so it is only for a person at their own
+/// terminal (or with `SB_ALLOW_HUMAN=1`); agents always work under their own name.
+pub fn human_allowed() -> Result<()> {
+    use std::io::IsTerminal;
+    if std::io::stdin().is_terminal() || std::env::var("SB_ALLOW_HUMAN").is_ok_and(|v| v == "1") {
+        Ok(())
+    } else {
+        Err(format!("--user {HUMAN} only works from your own terminal: agents use their own name (claude, codex…) and propose drafts"))
+    }
+}
+
+/// Create a project for `user`. A person's import becomes the shared model; an agent's import
+/// becomes one pending draft under its name, for the human to accept like any other edit.
+pub fn create_project_as(path: &Path, title: &str, import: Option<&Path>, user: &str, lib: Arc<Library>) -> Result<()> {
+    let Some(src) = import.filter(|_| user != HUMAN) else {
+        return create_project(path, title, import);
+    };
+    if path.exists() {
+        return Err(format!("{} already exists", path.display()));
+    }
+    let bytes = std::fs::read(src).map_err(|e| format!("{}: {e}", src.display()))?;
+    let name = src.file_name().and_then(|n| n.to_str()).unwrap_or("main.ldr");
+    let doc = ldraw::Document::parse(&bytes, name);
+    if doc.files.len() > 1 {
+        return Err(format!(
+            "{} has {} models (sub-builds); an agent can only import a single-model .ldr. Build the sub-builds inside the project instead.",
+            src.display(), doc.files.len()
+        ));
+    }
+    let text = String::from_utf8_lossy(&bytes);
+    let lines: Vec<&str> = text.lines().map(str::trim).filter(|l| l.starts_with("1 ")).collect();
+    Store::create(path, title)?;
+    if lines.is_empty() {
+        return Ok(());
+    }
+    let mut s = Session::open(path, user, lib)?;
+    let label = format!("import {name}");
+    let r = s.call("edit", &json!({"label": label, "images": false, "ops": [{"op": "add", "free": true, "ldraw": lines.join("\n")}]}));
+    if !r.ok {
+        drop(s);
+        let _ = std::fs::remove_file(path);
+        return Err(format!("import failed: {}", r.text));
+    }
+    Ok(())
+}
+
 /// Create a new project: a blank `main.ldr` (or an imported LDraw file).
 pub fn create_project(path: &Path, title: &str, import: Option<&Path>) -> Result<()> {
     if path.exists() {

@@ -1359,12 +1359,29 @@ impl Engine {
                 .filter(|(_, o)| o.session == session && o.state == "pending")
                 .map(|(i, o)| (i, o.clone()))
                 .collect();
+            let mut changed: Vec<(usize, Vec<Id>)> = Vec::new();
             for (i, op) in ops {
                 let before = self.model.clone();
-                if let Err(reason) = self.apply_draft(&op) {
-                    self.model = before;
-                    self.drafts.ops[i].state = "blocked".into();
-                    self.drafts.ops[i].reason = reason;
+                match self.apply_draft_unchecked(&op) {
+                    Ok((_, ids)) => changed.push((i, ids)),
+                    Err(reason) => {
+                        self.model = before;
+                        self.drafts.ops[i].state = "blocked".into();
+                        self.drafts.ops[i].reason = reason;
+                    }
+                }
+            }
+            // One legality check for the whole chain (not one per replayed command): a clash with
+            // something added to the shared model since blocks the draft that placed the part.
+            let all: Vec<Id> = changed.iter().flat_map(|(_, ids)| ids.iter().copied()).collect();
+            if !all.is_empty() {
+                if let Err(reason) = self.validate_changes(&all) {
+                    let moving = self.last_failure.as_ref().and_then(|f| f["collisions"][0]["moving"].as_u64());
+                    let culprit = moving.and_then(|m| changed.iter().rev().find(|(_, ids)| ids.contains(&m)).map(|(i, _)| *i));
+                    if let Some(i) = culprit {
+                        self.drafts.ops[i].state = "blocked".into();
+                        self.drafts.ops[i].reason = reason;
+                    }
                 }
             }
         }

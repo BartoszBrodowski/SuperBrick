@@ -15,7 +15,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 const NEED_USER: &str = "--user is required for project operations: agents pass their own name (--user claude); \
 you pass --user human to change the model directly";
@@ -109,11 +109,23 @@ fn dispatch(argv: &[String]) -> Result<i32, String> {
         let user = flag(argv, &["--user"]).ok_or(NEED_USER)?;
         let project = argv.iter().skip(1).find(|a| a.ends_with(".sb")).map(PathBuf::from);
         let project = project.or_else(|| flag(argv, &["--project"]).map(PathBuf::from));
-        mcp(user, project).map(|_| 0)
+        let any = argv.iter().any(|a| a == "--any-project") || ldraw::app_env("ANY_PROJECT").is_some_and(|v| v == "1");
+        mcp(user, project, any).map(|_| 0)
     } else if let Some(name) = flag(argv, &["--new"]) {
         let path = if name.ends_with(".sb") { PathBuf::from(name) } else { PathBuf::from(format!("{name}.sb")) };
         let title = path.file_stem().and_then(|s| s.to_str()).unwrap_or("model").to_string();
-        create_project(&path, &title, flag(argv, &["--import"]).map(Path::new))?;
+        let import = flag(argv, &["--import"]).map(Path::new);
+        match flag(argv, &["--user"]) {
+            // A person at the terminal: the imported model becomes the shared model.
+            None | Some(crate::HUMAN) => {
+                if import.is_some() {
+                    crate::human_allowed().map_err(|_| "an agent's import needs --user NAME (it arrives as a draft for the human to accept)".to_string())?;
+                }
+                create_project(&path, &title, import)?;
+            }
+            Some(user) if crate::valid_user(user) => crate::create_project_as(&path, &title, import, user, library()?)?,
+            Some(user) => return Err(format!("invalid user name {user:?}")),
+        }
         println!("{}", json!({"created": path, "title": title}));
         Ok(0)
     } else if positionals(argv).first() == Some(&"export") {
@@ -204,6 +216,9 @@ fn read_json(text: &str) -> Result<Value, String> {
 fn operations(argv: &[String]) -> Result<i32, String> {
     let path = PathBuf::from(&argv[0]);
     let user = flag(argv, &["--user"]).ok_or(NEED_USER)?;
+    if user == crate::HUMAN {
+        crate::human_allowed()?;
+    }
     let mut ops: Vec<(String, Value)> = Vec::new();
     if let Some(op) = flag(argv, &["--op", "--operation"]) {
         ops.push(parse_operation(&read_json(op)?)?);
@@ -319,87 +334,159 @@ const INSTRUCTIONS: &str = "SuperBrick: a LEGO CAD project (.sb) you edit with t
 - Your edits are drafts: they build on each other and the human accepts or rejects them in the SuperBrick window. Rejection notes come back to you in later replies. Drafts persist in the project file.
 - Every edit is collision-checked and answers with a picture from where the change is visible; a failed batch changes nothing and shows why. Use where to find legal spots, search to find parts, verify for floating parts and weak joints.";
 
+/// One MCP server can serve several agents at once (opencode runs one for all its sessions): each
+/// call names its agent with `as` (default: the server's `--user`). Every agent works in one
+/// project, and one agent's calls run in order while different agents' calls run side by side.
 struct Server {
     user: String,
-    lib: Option<Arc<Library>>,
-    sessions: HashMap<PathBuf, Session>,
-    current: Option<PathBuf>,
+    /// Let an agent open more than one project (`sb mcp --any-project`); normally it keeps to the first.
+    any_project: bool,
+    lib: Mutex<Option<Arc<Library>>>,
+    sessions: Mutex<HashMap<(String, PathBuf), Arc<Mutex<Session>>>>,
+    /// The project each agent works in.
+    current: Mutex<HashMap<String, PathBuf>>,
+}
+
+fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// The agent a tools/call message is for (routes it to that agent's queue).
+fn agent_of(msg: &Value, default: &str) -> String {
+    msg.pointer("/params/arguments/as").and_then(Value::as_str).unwrap_or(default).to_string()
 }
 
 impl Server {
-    fn lib(&mut self) -> Result<Arc<Library>, String> {
-        if self.lib.is_none() {
-            self.lib = Some(library()?);
+    fn new(user: &str, any_project: bool) -> Server {
+        Server {
+            user: user.to_string(),
+            any_project,
+            lib: Mutex::new(None),
+            sessions: Mutex::new(HashMap::new()),
+            current: Mutex::new(HashMap::new()),
         }
-        Ok(self.lib.clone().unwrap())
     }
 
-    /// Act as another agent name from now on (`project open {as}`): concurrent agent sessions that
-    /// share one MCP configuration each pick their own name, so their drafts stay apart.
-    fn rename(&mut self, name: &str) -> Result<(), String> {
-        if !crate::valid_user(name) || name == crate::HUMAN {
-            return Err(format!("as: {name:?} is not an agent name (letters, digits, - _ . ; not {:?})", crate::HUMAN));
+    fn lib(&self) -> Result<Arc<Library>, String> {
+        let mut lib = lock(&self.lib);
+        if lib.is_none() {
+            *lib = Some(library()?);
         }
-        if name != self.user {
-            self.user = name.to_string();
-            self.sessions.clear();
-            self.current = None;
-        }
-        Ok(())
+        Ok(lib.clone().unwrap())
     }
 
-    fn open(&mut self, path: &Path, create: bool, import: Option<&Path>) -> Result<PathBuf, String> {
-        if !path.exists() {
+    /// The agent this call acts for: `as`, else the server's `--user`. Never the human.
+    fn agent(&self, args: &mut Value) -> Result<String, String> {
+        match args.as_object_mut().and_then(|o| o.remove("as")) {
+            None => Ok(self.user.clone()),
+            Some(Value::String(n)) if crate::valid_user(&n) && n != crate::HUMAN => Ok(n),
+            Some(v) => Err(format!("as: {v} is not an agent name (letters, digits, - _ . ; not {:?})", crate::HUMAN)),
+        }
+    }
+
+    fn open(&self, user: &str, path: &Path, create: bool, import: Option<&Path>) -> Result<PathBuf, String> {
+        let key = match path.canonicalize() {
+            Ok(p) => p,
+            Err(_) => {
+                let parent = path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
+                let parent = parent.canonicalize().map_err(|e| format!("{}: {e}", parent.display()))?;
+                parent.join(path.file_name().ok_or("open needs a file path")?)
+            }
+        };
+        if !self.any_project {
+            if let Some(cur) = lock(&self.current).get(user).filter(|c| **c != key) {
+                return Err(format!(
+                    "{user} already works in {}. Each agent builds in one project: make other pieces as sub-builds inside it \
+                     (build them aside, group them, then where/place them; or edit op subbuild) instead of a second project.",
+                    cur.display()
+                ));
+            }
+        }
+        if !key.exists() {
             if !create && import.is_none() {
                 return Err(format!("{} does not exist; pass create:true to make it", path.display()));
             }
-            let title = path.file_stem().and_then(|s| s.to_str()).unwrap_or("model").to_string();
-            create_project(path, &title, import)?;
+            let title = key.file_stem().and_then(|s| s.to_str()).unwrap_or("model").to_string();
+            crate::create_project_as(&key, &title, import, user, self.lib()?)?;
         }
-        let key = path.canonicalize().map_err(|e| e.to_string())?;
-        if !self.sessions.contains_key(&key) {
-            let lib = self.lib()?;
-            let s = Session::open(&key, &self.user, lib)?;
-            self.sessions.insert(key.clone(), s);
+        let id = (user.to_string(), key.clone());
+        if !lock(&self.sessions).contains_key(&id) {
+            let s = Session::open(&key, user, self.lib()?)?;
+            lock(&self.sessions).insert(id, Arc::new(Mutex::new(s)));
         }
-        self.current = Some(key.clone());
+        lock(&self.current).insert(user.to_string(), key.clone());
         Ok(key)
     }
 
-    fn call(&mut self, tool: &str, mut args: Value) -> Reply {
+    fn session(&self, user: &str, key: &Path) -> Result<Arc<Mutex<Session>>, String> {
+        lock(&self.sessions).get(&(user.to_string(), key.to_path_buf())).cloned().ok_or_else(|| format!("{} is not open", key.display()))
+    }
+
+    fn no_project(&self, user: &str) -> String {
+        let others: Vec<String> = lock(&self.current).keys().filter(|u| *u != user).map(|u| format!("{u:?}")).collect();
+        let mut text = format!("no project is open for {user:?}: call project {{action:\"open\", path:\"model.sb\", create:true}}");
+        if !others.is_empty() {
+            text += &format!(" (projects are open as {}: if that was you, pass the same \"as\" on every call)", others.join(", "));
+        }
+        text
+    }
+
+    fn call(&self, tool: &str, mut args: Value) -> Reply {
+        let started = std::time::Instant::now();
         let result = (|| -> Result<Reply, String> {
             if !TOOLS.iter().any(|t| t.name == tool) {
                 return Err(format!("unknown tool {tool:?}"));
             }
-            let obj = args.as_object_mut();
-            let project = obj.and_then(|o| o.remove("project")).and_then(|v| v.as_str().map(PathBuf::from));
-            if tool == "project" && args.get("action").and_then(Value::as_str) == Some("open") {
-                let path = args
-                    .get("path")
-                    .and_then(Value::as_str)
-                    .map(PathBuf::from)
-                    .or(project)
-                    .ok_or("open needs path")?;
+            let user = self.agent(&mut args)?;
+            let project = args.as_object_mut().and_then(|o| o.remove("project")).and_then(|v| v.as_str().map(PathBuf::from));
+            let key = if tool == "project" && args.get("action").and_then(Value::as_str) == Some("open") {
+                let path = args.get("path").and_then(Value::as_str).map(PathBuf::from).or(project).ok_or("open needs path")?;
                 let create = args.get("create").and_then(Value::as_bool).unwrap_or(false);
                 let import = args.get("import").and_then(Value::as_str).map(PathBuf::from);
-                if let Some(name) = args.get("as").and_then(Value::as_str) {
-                    self.rename(name)?;
-                }
-                let key = self.open(&path, create, import.as_deref())?;
-                let s = self.sessions.get_mut(&key).unwrap();
-                return Ok(s.call("project", &json!({"action": "info"})));
-            }
-            if let Some(p) = project {
-                self.open(&p, false, None)?;
-            }
-            let key = self
-                .current
-                .clone()
-                .ok_or("no project is open: call project {action:\"open\", path:\"model.sb\", create:true}")?;
-            let s = self.sessions.get_mut(&key).unwrap();
+                let key = self.open(&user, &path, create, import.as_deref())?;
+                args = json!({"action": "info"});
+                key
+            } else if let Some(p) = project {
+                self.open(&user, &p, false, None)?
+            } else {
+                let current = lock(&self.current).get(&user).cloned();
+                current.ok_or_else(|| self.no_project(&user))?
+            };
+            let s = self.session(&user, &key)?;
+            let mut s = lock(&s);
             Ok(s.call(tool, &args))
         })();
-        result.unwrap_or_else(|e| Reply::fail(e, json!({})))
+        let mut reply = result.unwrap_or_else(|e| Reply::fail(e, json!({})));
+        let ms = started.elapsed().as_millis() as u64;
+        if let Some(o) = reply.data.as_object_mut() {
+            o.insert("ms".into(), json!(ms));
+        }
+        if ms >= 5000 {
+            reply.text += &format!("\n(took {:.1} s)", ms as f64 / 1000.0);
+        }
+        reply
+    }
+
+    /// Open projects and each agent's project, for a reload.
+    fn state(&self) -> (Vec<(String, PathBuf)>, Vec<(String, PathBuf)>) {
+        let open = lock(&self.sessions).keys().cloned().collect();
+        let current = lock(&self.current).iter().map(|(u, p)| (u.clone(), p.clone())).collect();
+        (open, current)
+    }
+
+    fn restore(&self, open: &[(String, PathBuf)], current: &[(String, PathBuf)]) {
+        for (user, path) in open {
+            if let Err(e) = self.open(user, path, false, None) {
+                eprintln!("sb mcp: could not reopen {} for {user}: {e}", path.display());
+            }
+        }
+        let mut cur = lock(&self.current);
+        cur.clear();
+        for (user, path) in current {
+            if lock(&self.sessions).contains_key(&(user.clone(), path.clone())) {
+                cur.insert(user.clone(), path.clone());
+            }
+        }
     }
 }
 
@@ -443,19 +530,22 @@ fn tool_list() -> Value {
             if let Some(props) = schema.get_mut("properties").and_then(Value::as_object_mut) {
                 props.insert(
                     "project".into(),
-                    json!({"type": "string", "description": "Path of the .sb project (default: the one opened last)."}),
+                    json!({"type": "string", "description": "Path of your .sb project (default: the one you opened)."}),
+                );
+                props.insert(
+                    "as".into(),
+                    json!({"type": "string", "description": "Your agent name for this call (default: the server's --user). Only for an agent that needs its own name: then pass it on every call. Never \"human\"."}),
                 );
                 if t.name == "project" {
                     // `open` is handled by the MCP server itself (it picks the project for later calls).
                     props.insert("path".into(), json!({"type": "string", "description": "open: the .sb file to open or create."}));
                     props.insert("create".into(), json!({"type": "boolean", "description": "open: create the project if it does not exist."}));
                     props.insert("import".into(), json!({"type": "string", "description": "open with create: an .ldr/.mpd model to start from."}));
-                    props.insert("as".into(), json!({"type": "string", "description": "open: your agent name for this and later calls (default: the server's --user). Use your own (claude, codex…), made unique when several agent sessions work at once, e.g. \"claude-roof\"."}));
                     if let Some(actions) = props.get_mut("action").and_then(|a| a.get_mut("enum")).and_then(Value::as_array_mut) {
                         actions.insert(0, json!("open"));
                     }
                     if let Some(text) = props.get_mut("action").and_then(|a| a.get_mut("description")) {
-                        *text = json!(format!("open: pick the project for later calls (path, create, import, as). {}", text.as_str().unwrap_or("")));
+                        *text = json!(format!("open: pick your one project for later calls (path, create, import). {}", text.as_str().unwrap_or("")));
                     }
                 }
             }
@@ -466,7 +556,7 @@ fn tool_list() -> Value {
     json!({ "tools": tools })
 }
 
-fn handle(server: &mut Server, msg: &Value) -> Option<Value> {
+fn handle(server: &Server, msg: &Value) -> Option<Value> {
     let id = msg.get("id").cloned()?;
     let method = msg.get("method").and_then(Value::as_str).unwrap_or("");
     let params = msg.get("params").cloned().unwrap_or(Value::Null);
@@ -505,33 +595,38 @@ fn handle(server: &mut Server, msg: &Value) -> Option<Value> {
 /// and checker modules beside it) before the next tool call, and re-executes the new binary in
 /// place: the client keeps its pipes and sees no restart, open projects and the agent name carry
 /// over, and the new process tells the client when the tool list changed.
-pub fn mcp(user: &str, project: Option<PathBuf>) -> Result<(), String> {
+pub fn mcp(user: &str, project: Option<PathBuf>, any_project: bool) -> Result<(), String> {
     if !crate::valid_user(user) {
         return Err(format!("invalid user name {user:?}"));
     }
-    let mut server = Server { user: user.to_string(), lib: None, sessions: HashMap::new(), current: None };
-    let mut out = std::io::stdout().lock();
+    if user == crate::HUMAN {
+        crate::human_allowed()?;
+        return Err(format!("sb mcp serves agents: start it with --user claude (or codex…), not {:?}", crate::HUMAN));
+    }
+    let server = Arc::new(Server::new(user, any_project));
+    let out: Arc<Mutex<std::io::Stdout>> = Arc::new(Mutex::new(std::io::stdout()));
     let mut pending = Vec::new();
     match reload::resume() {
         Some(h) => {
-            server.user = h.user.clone();
-            for path in &h.open {
-                if let Err(e) = server.open(path, false, None) {
-                    eprintln!("sb mcp: after reloading, could not reopen {}: {e}", path.display());
-                }
+            let mut open = h.agents.clone();
+            let mut current = h.currents.clone();
+            if open.is_empty() {
+                open = h.open.iter().map(|p| (h.user.clone(), p.clone())).collect();
+                current = h.current.iter().map(|p| (h.user.clone(), p.clone())).collect();
             }
-            server.current = h.current.clone().filter(|c| server.sessions.contains_key(c));
+            server.restore(&open, &current);
             eprintln!("sb mcp: reloaded the newly installed {}", std::env::current_exe().map(|e| e.display().to_string()).unwrap_or_default());
             if h.tools != reload::fingerprint(&tool_list().to_string()) {
-                writeln!(out, "{}", json!({"jsonrpc": "2.0", "method": "notifications/tools/list_changed"}))
-                    .and_then(|_| out.flush())
+                let mut o = lock(&out);
+                writeln!(o, "{}", json!({"jsonrpc": "2.0", "method": "notifications/tools/list_changed"}))
+                    .and_then(|_| o.flush())
                     .map_err(|e| e.to_string())?;
             }
             pending = h.pending;
         }
         None => {
             if let Some(p) = project {
-                server.open(&p, false, None)?;
+                server.open(user, &p, false, None)?;
             }
         }
     }
@@ -557,28 +652,28 @@ pub fn mcp(user: &str, project: Option<PathBuf>) -> Result<(), String> {
     };
     let mut lines = Lines::new(pending, input);
     loop {
-        match serve(&mut server, &mut lines, &mut out, watch.as_mut())? {
+        match serve(&server, &mut lines, &out, watch.as_mut())? {
             Served::Closed => return Ok(()),
             Served::Reload(line) => {
                 let mut pending = line.into_bytes();
                 pending.push(b'\n');
                 pending.extend(lines.leftover());
+                let (agents, currents) = server.state();
                 let handoff = reload::Handoff {
                     user: server.user.clone(),
-                    open: server.sessions.keys().cloned().collect(),
-                    current: server.current.clone(),
+                    open: agents.iter().filter(|(u, _)| *u == server.user).map(|(_, p)| p.clone()).collect(),
+                    current: currents.iter().find(|(u, _)| *u == server.user).map(|(_, p)| p.clone()),
                     tools: reload::fingerprint(&tool_list().to_string()),
                     pending,
+                    agents: agents.clone(),
+                    currents: currents.clone(),
                 };
                 // Close the projects first: sessions hand back unused ids when dropped.
-                server.sessions.clear();
+                lock(&server.sessions).clear();
                 let err = reload::exec(&handoff);
                 // Still here: the new binary did not start. Reopen and carry on with this one.
                 eprintln!("sb mcp: not reloaded: {err}");
-                for path in &handoff.open {
-                    let _ = server.open(path, false, None);
-                }
-                server.current = handoff.current.clone();
+                server.restore(&agents, &currents);
                 if let Some(w) = watch.as_mut() {
                     w.accept();
                 }
@@ -643,14 +738,35 @@ enum Served {
     Reload(String),
 }
 
-fn serve<R: std::io::Read>(
-    server: &mut Server,
+fn write_reply<W: Write>(output: &Mutex<W>, reply: &Value) -> Result<(), String> {
+    let mut o = lock(output);
+    writeln!(o, "{reply}").and_then(|_| o.flush()).map_err(|e| e.to_string())
+}
+
+/// Serve until the input closes or a reinstall needs a reload. Tool calls go to a queue per agent:
+/// each agent's calls run in order, different agents' calls run at the same time, and every reply
+/// is written as soon as it is ready. All calls in flight finish before this returns.
+fn serve<R: std::io::Read, W: Write + Send + 'static>(
+    server: &Arc<Server>,
     input: &mut Lines<R>,
-    mut output: impl Write,
+    output: &Arc<Mutex<W>>,
     mut watch: Option<&mut reload::Watch>,
 ) -> Result<Served, String> {
+    let mut queues: HashMap<String, (std::sync::mpsc::Sender<Value>, std::thread::JoinHandle<()>)> = HashMap::new();
+    let finish = |queues: HashMap<String, (std::sync::mpsc::Sender<Value>, std::thread::JoinHandle<()>)>| {
+        for (_, (tx, worker)) in queues {
+            drop(tx);
+            let _ = worker.join();
+        }
+    };
     while let Some(line) = input.next() {
-        let line = line.map_err(|e| e.to_string())?;
+        let line = match line {
+            Ok(l) => l,
+            Err(e) => {
+                finish(queues);
+                return Err(e.to_string());
+            }
+        };
         if line.trim().is_empty() {
             continue;
         }
@@ -662,9 +778,29 @@ fn serve<R: std::io::Read>(
             Err(_) => false,
         };
         if wants_tool && watch.as_mut().is_some_and(|w| w.changed()) {
+            finish(queues);
             return Ok(Served::Reload(line));
         }
         let reply = match parsed {
+            Ok(msg) if calls_tool(&msg) && msg.get("id").is_some() => {
+                let agent = agent_of(&msg, &server.user);
+                let (tx, _) = queues.entry(agent).or_insert_with(|| {
+                    let (tx, rx) = std::sync::mpsc::channel::<Value>();
+                    let (server, output) = (Arc::clone(server), Arc::clone(output));
+                    let worker = std::thread::spawn(move || {
+                        for msg in rx {
+                            if let Some(r) = handle(&server, &msg) {
+                                if let Err(e) = write_reply(&output, &r) {
+                                    eprintln!("sb mcp: could not write a reply: {e}");
+                                }
+                            }
+                        }
+                    });
+                    (tx, worker)
+                });
+                let _ = tx.send(msg);
+                None
+            }
             Ok(Value::Array(batch)) => {
                 let out: Vec<Value> = batch.iter().filter_map(|m| handle(server, m)).collect();
                 (!out.is_empty()).then(|| Value::Array(out))
@@ -673,10 +809,13 @@ fn serve<R: std::io::Read>(
             Err(e) => Some(json!({"jsonrpc": "2.0", "id": null, "error": {"code": -32700, "message": e.to_string()}})),
         };
         if let Some(r) = reply {
-            writeln!(output, "{r}").map_err(|e| e.to_string())?;
-            output.flush().map_err(|e| e.to_string())?;
+            if let Err(e) = write_reply(output, &r) {
+                finish(queues);
+                return Err(e);
+            }
         }
     }
+    finish(queues);
     Ok(Served::Closed)
 }
 
@@ -698,6 +837,11 @@ mod reload {
         pub tools: u64,
         /// Input read ahead but not served, starting with the tool call that triggered the reload.
         pub pending: Vec<u8>,
+        /// Every agent's open projects, and the project each agent works in (newer servers).
+        #[serde(default)]
+        pub agents: Vec<(String, PathBuf)>,
+        #[serde(default)]
+        pub currents: Vec<(String, PathBuf)>,
     }
 
     /// FNV-1a: a fingerprint that stays the same across builds.
@@ -843,7 +987,7 @@ mod tests {
 
     #[test]
     fn mcp_lists_tools_and_refuses_without_project() {
-        let mut server = Server { user: "claude".into(), lib: None, sessions: HashMap::new(), current: None };
+        let server = Arc::new(Server::new("claude", false));
         let input = concat!(
             r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}"#,
             "\n",
@@ -854,9 +998,10 @@ mod tests {
             r#"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"look","arguments":{}}}"#,
             "\n"
         );
-        let mut out = Vec::new();
+        let out = Arc::new(Mutex::new(Vec::new()));
         let mut lines = Lines::new(Vec::new(), input.as_bytes());
-        assert!(matches!(serve(&mut server, &mut lines, &mut out, None).unwrap(), Served::Closed));
+        assert!(matches!(serve(&server, &mut lines, &out, None).unwrap(), Served::Closed));
+        let out = std::mem::take(&mut *lock(&out));
         let lines: Vec<Value> = String::from_utf8(out).unwrap().lines().map(|l| serde_json::from_str(l).unwrap()).collect();
         assert_eq!(lines.len(), 3, "the notification gets no reply");
         assert_eq!(lines[0]["result"]["serverInfo"]["name"], "superbrick");
@@ -872,15 +1017,16 @@ mod tests {
         std::fs::write(&installed, "old").unwrap();
         let mut watch = reload::Watch::of(vec![installed.clone()]);
         assert!(!watch.changed());
-        let mut server = Server { user: "claude".into(), lib: None, sessions: HashMap::new(), current: None };
+        let server = Arc::new(Server::new("claude", false));
         let call = r#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"look","arguments":{}}}"#;
         let after = r#"{"jsonrpc":"2.0","id":3,"method":"ping"}"#;
         let input = format!("{}\n{call}\n{after}\n", r#"{"jsonrpc":"2.0","id":1,"method":"ping"}"#);
         let mut lines = Lines::new(Vec::new(), input.as_bytes());
         std::fs::write(&installed, "new code").unwrap();
         assert!(watch.changed());
-        let mut out = Vec::new();
-        let served = serve(&mut server, &mut lines, &mut out, Some(&mut watch)).unwrap();
+        let out = Arc::new(Mutex::new(Vec::new()));
+        let served = serve(&server, &mut lines, &out, Some(&mut watch)).unwrap();
+        let out = std::mem::take(&mut *lock(&out));
         assert_eq!(String::from_utf8(out).unwrap().lines().count(), 1, "a ping is answered by the old binary");
         let Served::Reload(line) = served else { panic!("the tool call should trigger the reload") };
         assert_eq!(line, call);
@@ -899,14 +1045,27 @@ mod tests {
     }
 
     #[test]
-    fn open_as_picks_a_unique_agent_name() {
-        let mut server = Server { user: "claude".into(), lib: None, sessions: HashMap::new(), current: None };
-        assert!(server.rename("human").is_err(), "agents never act as the human");
-        assert!(server.rename("bad name").is_err());
-        server.rename("claude-roof").unwrap();
-        assert_eq!(server.user, "claude-roof");
-        let r = server.call("project", json!({"action": "open", "path": "/nonexistent/x.sb", "as": "codex"}));
-        assert!(!r.ok);
-        assert_eq!(server.user, "codex");
+    fn agents_are_named_per_call_and_keep_to_one_project() {
+        let server = Arc::new(Server::new("claude", false));
+        assert!(server.agent(&mut json!({"as": "human"})).is_err(), "agents never act as the human");
+        assert!(server.agent(&mut json!({"as": "bad name"})).is_err());
+        assert_eq!(server.agent(&mut json!({"as": "claude-roof"})).unwrap(), "claude-roof");
+        assert_eq!(server.agent(&mut json!({})).unwrap(), "claude");
+        let dir = std::env::temp_dir().join(format!("sb-one-project-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (a, b) = (dir.join("a.sb"), dir.join("b.sb"));
+        let r = server.call("project", json!({"action": "open", "path": a, "create": true}));
+        assert!(r.ok, "{}", r.text);
+        let r = server.call("project", json!({"action": "open", "path": b, "create": true}));
+        assert!(!r.ok && r.text.contains("one project"), "{}", r.text);
+        assert!(!b.exists(), "the refused project is not created");
+        let r = server.call("look", json!({"project": b}));
+        assert!(!r.ok, "nor reached through the project argument");
+        let r = server.call("project", json!({"action": "info", "as": "codex"}));
+        assert!(!r.ok && r.text.contains("\"claude\""), "another agent has no project yet: {}", r.text);
+        let r = server.call("project", json!({"action": "open", "path": a, "as": "codex"}));
+        assert!(r.ok, "{}", r.text);
+        assert!(r.data["ms"].is_u64());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

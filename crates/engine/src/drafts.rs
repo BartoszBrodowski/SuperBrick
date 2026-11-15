@@ -278,6 +278,19 @@ pub struct Proposal<T> {
 
 impl Engine {
     pub(crate) fn apply_draft(&mut self, op: &Draft) -> Result<Value> {
+        self.apply_draft_unchecked(op).map(|(v, _)| v)
+    }
+
+    /// Replay a draft without the legality check: it was checked when proposed, and staleness is
+    /// caught by content hashes. Returns the parts it changed, for one check of a whole chain.
+    pub(crate) fn apply_draft_unchecked(&mut self, op: &Draft) -> Result<(Value, Vec<Id>)> {
+        let saved = self.deferred.replace(Vec::new());
+        let out = self.apply_draft_inner(op);
+        let changed = std::mem::replace(&mut self.deferred, saved).unwrap_or_default();
+        out.map(|v| (v, changed))
+    }
+
+    fn apply_draft_inner(&mut self, op: &Draft) -> Result<Value> {
         let next = self.next_id;
         let rotation = self.last_rotation.clone();
         self.replay = Some(op.allocated.iter().copied().collect::<VecDeque<_>>());
