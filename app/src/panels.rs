@@ -809,31 +809,19 @@ pub fn inspector(st: &mut State, ui: &mut egui::Ui) {
         }
         if let Some(report) = st.report.clone() {
             ui.separator();
-            ui.heading(format!("Validation: {}", report.verdict));
-            for l in &report.limitations {
-                ui.colored_label(egui::Color32::from_rgb(150, 110, 0), l);
-            }
+            ui.heading(format!("Validation: {}", report.verdict_words()));
             let current=st.report_revision==st.snapshot.revision;
             if !current {ui.colored_label(egui::Color32::YELLOW,"Build changed — run Check again before locating issues.");}
             if ui.button("Clear X-ray highlight").clicked(){st.issue=None;}
-            for row in report
-                .rows
-                .iter()
-                .filter(|r| !r.collides.is_empty())
-                .take(100)
-            {
-                let index=row.uid.saturating_sub(1);
-                let name=st.report_flat.get(index).map(|p|p.name.as_str()).unwrap_or("unknown piece");
-                if ui.add_enabled(current,egui::Button::new(format!("Locate #{} · {} · {:?}",row.uid,name,row.status))).clicked(){
-                    let mut indices=vec![index];indices.extend(&row.collides);st.issue_note=None;st.issue_serial+=1;
+            for row in report.rows.iter().filter(|r| r.is_error()).take(100) {
+                let index=row.index();
+                let others:Vec<usize>=row.hits.iter().map(|h|h.with-1).collect();
+                if ui.add_enabled(current,egui::Button::new(format!("Locate {} · {} · {}",row.id.map(|i|format!("#{i}")).unwrap_or_default(),row.label,row.status.join("+")))).clicked(){
+                    let mut indices=vec![index];indices.extend(&others);st.issue_note=None;st.issue_serial+=1;
                     st.issue=Some((st.report_file,indices,st.report_revision,st.issue_serial));
-                    if let Some(p)=st.report_flat.get(index){if let Some(id)=st.snapshot.model.id_at(st.report_file,p.root_line){st.command(Cmd::Select{ids:vec![id]});}}
+                    if let Some(id)=row.id{st.command(Cmd::Select{ids:vec![id]});}
                 }
-                ui.small(format!("Overlaps piece(s): {} · red = issue, amber = conflicting neighbour",row.collides.iter().map(|i|(i+1).to_string()).collect::<Vec<_>>().join(", ")));
-                if let(Some(a),Some(b))=(st.report_flat.get(index),row.collides.first().and_then(|i|st.report_flat.get(*i))){
-                    let d=a.pos-b.pos;let direction=if d.length_squared()>0.001{d.normalize()}else{DVec3::X};
-                    ui.small(format!("Possible adjustment: move the red piece away from the amber one (direction {:.1}, {:.1}, {:.1}), or reconnect it with C. Re-check afterward; this is not a verified repair.",direction.x,direction.y,direction.z));
-                }
+                for note in row.notes.iter().take(3) {ui.small(note);}
             }
         }
     });
@@ -848,14 +836,38 @@ pub fn checker(st: &mut State, ui: &mut egui::Ui) {
         return;
     };
     let current = st.report_revision == st.snapshot.revision;
-    ui.strong(format!(
-        "{} · {} flagged pieces",
-        report.verdict, report.errors
+    let verdict_colour = match report.verdict.as_str() {
+        "VERIFIED" => egui::Color32::LIGHT_GREEN,
+        "ILLEGAL" => egui::Color32::LIGHT_RED,
+        _ => egui::Color32::YELLOW,
+    };
+    ui.colored_label(verdict_colour, egui::RichText::new(format!("RESULT: {}", report.verdict_words())).strong());
+    ui.label(format!(
+        "{} pieces · {} steps · {} connected group{} · {} with errors · {} with warnings",
+        report.pieces,
+        report.steps,
+        report.groups.len(),
+        if report.groups.len() == 1 { "" } else { "s" },
+        report.errors,
+        report.warnings
     ));
+    let counts: Vec<String> = engine::checker::STATUSES
+        .iter()
+        .map(|st| (st, report.count(st)))
+        .filter(|(_, n)| *n > 0)
+        .map(|(st, n)| format!("{st} {n}"))
+        .collect();
+    ui.small(counts.join(" · "));
+    if !report.link_types.is_empty() {
+        ui.small(format!(
+            "Links: {}",
+            report.link_types.iter().map(|(k, n)| format!("{n} {k}")).collect::<Vec<_>>().join(", ")
+        ));
+    }
     if !current {
         ui.colored_label(egui::Color32::YELLOW, "Build changed: run Check again.");
     }
-    ui.label("Red/amber identifies a blocking pair. Blue means the geometry/connector review cleared a native flag. Unresolved contact still blocks instruction generation.");
+    ui.label("Red/amber marks the piece with the problem and the piece it meets. COLLISION, CONFLICT and FLOATING are errors; LOOSE (held only by later steps) and UNVERIFIED are warnings.");
     let mut locate = None;
     ui.horizontal(|ui| {
         if ui.button("Clear X-ray").clicked() {
@@ -870,7 +882,7 @@ pub fn checker(st: &mut State, ui: &mut egui::Ui) {
             let group = report.groups.iter().map(|g| g.iter().map(|u| u.saturating_sub(1)).collect::<Vec<_>>()).max_by_key(|g| g.len()).unwrap_or_default();
             if group.len() > 3000 {
                 st.message = format!("The main assembly has {} pieces; select a smaller region and use `sb … verify` with ids", group.len());
-            } else if let Some(c) = engine::strength::weakest_cut(report.rows.len(), &edges, &group) {
+            } else if let Some(c) = engine::strength::weakest_cut(report.pieces, &edges, &group) {
                 let small = group.iter().filter(|&&r| c.side[r]).count().min(group.iter().filter(|&&r| !c.side[r]).count());
                 let mut idx: Vec<usize> = c.edges.iter().flat_map(|&(a, b, _)| [a, b]).collect();
                 idx.sort_unstable();
@@ -887,6 +899,7 @@ pub fn checker(st: &mut State, ui: &mut egui::Ui) {
             }
         }
     });
+    let id_of = |row: &engine::checker::Row| row.id.map(|i| format!("#{i}")).unwrap_or_else(|| format!("piece {}", row.uid));
     egui::ScrollArea::vertical().show(ui,|ui|{
         if !report.colour_warnings.is_empty() {
             ui.separator();
@@ -901,26 +914,58 @@ pub fn checker(st: &mut State, ui: &mut egui::Ui) {
                 }
             }
         }
-        for row in &report.rows {for &b in &row.collides {
-            let a=row.uid-1;let names=|i:usize|st.report_flat.get(i).map(|p|p.name.as_str()).unwrap_or("unknown");
+        // Errors first: each collision/conflict pair, then floating pieces.
+        for row in report.rows.iter().filter(|r| !r.hits.is_empty()) {
+            for h in &row.hits {
+                let other = report.row(h.with);
+                ui.separator();
+                let title = format!(
+                    "{} {} {} ↔ {} {}",
+                    h.kind.to_uppercase(),
+                    id_of(row),
+                    row.label,
+                    other.map(id_of).unwrap_or_default(),
+                    other.map(|o| o.label.as_str()).unwrap_or("")
+                );
+                if ui.add_enabled(current, egui::Button::new(egui::RichText::new(title).color(egui::Color32::LIGHT_RED))).clicked() {
+                    locate = Some(vec![row.index(), h.with - 1]);
+                }
+                if h.kind == "collision" {
+                    ui.small(format!("Solid overlap about {:.0} LDU³. Move the red piece away from the amber one or reseat it with C, then check again.", h.overlap));
+                } else {
+                    ui.small(format!("{} Try reconnecting these pieces with C, then check again.", h.reason));
+                }
+            }
+        }
+        for (status, colour, what) in [
+            ("FLOATING", egui::Color32::LIGHT_RED, "connected to nothing that reaches the ground"),
+            ("LOOSE", egui::Color32::YELLOW, "held only by pieces added in later steps"),
+            ("UNVERIFIED", egui::Color32::YELLOW, "attached by a connection the checker cannot prove"),
+            ("UNCHECKED", egui::Color32::GRAY, "no collision geometry"),
+        ] {
+            let rows: Vec<&engine::checker::Row> = report.rows.iter().filter(|r| r.has(status)).collect();
+            if rows.is_empty() {
+                continue;
+            }
             ui.separator();
-            if ui.add_enabled(current,egui::Button::new(format!("Locate issue: #{} {} ↔ #{} {}",a+1,names(a),b+1,names(b)))).clicked(){locate=Some(vec![a,b]);}
-            if let Some(p)=report.reviewed.iter().find(|p|(p.a==a && p.b==b)||(p.a==b && p.b==a)) {
-                for reason in &p.reasons {ui.colored_label(egui::Color32::LIGHT_RED,reason);}
-                ui.small(format!("Solid overlap: {:.2} LDU³. Matched connectors: {}.",p.overlap,if p.types.is_empty(){"none".into()}else{p.types.join(", ")}));
-                for point in &p.points {ui.small(format!("Conflict point: x {:.2}, y {:.2}, z {:.2} LDU (red cross).",point[0],point[1],point[2]));}
-                if p.reasons.iter().any(|s|s.contains("not pressed home")||s.contains("gap")) {
-                    ui.label("The connector is aligned but the parts are not fully seated. Try reconnecting these endpoints with C to close the gap; recheck afterwards. No automatic edit has been made.");
-                } else {ui.small("Try reseating/reconnecting the pair or moving it apart, then recheck. The geometric test may still be approximate; this is not a verified repair.");}
-            } else {ui.small("Native geometric flag; full diagnosis unavailable. Recheck for connector-aware details.");}
-        }}
-        for pair in &report.reviewed {if !pair.collision {
-            ui.separator();ui.colored_label(if pair.warning {egui::Color32::YELLOW}else{egui::Color32::LIGHT_BLUE},format!("{}: #{} ↔ #{} · {} · solid overlap {:.2} LDU³",if pair.warning {"Contact review — does not block draft instructions"}else{"Cleared native warning"},pair.a+1,pair.b+1,pair.types.join(", "),pair.overlap));
-            if pair.warning {for reason in &pair.reasons {ui.label(reason);}}
-            if ui.add_enabled(current,egui::Button::new("Show reviewed connection")).clicked(){locate=Some(vec![pair.a,pair.b]);}
-        }}
+            egui::CollapsingHeader::new(egui::RichText::new(format!("{status} · {} piece{} {what}", rows.len(), if rows.len() == 1 { "" } else { "s" })).color(colour))
+                .id_salt(status)
+                .default_open(status == "FLOATING")
+                .show(ui, |ui| {
+                    for row in rows.iter().take(200) {
+                        if ui.add_enabled(current, egui::Button::new(format!("{} · step {} · {}", id_of(row), row.step, row.label))).clicked() {
+                            locate = Some(vec![row.index()]);
+                        }
+                        for note in row.notes.iter().take(2) {
+                            ui.small(note);
+                        }
+                    }
+                    if rows.len() > 200 {
+                        ui.small(format!("+{} more", rows.len() - 200));
+                    }
+                });
+        }
         if let Some(indices)=locate {st.issue_note=None;st.issue_serial+=1;st.issue=Some((st.report_file,indices,st.report_revision,st.issue_serial));}
-        ui.separator();for note in &report.limitations {ui.small(note);}
     });
 }
 pub fn drafts(st: &mut State, ui: &mut egui::Ui) {

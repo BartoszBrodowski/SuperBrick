@@ -245,19 +245,8 @@ mod tests {
     }
 }
 
-/// Connection graph of a validator report: stud-joined pairs weighted by stud count, every
-/// other link weight 1. Nodes are flat-part indices.
-pub fn edges(report: &crate::validation::Report) -> Vec<(usize, usize, f64)> {
-    let mut w: std::collections::BTreeMap<(usize, usize), f64> = std::collections::BTreeMap::new();
-    for p in &report.pairs {
-        if p.studs > 0 {
-            w.insert((p.a.min(p.b), p.a.max(p.b)), p.studs as f64);
-        }
-    }
-    for (i, row) in report.rows.iter().enumerate() {
-        for &j in &row.links {
-            w.entry((i.min(j), i.max(j))).or_insert(1.0);
-        }
-    }
-    w.into_iter().map(|((a, b), c)| (a, b, c)).collect()
+/// Connection graph of a checker report: weight = connections between the two pieces (studs
+/// engaged; 1 for a single other link). Nodes are flat-part indices.
+pub fn edges(report: &crate::checker::Report) -> Vec<(usize, usize, f64)> {
+    report.edges().map(|(a, b, n)| (a.min(b), a.max(b), n.max(1) as f64)).collect()
 }

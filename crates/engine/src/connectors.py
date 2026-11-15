@@ -12,7 +12,7 @@ import numpy as np
 import physics, snaps
 _policy_dev=Path(sys.argv[1]).resolve().parent/'cad/app/src'
 if _policy_dev.is_dir():sys.path.insert(0,str(_policy_dev))
-from cad_contact_policy import contact_review, blocking_relation, review_reason, refine_relation, curved_clip_matches
+from cad_contact_policy import curved_clip_matches
 from functools import lru_cache
 
 def _on_surface(points,colors,tris,triangle_colors,tol=.035):
@@ -156,21 +156,139 @@ def _drag_index(key):
                 grid.setdefault(tuple(np.floor(world.pos/40).astype(int)),[]).append((j,c,world))
     return grid
 
-# LDCad FGR positions are centers by default; CYL positions are starts.
-# The legacy oracle applies CYL's default to both, shifting a single/dual
-# locking hinge sideways by 12 LDU. Correct the import here, without changing
-# the original bench toolkit or its historical fixtures. Explicit center flags
-# and bench-authored declarations retain their stated/legacy interpretation.
-# Confirmed by LDCad's author: https://forums.ldraw.org/thread-27637.html
-_make_conns = snaps.make_conns
-def _centered_fingers(kind, properties, src, rule='ldcad'):
-    if kind == 'SNAP_FGR' and rule == 'ldcad' and 'center' not in properties:
-        properties = dict(properties, center='true')
-    return _make_conns(kind, properties, src, rule)
-snaps.make_conns = _centered_fingers
+# LDCad finger centres etc.: shared with sb-dev parity's bench reference.
+import cad_snap_rules
+cad_snap_rules.apply(snaps)
+
+# --- The checker: the bench validator itself, with pair relations cached across requests. ---
+# A relation depends only on the two parts' names and poses, so an edit re-tests only the pairs
+# it changed (and their new neighbours); everything else comes from this cache.
+from collections import OrderedDict
+import re as _re
+import validate as _bench_validate
+from scene import Scene as _Scene, make_body as _make_body
+_RELATIONS = OrderedDict()
+_RELATIONS_MAX = 250000
+
+def _pose_key(p):
+    return (p.part, tuple(round(x, 3) for x in p.pos), tuple(round(x, 5) for x in p.rot))
+
+def _cached_relation(p, q, nb, ob):
+    key = (_pose_key(p), _pose_key(q))
+    try:
+        rel = _RELATIONS[key]
+        _RELATIONS.move_to_end(key)
+        return rel
+    except KeyError:
+        pass
+    rel = physics.relation(nb, ob)
+    _RELATIONS[key] = rel
+    if len(_RELATIONS) > _RELATIONS_MAX:
+        _RELATIONS.popitem(last=False)
+    return rel
+
+@lru_cache(maxsize=32768)
+def _checker_body(uid, part, color, pos, rot):
+    from scene import Placed
+    return _make_body(Placed(uid, part, color, list(pos), list(rot)))
+
+class _CheckScene(_Scene):
+    def body(self, p):
+        return _checker_body(p.uid, p.part, p.color, tuple(p.pos), tuple(p.rot))
+
+_REPORTS = OrderedDict()   # the last few whole reports: an edit checks the same state twice
+
+
+def check_model(req):
+    """Bench `validate` over the flattened model, reports cached by the exact request."""
+    key = json.dumps([req['parts'], req.get('asserts', []), list(req.get('unchecked', ()))], sort_keys=True)
+    if key in _REPORTS:
+        _REPORTS.move_to_end(key)
+        return _REPORTS[key]
+    res = _check_model(req)
+    _REPORTS[key] = res
+    while len(_REPORTS) > 8:
+        _REPORTS.popitem(last=False)
+    return res
+
+
+def _check_model(req):
+    """Bench `validate` over the flattened model. uid = flat index + 1 (bench file order)."""
+    scene = _checker_scene(req['parts'])
+    n = len(scene.parts)
+    scene.asserts = [a for a in req.get('asserts', []) if 1 <= a['a'] <= n and 1 <= a['b'] <= n]
+    res = _bench_validate.validate(scene, tuple(req.get('unchecked', ())), relation=_cached_relation)
+    ids = [p.get('id') for p in req['parts']]
+
+    def named(text):
+        """Bench numbers (#uid, file order) -> SuperBrick part ids (#id; a submodel's parts share its id)."""
+        def one(m):
+            u = int(m.group(1))
+            return f"#{ids[u - 1]}" if 1 <= u <= n and ids[u - 1] is not None else m.group(0)
+        return _re.sub(r'#(\d+)\b', one, text)
+
+    parts = {p.uid: p for p in scene.parts}
+    for row in res['rows']:
+        row['id'] = ids[row['uid'] - 1]
+        row['notes'] = [named(d) for d in row['detail']]
+        for h in row['hits']:
+            h['with_id'] = ids[h['with'] - 1]
+            a, b = scene.body(parts[row['uid']]), scene.body(parts[h['with']])
+            if a is not None and b is not None:
+                h['box'] = [np.maximum(a.flo, b.flo).round(2).tolist(), np.minimum(a.fhi, b.fhi).round(2).tolist()]
+                h['centres'] = [((a.flo + a.fhi) / 2).round(2).tolist(), ((b.flo + b.fhi) / 2).round(2).tolist()]
+    res['text'] = named(_bench_validate.report(res, req.get('name', 'model'), problems_only=bool(req.get('problems_only'))))
+    res['relations_cached'] = len(_RELATIONS)
+    return res
+
+def _checker_scene(parts):
+    scene = _CheckScene('model')
+    for p in parts:
+        rot = np.array(p['rot'], float).reshape(3, 3).T.reshape(-1)  # native column order -> LDraw rows
+        scene.add(p['name'], int(p.get('color', 16)), p['pos'], rot, step=int(p.get('step') or 1))
+    return scene
+
+def check_candidates(req):
+    """Which candidate placements would give the checker an error (COLLISION or CONFLICT) against
+    the model. candidates: [[part...]...] (each a set of new parts); exclude: ids left out of the
+    model (parts being moved). Answers [{ok, reason}] in candidate order."""
+    exclude = set(req.get('exclude') or ())
+    keep = [p for p in req['parts'] if p.get('id') not in exclude]
+    scene = _checker_scene(keep)
+    fixed = [(p, scene.body(p)) for p in scene.parts]
+    fixed = [(p, b) for p, b in fixed if b is not None]
+    lo = np.array([b.flo for _, b in fixed]).reshape(-1, 3)
+    hi = np.array([b.fhi for _, b in fixed]).reshape(-1, 3)
+    names = [q.get('name') for q in keep]
+    out = []
+    for cand in req['candidates']:
+        extra = _checker_scene(cand)
+        why = None
+        for p in extra.parts:
+            a = extra.body(p)
+            if a is None:
+                continue
+            near = np.flatnonzero(np.all(a.flo <= hi + 1, axis=1) & np.all(lo <= a.fhi + 1, axis=1)) if len(fixed) else []
+            for k in near:
+                q, b = fixed[k]
+                rel = _cached_relation(p, q, a, b)
+                if rel is None:
+                    continue
+                if rel.overlap >= physics.COLLIDE_MIN:
+                    why = f"collides with #{keep[q.uid - 1].get('id')} {names[q.uid - 1]} ({rel.overlap:.0f} LDU³)"
+                elif rel.conflicts:
+                    why = f"conflicts with #{keep[q.uid - 1].get('id')} {names[q.uid - 1]}: {rel.conflicts[0].reason}"
+                if why:
+                    break
+            if why:
+                break
+        out.append(dict(ok=why is None, reason=why))
+    return out
 
 def run(req):
     if req['action']=='mirror_specs':return mirror_specs(req)
+    if req['action']=='validate':return check_model(req)
+    if req['action']=='check_candidates':return check_candidates(req)
     entries = list(req['parts'])
     if req['action']=='drag' and not req.get('moving'):
         new=dict(req['part'],id=max([p['id'] for p in req['roots']]+[0])+1)
@@ -181,32 +299,6 @@ def run(req):
     pairs = {}
     # Sweep broad phase, not an all-pairs geometry pass.
     # Free dragging may detach, so it needs no scene-wide connectivity graph.
-    if req['action']=='check_pairs':
-        requested=[tuple(p) for p in req.get('pairs',[])];pairs=list(requested)
-        if req.get('all_nearby'):
-            seen={tuple(sorted(p)) for p in pairs};order=sorted(range(len(bodies)),key=lambda i:bodies[i].flo[0])
-            for at,a in enumerate(order):
-                for b in order[at+1:]:
-                    if bodies[b].flo[0]>bodies[a].fhi[0]+1:break
-                    if np.any(bodies[a].flo>bodies[b].fhi+1) or np.any(bodies[b].flo>bodies[a].fhi+1):continue
-                    key=tuple(sorted((a,b)))
-                    if key not in seen:pairs.append(key);seen.add(key)
-        result=[]
-        for a,b in pairs:
-            x,y=sorted((a,b));rel=physics.relation(bodies[x],bodies[y])
-            rel=refine_relation(bodies[x],bodies[y],rel,physics.COLLIDE_MIN)
-            warning=contact_review(rel,physics.COLLIDE_MIN)
-            bad=blocking_relation(rel,physics.COLLIDE_MIN)
-            if not bad and not warning and (a,b) not in requested:continue
-            reasons=[c.reason for c in rel.conflicts] if rel else []
-            precision=getattr(rel,'precision_review',None)
-            if precision:reasons.append(f"Dense triangle review: 0.25/0.125 LDU estimates {precision['estimates']}; guarded overlap {precision['guarded']:.3f} LDU³, threshold {physics.COLLIDE_MIN:g}.")
-            if warning:reasons.insert(0,review_reason(rel))
-            elif rel and rel.overlap>=physics.COLLIDE_MIN:reasons.insert(0,f'Solid geometry overlaps by {rel.overlap:.2f} LDU³ after connector keep-outs (threshold {physics.COLLIDE_MIN:g} LDU³).')
-            points=[np.asarray(c.point).tolist() for c in rel.conflicts] if rel else []
-            if rel and rel.overlap>=physics.COLLIDE_MIN and rel.where is not None:points.append(np.asarray(rel.where).tolist())
-            result.append(dict(a=a,b=b,collision=bad,warning=warning,overlap=float(rel.overlap) if rel else 0.,raw_overlap=float(rel.raw_overlap) if rel else 0.,reasons=reasons,points=points,types=sorted(set(m.type for m in physics.snap_links(bodies[x],bodies[y])[0]))))
-        return dict(pairs=result)
     if req['action'] in ('endpoints','compatible'):
         connectors=[dict(part=p['id'],leaf=i,index=c,position=x.pos.tolist(),axis=x.axis.tolist(),label=x.label())
                     for i,(p,b) in enumerate(zip(entries,bodies)) if not p.get('hidden') for c,x in enumerate(b.conns)]

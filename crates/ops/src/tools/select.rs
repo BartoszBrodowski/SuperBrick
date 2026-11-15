@@ -20,7 +20,7 @@ pub fn schema() -> Value {
             "color": {"type": "integer", "description": "Only parts of this colour."},
             "part": {"type": ["string", "array"], "description": "Only parts whose number contains this (or any of a list) (\"3001\", \"slope\" matches descriptions too)."},
             "connected": {"type": "string", "enum": ["studs", "rigid", "touching"],
-                          "description": "Grow from the parts so far: everything stud-connected (\"studs\"), everything that moves with them without bending a hinge (\"rigid\"), or every part touching them, repeatedly (\"touching\")."},
+                          "description": "Grow from the parts so far: everything connected by studs or any other connector the checker proves (\"studs\"), everything that moves with them without bending a hinge (\"rigid\"), or every part touching them, repeatedly (\"touching\")."},
             "add": ids_prop("Union with these"),
             "minus": ids_prop("Remove these"),
             "and": ids_prop("Intersect with these"),
@@ -207,19 +207,19 @@ pub(crate) fn grow(s: &mut Session, view: &Model, file: usize, seed: &BTreeSet<I
         "studs" | "touching" => {
             let parts = shots::flat_with_ids(view, file);
             let flat: Vec<ldraw::FlatPart> = parts.iter().map(|(f, _)| f.clone()).collect();
-            let report = s.engine.validator.check(&s.lib, &flat);
             let n = parts.len();
             let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
             if mode == "studs" {
-                for (i, row) in report.rows.iter().enumerate() {
-                    for &j in &row.links {
-                        if j < n {
-                            adj[i].push(j);
-                            adj[j].push(i);
-                        }
+                // Every connection the checker proves (studs, clips, pins, hinges...).
+                let report = engine::checker::check(view, file).map_err(|e| format!("checker: {e}"))?;
+                for (i, j, _) in report.edges() {
+                    if i < n && j < n {
+                        adj[i].push(j);
+                        adj[j].push(i);
                     }
                 }
             } else {
+                let report = s.engine.validator.check(&s.lib, &flat);
                 for p in &report.pairs {
                     if p.a < n && p.b < n && (p.contact || p.studs > 0 || p.overlap > 0.0) {
                         adj[p.a].push(p.b);

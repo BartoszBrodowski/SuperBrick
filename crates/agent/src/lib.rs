@@ -240,7 +240,7 @@ pub fn call(handle: &Handle, session: &str, name: &str, mut args: Value) -> engi
         let value=match name.as_str() {
             "summary"=>{
                 e.observe(&session);
-                json!({"revision":e.revision,"parts":e.model.parts.len(),"files":e.model.doc.files.iter().map(|f|&f.name).collect::<Vec<_>>(),"selection":e.model.selection,"session":session,"validation":"partial native port"})
+                json!({"revision":e.revision,"parts":e.model.parts.len(),"files":e.model.doc.files.iter().map(|f|&f.name).collect::<Vec<_>>(),"selection":e.model.selection,"session":session,"validation":"bench checker"})
             },
             "list_parts"=>{
                 e.observe(&session);
@@ -249,7 +249,7 @@ pub fn call(handle: &Handle, session: &str, name: &str, mut args: Value) -> engi
             },
             "get_selection"=>json!({"ids":e.model.selection}),
             "colours"=>json!({"colours":e.lib.colors.by_code.iter().map(|(code,c)|json!({"code":code,"name":c.ldraw_name})).collect::<Vec<_>>()}),
-            "check"=>{let file=args["file"].as_u64().unwrap_or(0)as usize;if file>=e.model.doc.files.len(){return Err("unknown model".into());}let flat=e.snapshot().effective(e.lib.clone(),&session)?.flat(file);serde_json::to_value(e.validator.check(&e.lib,&flat)).map_err(|e|e.to_string())? },
+            "check"=>{let file=args["file"].as_u64().unwrap_or(0)as usize;if file>=e.model.doc.files.len(){return Err("unknown model".into());}let model=e.snapshot().effective(e.lib.clone(),&session)?;serde_json::to_value(engine::checker::check(&model,file)?).map_err(|e|e.to_string())? },
             "draft_status"=>json!({"drafts":e.drafts.ops.iter().filter(|o|o.session==session).collect::<Vec<_>>()}),
             "reject"=>{e.reject(&session,serde_json::from_value(args["ids"].clone()).map_err(|e|e.to_string())?)?;json!({"rejected":true})},
             "changes_since"=>json!({"revision":e.revision,"parts":e.model.parts.values().filter(|p|p.revision>args["revision"].as_u64().unwrap_or(0)).collect::<Vec<_>>(),"notice":"Removed ids are reflected by list_parts; undo changes all surviving revisions."}),

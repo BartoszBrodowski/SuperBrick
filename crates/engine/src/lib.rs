@@ -1,6 +1,7 @@
 //! Single-owner document engine. UI and MCP use exactly the same commands.
 mod assemblies;
 pub mod availability;
+pub mod checker;
 pub mod connectors;
 pub mod drafts;
 pub mod inventory;
@@ -1211,6 +1212,9 @@ impl Engine {
             json!({"changed":poses.iter().map(|p|p.id).collect::<Vec<_>>(),"validation":"full connector backend"}),
         )
     }
+    /// Refuse the change when the checker finds a new COLLISION involving a changed part (in any
+    /// model file that uses it). CONFLICT, FLOATING and LOOSE are reported after the edit, not refused.
+    /// Without the checker service (no Python) the plain voxel collision test stands in.
     fn validate_changes(&mut self, ids: &[Id]) -> Result<()> {
         let changed: BTreeSet<_> = ids
             .iter()
@@ -1228,13 +1232,39 @@ impl Engine {
             if !affected.iter().any(|&a| a) {
                 continue;
             }
-            let report = self.validator.check_focus(&self.lib, &flat, Some(&affected));
-            let hits: Vec<_> = report
-                .pairs
-                .iter()
-                .filter(|p| p.overlap >= physics::COLLIDE_MIN && (affected[p.a] || affected[p.b]))
-                .collect();
-            if hits.is_empty() {
+            // (moving flat index, blocker flat index, overlap, box, clear_by, depth)
+            type Clash = (usize, usize, f64, [[f64; 3]; 2], [f64; 3], f64);
+            let clashes: Vec<Clash> = match checker::check(&self.model, file) {
+                Ok(report) => report
+                    .hits()
+                    .filter(|(a, b, h)| h.kind == "collision" && (affected[*a] || affected[*b]))
+                    .map(|(a, b, h)| {
+                        let (push, depth) = h.separation();
+                        let bounds = h.bounds.unwrap_or_default();
+                        if affected[a] {
+                            (a, b, h.overlap, bounds, push, depth)
+                        } else {
+                            (b, a, h.overlap, bounds, push.map(|v| -v), depth)
+                        }
+                    })
+                    .collect(),
+                Err(_) => {
+                    let report = self.validator.check_focus(&self.lib, &flat, Some(&affected));
+                    let centre = |i: usize| flat[i].pos.to_array();
+                    report
+                        .pairs
+                        .iter()
+                        .filter(|p| p.overlap >= physics::COLLIDE_MIN && (affected[p.a] || affected[p.b]))
+                        .map(|p| {
+                            let (m, b) = if affected[p.a] { (p.a, p.b) } else { (p.b, p.a) };
+                            let (push, depth) = p.separation(centre(m), centre(b));
+                            let push = if m == p.a { push } else { push.map(|v| -v) };
+                            (m, b, p.overlap, [p.lo, p.hi], push, depth)
+                        })
+                        .collect()
+                }
+            };
+            if clashes.is_empty() {
                 continue;
             }
             let ids: HashMap<usize, Id> = self
@@ -1244,21 +1274,17 @@ impl Engine {
                 .filter(|p| p.file == file)
                 .map(|p| (p.line, p.id))
                 .collect();
-            let centre = |i: usize| flat[i].pos.to_array();
-            let detail: Vec<Value> = hits
+            let detail: Vec<Value> = clashes
                 .iter()
-                .map(|p| {
+                .map(|&(m, b, overlap, bounds, push, depth)| {
                     // Report the edited piece as `moving` and the obstacle as `blocker`.
-                    let (m, b) = if affected[p.a] { (p.a, p.b) } else { (p.b, p.a) };
-                    let (push, depth) = p.separation(centre(m), centre(b));
-                    let push = if m == p.a { push } else { push.map(|v| -v) };
                     json!({
                         "moving": ids.get(&flat[m].root_line),
                         "moving_part": flat[m].name,
                         "blocker": ids.get(&flat[b].root_line),
                         "blocker_part": flat[b].name,
-                        "overlap_ldu3": (p.overlap * 10.0).round() / 10.0,
-                        "box": [p.lo, p.hi],
+                        "overlap_ldu3": (overlap * 10.0).round() / 10.0,
+                        "box": bounds,
                         "clear_by": push,
                         "depth_ldu": (depth * 10.0).round() / 10.0,
                     })

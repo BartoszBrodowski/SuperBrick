@@ -18,7 +18,7 @@ fn paint_warns_without_rejecting_and_checker_keeps_colour_separate_from_errors()
         .unwrap();
     assert!(!result["warnings"].as_array().unwrap().is_empty());
     assert_eq!(e.model.parts[&1].color, 999999);
-    let report = engine::validation::Validator::default().check(&lib, &e.model.flat(0));
+    let report = engine::checker::check(&e.model, 0).unwrap();
     assert_eq!(report.errors, 0);
     assert_eq!(report.colour_warnings.len(), 1);
     assert_eq!(report.colour_warnings[0].pieces, vec![1]);

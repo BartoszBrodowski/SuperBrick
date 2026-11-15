@@ -32,8 +32,6 @@ pub fn schema() -> Value {
 
 struct Candidate {
     cmds: Vec<Cmd>,
-    /// Found by the connector engine, whose bench check proved the seat legal (clips, pins, bars...).
-    bench: bool,
     /// Parts to draw as the ghost.
     ghosts: Vec<PartSpec>,
     /// Where the label goes (the ghost's middle).
@@ -70,6 +68,16 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
     let (mut cands, what) = found?;
     let mut seen = std::collections::HashSet::new();
     cands.retain(|c| shape_key(&s.lib, &c.ghosts).is_none_or(|k| seen.insert(k)));
+    // Keep only seats the checker accepts (no collision or conflict), the same test edits pass.
+    let mut unchecked = None;
+    let ghosts: Vec<Vec<PartSpec>> = cands.iter().map(|c| c.ghosts.clone()).collect();
+    match engine::checker::check_candidates(&view, file, &ids, &ghosts) {
+        Ok(verdicts) => {
+            let mut keep = verdicts.iter().map(Option::is_none);
+            cands.retain(|_| keep.next().unwrap_or(true));
+        }
+        Err(e) => unchecked = Some(e),
+    }
     cands.truncate(limit);
     if cands.is_empty() {
         let mut text = format!("No legal place for {what} within {radius:.0} LDU of the point.");
@@ -81,7 +89,7 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
     let items: Vec<Value> = cands
         .iter()
         .enumerate()
-        .map(|(i, c)| json!({"label": (i + 1).to_string(), "at": units.from_ldu(c.origin), "note": c.note, "cmds": c.cmds, "bench": c.bench}))
+        .map(|(i, c)| json!({"label": (i + 1).to_string(), "at": units.from_ldu(c.origin), "note": c.note, "cmds": c.cmds}))
         .collect();
     let tree = s.store.working(&s.branch)?.tree;
     let user = s.user.clone();
@@ -113,6 +121,9 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
         cands.len(),
         lines.join("; ")
     );
+    if let Some(e) = unchecked {
+        text.push_str(&format!(" (Not checked by the checker: {e}.)"));
+    }
     let (img, e) = s.picture(&view, shot);
     if let Some(e) = e {
         text.push(' ');
@@ -167,9 +178,10 @@ fn find(
             let mut cmds = Vec::new();
             let (axis, angle) = args::axis_angle(r);
             if angle.abs() > 1e-6 {
+                // Turned about the origin, then moved: only the final pose (after the move) is checked.
                 cmds.push(Cmd::Rotate { ids: ids.to_vec(), axis, angle, pivot: DVec3::ZERO, free: true });
             }
-            cmds.push(Cmd::Move { ids: ids.to_vec(), delta: t, free: true });
+            cmds.push(Cmd::Move { ids: ids.to_vec(), delta: t, free: false });
             let ghosts: Vec<PartSpec> = ids
                 .iter()
                 .filter_map(|id| view.parts.get(id))
@@ -178,7 +190,7 @@ fn find(
             let at = ghosts.iter().map(|g| g.pos).sum::<DVec3>() / ghosts.len().max(1) as f64;
             let note = if angle.abs() > 1e-6 { format!("turned {angle:.0}°") } else { String::new() };
             let origin = ghosts.first().map_or(at, |g| g.pos);
-            out.push(Candidate { cmds, ghosts, at, origin, note, bench: true });
+            out.push(Candidate { cmds, ghosts, at, origin, note });
         }
         return Ok((out, what));
     }
@@ -200,12 +212,7 @@ fn find(
         for c in res["candidates"].as_array().into_iter().flatten() {
             let pose: engine::connectors::Pose = serde_json::from_value(c["poses"][0].clone()).map_err(|e| e.to_string())?;
             let p = PartSpec { pos: pose.pos, rot: pose.rot, ..spec.clone() };
-            let mut c = candidate_for(s, file, p, rot);
-            c.bench = true;
-            if let Some(Cmd::Add { free, .. }) = c.cmds.first_mut() {
-                *free = true;
-            }
-            out.push(c);
+            out.push(candidate_for(s, file, p, rot));
         }
     } else {
         for p in s.engine.stud_candidates(file, &spec, near, facing, &[], radius, limit)? {
@@ -220,7 +227,7 @@ fn candidate_for(s: &Session, file: usize, p: PartSpec, wanted: DMat3) -> Candid
     let turned = (p.rot - wanted).to_cols_array().iter().any(|v| v.abs() > 1e-6);
     let note = if turned { format!("rot {:?}", args::rot_rows(p.rot).map(|v| v.round() as i64)) } else { String::new() };
     let origin = p.pos;
-    Candidate { cmds: vec![Cmd::Add { file, parts: vec![p.clone()], free: false }], ghosts: vec![p], at, origin, note, bench: false }
+    Candidate { cmds: vec![Cmd::Add { file, parts: vec![p.clone()], free: false }], ghosts: vec![p], at, origin, note }
 }
 
 /// Fingerprint of the space a candidate fills (vertex positions and colours, 1/4 LDU grid).

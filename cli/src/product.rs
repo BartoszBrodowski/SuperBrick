@@ -4,70 +4,102 @@ use std::{
     path::{Path, PathBuf},
     time::Instant,
 };
-fn native(path: &Path) -> Res<engine::validation::Report> {
-    let doc = ldraw::Document::load(path)?;
-    let flat = doc.flatten(path.parent());
-    let lib = ldraw::Library::open_default()?;
-    Ok(engine::validation::Validator::default().check(&lib, &flat))
+/// The checker's report for an LDraw file (the bench validator inside SuperBrick's service).
+fn check(path: &Path) -> Res<engine::checker::Report> {
+    let model = engine::Model::from_document(ldraw::Document::load(path)?, Some(path.to_path_buf()));
+    Ok(engine::checker::check(&model, model.doc.main_index().unwrap_or(0))?)
 }
 pub fn validate(args: &[String]) -> Res<bool> {
     let path = Path::new(args.first().ok_or("MODEL required")?);
     let t = Instant::now();
-    let mut report = native(path)?;
-    if args.iter().any(|s| s == "--review") {
-        let model =
-            engine::Model::from_document(ldraw::Document::load(path)?, Some(path.to_path_buf()));
-        report.review_collisions(&model, model.doc.main_index().unwrap_or(0))?;
+    let report = check(path)?;
+    if args.iter().any(|s| s == "--json") {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        println!("{}", report.text);
     }
-    println!("{}", serde_json::to_string_pretty(&report)?);
-    eprintln!("native validation: {:.2}s", t.elapsed().as_secs_f64());
+    eprintln!("check: {:.2}s", t.elapsed().as_secs_f64());
     Ok(report.errors == 0)
 }
-pub fn parity(args: &[String]) -> Res<bool> {
-    let path = Path::new(args.first().ok_or("MODEL required")?).canonicalize()?;
-    let ours = serde_json::to_value(native(&path)?)?;
+/// Runs `bench-next/validate.py` as the reference. Unless `--raw`, it reads connectors with
+/// SuperBrick's corrections (`app/src/cad_snap_rules.py`), as the checker does; `--raw` shows
+/// what the uncorrected bench says.
+fn bench_reference(path: &Path, raw: bool) -> Res<Value> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let bench = root.join("bench-next");
+    let rules = root.join("cad/app/src");
+    let script = format!(
+        "import sys; sys.path[:0]=[{:?},{:?}]\nimport snaps, cad_snap_rules\n{}import validate\nsys.argv=['validate.py']+sys.argv[1:]\nvalidate.main()",
+        bench.to_string_lossy(),
+        rules.to_string_lossy(),
+        if raw { "" } else { "cad_snap_rules.apply(snaps)\n" }
+    );
     let mut cmd = ldraw::runtime::python_command()?;
-    cmd.arg(root.join("bench-next/validate.py"))
-        .arg(&path)
-        .arg("--json");
+    cmd.arg("-c").arg(script).arg(path).arg("--json");
     cmd.env(
         "BENCH_SHADOW",
         root.join("data-next/ldcad_shadow/LDCadShadowLibrary-main"),
     );
     let output = cmd.output()?;
-    let reference: Value = serde_json::from_slice(&output.stdout).map_err(|e| {
+    serde_json::from_slice(&output.stdout).map_err(|e| {
         format!(
             "Python validator did not return JSON: {e}\n{}",
             String::from_utf8_lossy(&output.stderr)
         )
-    })?;
+        .into()
+    })
+}
+pub fn parity(args: &[String]) -> Res<bool> {
+    let path = Path::new(args.first().ok_or("MODEL required")?).canonicalize()?;
+    let raw = args.iter().any(|s| s == "--raw");
+    let t = Instant::now();
+    let ours = serde_json::to_value(check(&path)?)?;
+    let took = t.elapsed().as_secs_f64();
+    let reference = bench_reference(&path, raw)?;
     let mut differences = vec![];
-    for key in ["verdict", "groups", "link_types"] {
+    for key in ["verdict", "pieces", "steps", "errors", "warnings", "unverified", "groups", "link_types"] {
         if ours[key] != reference[key] {
-            differences.push(json!({"field":key,"native":ours[key],"python":reference[key]}));
+            differences.push(json!({"field":key,"superbrick":ours[key],"bench":reference[key]}));
         }
     }
-    for (i, (a, b)) in ours["rows"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .zip(reference["rows"].as_array().ok_or("Python rows missing")?)
-        .enumerate()
-    {
-        if a["status"] != b["status"] {
-            differences.push(json!({"part":i+1,"native":a["status"],"python":b["status"]}));
-        }
+    let edges = |v: &Value| -> std::collections::BTreeSet<String> {
+        v["links"].as_array().into_iter().flatten().map(|l| l.to_string()).collect()
+    };
+    let (a, b) = (edges(&ours), edges(&reference));
+    if a != b {
+        differences.push(json!({"field":"links","only_superbrick":a.difference(&b).collect::<Vec<_>>(),"only_bench":b.difference(&a).collect::<Vec<_>>()}));
     }
-    if ours["pieces"] != reference["pieces"] {
-        differences
-            .push(json!({"field":"pieces","native":ours["pieces"],"python":reference["pieces"]}));
+    let by_uid = |v: &Value| -> std::collections::BTreeMap<u64, Value> {
+        v["rows"].as_array().into_iter().flatten().map(|r| (r["uid"].as_u64().unwrap_or(0), r.clone())).collect()
+    };
+    let (ra, rb) = (by_uid(&ours), by_uid(&reference));
+    let mut statuses: std::collections::BTreeMap<String, [usize; 2]> = Default::default();
+    for uid in ra.keys().chain(rb.keys()).collect::<std::collections::BTreeSet<_>>() {
+        let (x, y) = (&ra.get(uid).cloned().unwrap_or(Value::Null), &rb.get(uid).cloned().unwrap_or(Value::Null));
+        for s in x["status"].as_array().into_iter().flatten() {
+            statuses.entry(s.as_str().unwrap_or("").into()).or_default()[0] += 1;
+        }
+        for s in y["status"].as_array().into_iter().flatten() {
+            statuses.entry(s.as_str().unwrap_or("").into()).or_default()[1] += 1;
+        }
+        for key in ["step", "status", "detail", "links"] {
+            if x[key] != y[key] {
+                differences.push(json!({"part":uid,"field":key,"superbrick":x[key],"bench":y[key]}));
+            }
+        }
     }
     println!(
         "{}",
-        serde_json::to_string_pretty(
-            &json!({"pass":differences.is_empty(),"differences":differences,"limitations":ours["limitations"]})
-        )?
+        serde_json::to_string_pretty(&json!({
+            "model": path,
+            "pass": differences.is_empty(),
+            "verdict": [ours["verdict"], reference["verdict"]],
+            "statuses (superbrick, bench)": statuses,
+            "link_types": ours["link_types"],
+            "check_seconds": took,
+            "differences": differences.len(),
+            "first_differences": differences.iter().take(20).collect::<Vec<_>>(),
+        }))?
     );
     Ok(differences.is_empty())
 }
@@ -110,7 +142,7 @@ pub fn apply(args: &[String]) -> Res<bool> {
         println!("{}", e.execute(cmd)?);
     }
     e.save(Some(out))?;
-    eprintln!("Saved user transactions. Native connector validation remains partial.");
+    eprintln!("Saved user transactions.");
     Ok(true)
 }
 pub fn search_eval() -> Res<bool> {

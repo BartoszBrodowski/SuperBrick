@@ -92,9 +92,9 @@ pub struct State {
     pub thumb_pending: BTreeSet<String>,
     pub thumb_tx: mpsc::Sender<(String, String, i32)>,
     pub thumb_rx: mpsc::Receiver<(String, Result<Vec<u8>, String>)>,
-    pub report: Option<engine::validation::Report>,
+    pub report: Option<engine::checker::Report>,
     pub report_rx: Option<
-        mpsc::Receiver<Result<(engine::validation::Report, Vec<ldraw::FlatPart>, u64), String>>,
+        mpsc::Receiver<Result<(engine::checker::Report, Vec<ldraw::FlatPart>, u64), String>>,
     >,
     pub report_file: usize,
     pub report_revision: u64,
@@ -631,24 +631,18 @@ impl State {
     }
     pub fn check(&mut self) {
         let snapshot = self.snapshot.clone();
-        let lib = self.lib.clone();
         let file = self.views[self.active].file;
         self.report_file = file;
         let (tx, rx) = mpsc::channel();
         self.report_rx = Some(rx);
         std::thread::spawn(move || {
             let flat = snapshot.model.flat(file);
-            let mut report = engine::validation::Validator::default().check(&lib, &flat);
-            if let Err(e) = report.review_collisions(&snapshot.model, file) {
-                report.limitations.push(format!(
-                    "Full collision confirmation unavailable: {e}. Native flags need review."
-                ));
-            }
-            let r = Ok((report, flat, snapshot.revision));
+            let r = engine::checker::check(&snapshot.model, file)
+                .map(|report| (report, flat, snapshot.revision))
+                .map_err(|e| format!("Checker unavailable: {e}"));
             let _ = tx.send(r);
         });
-        self.message =
-            "Checking all nearby pairs for solid overlap and unseated connectors…".into();
+        self.message = "Checking connections, collisions and stability…".into();
     }
 }
 impl App {
@@ -983,33 +977,27 @@ impl App {
                 match r {
                     Ok((r, flat, revision)) => {
                         self.st.message = format!(
-                            "{} — {} pieces, {} errors (partial validator)",
-                            r.verdict, r.pieces, r.errors
+                            "{} — {} pieces, {} with errors, {} with warnings",
+                            r.verdict_words(),
+                            r.pieces,
+                            r.errors,
+                            r.warnings
                         );
+                        // Point at the first problem: a collision/conflict pair, else a floating piece.
+                        let indices = r
+                            .hits()
+                            .next()
+                            .map(|(a, b, _)| vec![a, b])
+                            .or_else(|| {
+                                r.rows.iter().find(|row| row.has("FLOATING")).map(|row| vec![row.index()])
+                            });
                         self.st.report = Some(r);
                         self.st.report_flat = flat;
                         self.st.report_revision = revision;
-                        if let Some(report) = &self.st.report {
-                            let indices = report
-                                .rows
-                                .iter()
-                                .find(|r| !r.collides.is_empty())
-                                .map(|r| {
-                                    let mut v = vec![r.uid - 1];
-                                    v.extend(&r.collides);
-                                    v
-                                })
-                                .or_else(|| report.reviewed.first().map(|r| vec![r.a, r.b]));
-                            if let Some(indices) = indices {
-                                self.st.issue_note = None;
-                                self.st.issue_serial += 1;
-                                self.st.issue = Some((
-                                    self.st.report_file,
-                                    indices,
-                                    revision,
-                                    self.st.issue_serial,
-                                ));
-                            }
+                        if let Some(indices) = indices {
+                            self.st.issue_note = None;
+                            self.st.issue_serial += 1;
+                            self.st.issue = Some((self.st.report_file, indices, revision, self.st.issue_serial));
                         }
                         if let Some(path) = self.dock.find_tab(&Tab::Checker) {
                             let _ = self.dock.set_active_tab(path);

@@ -194,7 +194,8 @@ fn ldraw_lines_and_human_notes_reach_the_agent() {
 
 #[test]
 fn verify_reports_collisions_listed_on_one_row() {
-    // The validator records a collision on the later part's row only.
+    // The checker records a collision on the later part's row only; verify lists it once,
+    // later piece first (red), the piece it meets second (amber).
     let dir = std::env::temp_dir().join(format!("sb-ops-tests-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let ldr = dir.join("overlap.ldr");
@@ -207,7 +208,9 @@ fn verify_reports_collisions_listed_on_one_row() {
     assert!(!r.ok, "{}", r.text);
     let pairs = r.data["collisions"].as_array().unwrap();
     assert_eq!(pairs.len(), 1, "{}", r.data);
-    assert_eq!((pairs[0]["a"].as_u64(), pairs[0]["b"].as_u64()), (Some(1), Some(2)));
+    assert_eq!((pairs[0]["a"].as_u64(), pairs[0]["b"].as_u64()), (Some(2), Some(1)));
+    assert_eq!(r.data["verdict"], "ILLEGAL");
+    assert!(r.text.contains("RESULT: ILLEGAL"), "{}", r.text);
 }
 
 #[test]

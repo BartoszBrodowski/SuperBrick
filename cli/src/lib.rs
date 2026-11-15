@@ -21,8 +21,8 @@ pub type Res<T> = Result<T, Box<dyn Error>>;
 
 const USAGE: &str = "usage:
   sb-dev stats                         open the LDraw library and print counts and timings
-  sb-dev validate MODEL                conservative native validator (partial connector port)
-  sb-dev parity MODEL                  compare native statuses/groups/link types with Python; fail on differences
+  sb-dev validate MODEL [--json]       the checker (bench validator in the connector service)
+  sb-dev parity MODEL [--raw]          compare the checker with bench-next/validate.py; fail on differences
   sb-dev search QUERY...               local part search
   sb-dev search-eval                    evaluate the unchanged search golden corpus
   sb-dev search-sets [REBRICKABLE_DIR]  build out/sets.bin (element IDs, set inventories)

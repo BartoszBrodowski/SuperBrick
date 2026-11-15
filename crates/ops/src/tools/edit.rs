@@ -147,9 +147,8 @@ struct Done {
     note: Option<String>,
     /// A group made by this op: its name and parts (kept as a named selection too).
     group: Option<(String, Vec<Id>)>,
-    /// Parts a `place` added or moved, and whether the bench proved that seat (connector candidates).
+    /// Parts a `place` added or moved.
     placed: Vec<Id>,
-    bench: bool,
 }
 
 /// Resolve an op's ids against the transaction's current model.
@@ -210,39 +209,6 @@ fn step_label(v: Option<&Value>, label: &str) -> Result<Option<Option<String>>> 
     })
 }
 
-
-/// Apply a move or turn. When its only collisions are bench-proven joints (clips, bars, windows)
-/// whose two parts move together, apply it without the stud-only collision check.
-fn apply_rigid(s: &Ctx, tx: &mut DraftTx, cmd: Cmd) -> Result<()> {
-    let err = match tx.apply(cmd.clone()) {
-        Ok(_) => return Ok(()),
-        Err(e) => e,
-    };
-    let moved: std::collections::HashSet<Id> = cmd.ids().iter().copied().collect();
-    let unchecked = match cmd {
-        Cmd::Move { ids, delta, .. } => Cmd::Move { ids, delta, free: true },
-        Cmd::Rotate { ids, axis, angle, pivot, .. } => Cmd::Rotate { ids, axis, angle, pivot, free: true },
-        _ => return Err(err),
-    };
-    let only_joints = tx
-        .engine()
-        .last_failure
-        .as_ref()
-        .and_then(|f| f.get("collisions"))
-        .and_then(Value::as_array)
-        .is_some_and(|list| {
-            !list.is_empty()
-                && list.iter().all(|c| match (c.get("moving").and_then(Value::as_u64), c.get("blocker").and_then(Value::as_u64)) {
-                    (Some(m), Some(b)) => moved.contains(&m) && moved.contains(&b) && s.joints.iter().any(|j| j.joins(m, b)),
-                    _ => false,
-                })
-        });
-    if !only_joints {
-        return Err(err);
-    }
-    tx.apply(unchecked)?;
-    Ok(())
-}
 
 /// The real pieces a shortcut part stands for (a complete hinge 1927 = base 2429 + top 2430),
 /// placed where the shortcut is; None for an ordinary part.
@@ -312,7 +278,6 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
     let kind = args::str_arg(op, "op").ok_or("each op needs \"op\" (add, place, move, ...)")?.to_ascii_lowercase();
     let free = op.get("free").and_then(Value::as_bool).unwrap_or(false);
     let mut placed: Vec<Id> = Vec::new();
-    let mut bench = false;
     let mut note = None;
     let mut group = None;
     // `after`: the parts this op adds join the construction step of that part (their lines go
@@ -345,7 +310,6 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
                     .ok_or_else(|| format!("{from} has candidates 1-{}", items.len()))?;
                 let before: std::collections::HashMap<Id, u64> =
                     tx.model().parts.iter().map(|(id, p)| (*id, p.content_hash())).collect();
-                bench = item["bench"].as_bool().unwrap_or(false);
                 for c in item["cmds"].as_array().into_iter().flatten() {
                     let mut cmd: Cmd = serde_json::from_value(c.clone()).map_err(|e| format!("candidate {from}/{pick}: {e}"))?;
                     if let (Cmd::Add { parts, .. }, Some(col)) = (&mut cmd, op.get("color").and_then(Value::as_i64)) {
@@ -396,7 +360,7 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
             } else {
                 return Err("move needs \"by\" or \"to\"".into());
             };
-            apply_rigid(s, tx, Cmd::Move { ids, delta, free })?;
+            tx.apply(Cmd::Move { ids, delta, free })?;
         }
         "rotate" | "turn" => {
             let ids = op_ids(s, tx.model(), op, file)?;
@@ -406,7 +370,7 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
                 Some(p) => args::point(p, units)?,
                 None => centre(s, tx.model(), &ids),
             };
-            apply_rigid(s, tx, Cmd::Rotate { ids, axis, angle, pivot, free })?;
+            tx.apply(Cmd::Rotate { ids, axis, angle, pivot, free })?;
         }
         "mirror" | "flip" | "invert" => {
             let ids = op_ids(s, tx.model(), op, file)?;
@@ -526,7 +490,7 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
                     art.detach
                 ));
             }
-            apply_rigid(s, tx, art.rotation(axis, angle, &detach)?)?;
+            tx.apply(art.rotation(axis, angle, &detach)?)?;
             notes.push(format!("joint {joint}, {} parts turn", art.moving.len()));
             note = Some(notes.join("; "));
         }
@@ -571,7 +535,7 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
             note = Some(format!("{}moved to the end of step {} (the step of #{after})", note.map(|n| format!("{n}, ")).unwrap_or_default(), v["step"]));
         }
     }
-    Ok(Done { kind, note, group, placed, bench })
+    Ok(Done { kind, note, group, placed })
 }
 
 pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
@@ -609,13 +573,8 @@ fn run_once(s: &mut Session, args: &Value) -> Result<Reply> {
         let mut failed: Option<usize> = None;
         let mut done: Vec<Done> = Vec::new();
         s.engine.drafts.next = s.engine.drafts.next.max(s.store.reserve_draft_ids(1)?);
-        // Joints placed from connector seats, keyed to their relative pose (older records are
-        // converted here, while their parts are still where they were put).
-        let view = s.view();
-        let joints: Vec<super::verify::BenchJoint> = super::verify::bench_joints(s, &view).into_iter().filter(|j| j.holds(&view)).collect();
-        super::verify::record_bench_joints(s, &view, &[])?;
         let Session { engine, store, lib, user: who, last, .. } = &mut *s;
-        let ctx = Ctx { lib: &*lib, store: &*store, user: who.as_str(), last: last.as_slice(), joints: &joints };
+        let ctx = Ctx { lib: &*lib, store: &*store, user: who.as_str(), last: last.as_slice() };
         let result = engine.propose_with(&user, turn, &label, dry, |tx| {
             let original: std::collections::HashSet<Id> = tx.model().parts.keys().copied().collect();
             // Inside a batch, "last" means what the earlier ops of this batch made or changed.
@@ -733,25 +692,35 @@ fn run_once(s: &mut Session, args: &Value) -> Result<Reply> {
         if !dry {
             s.set_last(focus.clone())?;
         }
-        // Problems the change introduced (new floating parts, collisions with free placement).
+        // What the checker says about the changed parts now: errors (COLLISION from free
+        // placement, CONFLICT, FLOATING) and LOOSE (not connected to the model built so far
+        // at its step: held only by later parts, or part of a separate group).
         let model = p.effective;
         let mut bad = Vec::new();
-        // Connector seats the bench proved legal: its overlap test models clips and bars, SuperBrick's doesn't.
-        let trusted: std::collections::HashSet<Id> = done.iter().filter(|d| d.bench).flat_map(|d| d.placed.iter().copied()).collect();
+        let mut loose = Vec::new();
         if !focus.is_empty() && model.flat(file).len() <= 4000 {
-            let pr = super::verify::problems_with(s, &model, file, &trusted);
-            if !dry {
-                let mut seats: Vec<(Id, Id)> =
-                    pr.joints.iter().copied().filter(|(a, b)| trusted.contains(a) || trusted.contains(b)).collect();
-                seats.extend(trusted.iter().map(|&t| (t, t)));
-                super::verify::record_bench_joints(s, &model, &seats)?;
-            }
-            for id in &focus {
-                if let Some(st) = pr.by_id.get(id) {
-                    if st.iter().any(|x| x == "FLOATING" || x == "COLLISION") {
-                        bad.push((*id, st.join("+")));
+            match super::verify::problems(s, &model, file) {
+                Ok(pr) => {
+                    for id in &focus {
+                        let Some(st) = pr.by_id.get(id) else { continue };
+                        let errors: Vec<&str> =
+                            st.iter().map(String::as_str).filter(|x| engine::checker::ERRORS.contains(x)).collect();
+                        if !errors.is_empty() {
+                            bad.push((*id, errors.join("+")));
+                        } else if st.iter().any(|x| x == "LOOSE") {
+                            let why = pr
+                                .report
+                                .rows
+                                .iter()
+                                .find(|r| r.id == Some(*id) && r.has("LOOSE"))
+                                .and_then(|r| r.notes.first().cloned())
+                                .unwrap_or_default();
+                            loose.push((*id, why));
+                        }
                     }
+                    data["verdict"] = json!(pr.report.verdict);
                 }
+                Err(e) => text.push_str(&format!(" (Not checked: {e}.)")),
             }
         }
         if !bad.is_empty() {
@@ -762,6 +731,17 @@ fn run_once(s: &mut Session, args: &Value) -> Result<Reply> {
                 bad.iter().take(12).map(|(id, st)| format!("#{id} {st}")).collect::<Vec<_>>().join(", ")
             ));
             data["problems"] = json!(bad.iter().map(|(id, st)| json!({"id": id, "status": st})).collect::<Vec<_>>());
+        }
+        if !loose.is_empty() {
+            let first = &loose[0];
+            text.push_str(&format!(
+                " LOOSE (fine while designing; fix steps before instructions): {}{} — #{} {}.",
+                fmt_ids(loose.iter().map(|l| l.0).take(12)),
+                if loose.len() > 12 { format!(" +{} more", loose.len() - 12) } else { String::new() },
+                first.0,
+                first.1
+            ));
+            data["loose"] = json!(loose.iter().map(|l| l.0).collect::<Vec<_>>());
         }
         focus.sort_unstable();
         let mut shot = Shot::new(file, if label.is_empty() { summary.join("; ") } else { label.clone() })
@@ -930,8 +910,8 @@ fn failure(s: &mut Session, view: &Model, file: usize, ops: &[Value], failed: Op
     }
     if !clashes.is_empty() {
         text.push_str(
-            " If this is a clip, bar, pin, hinge or other non-stud seat, this check can't see the joint: find the seat with \
-             where {part, near_ids, connectors:true} and place it from there (those seats are checked by the connector bench).",
+            " Clips, bars, pins, hinges and other connectors are understood by this check, so a real seat does not collide: \
+             find one with where {part, near_ids, connectors:true} and place it from there.",
         );
     }
     if !shot.roles.is_empty() || !shot.extra.is_empty() || !shot.boxes.is_empty() {

@@ -482,19 +482,13 @@ pub fn ui(st: &mut State, i: usize, ui: &mut egui::Ui) {
     );
     if let Some((file, indices, revision, _)) = &st.issue {
         if *file == v.file && *revision == st.snapshot.revision {
-            let contact_review = st.report.as_ref().is_some_and(|r| {
-                r.reviewed
-                    .iter()
-                    .any(|p| p.warning && indices.contains(&p.a) && indices.contains(&p.b))
-            });
-            let cleared = indices.first().is_some_and(|i| {
-                st.report.as_ref().is_some_and(|r| {
-                    r.rows.get(*i).is_some_and(|row| row.collides.is_empty())
-                        && r.reviewed
-                            .iter()
-                            .any(|p| !p.collision && (p.a == *i || p.b == *i))
-                })
-            });
+            // The first piece is the one the issue is about: red for an error, yellow for a
+            // warning (LOOSE, UNVERIFIED), blue for a piece the checker found OK.
+            let first = indices
+                .first()
+                .and_then(|i| st.report.as_ref().and_then(|r| r.flat_row(*i)));
+            let contact_review = first.is_some_and(|r| !r.is_error() && !r.is_ok());
+            let cleared = first.is_some_and(|r| r.is_ok());
             for (n, index) in indices.iter().enumerate() {
                 if let Some(p) = l.flat.get(*index) {
                     if let Ok(mesh) = st.lib.mesh(&p.name, ldraw::Lod::Low) {
@@ -525,13 +519,19 @@ pub fn ui(st: &mut State, i: usize, ui: &mut egui::Ui) {
                     }
                 }
             }
-            let diagnosis = st.report.as_ref().and_then(|r| {
-                r.reviewed
-                    .iter()
-                    .find(|p| indices.contains(&p.a) && indices.contains(&p.b))
-            });
-            if let Some(p) = diagnosis {
-                for point in &p.points {
+            // Where the checker found the collision or conflict between the shown pieces.
+            let points: Vec<[f64; 3]> = st
+                .report
+                .as_ref()
+                .map(|r| {
+                    r.hits()
+                        .filter(|(a, b, _)| indices.contains(a) && indices.contains(b))
+                        .filter_map(|(_, _, h)| h.at)
+                        .collect()
+                })
+                .unwrap_or_default();
+            {
+                for point in &points {
                     if let Some(q) =
                         crate::mechanical::project(&l.cam, rect, glam::DVec3::from_array(*point))
                     {
@@ -562,9 +562,9 @@ pub fn ui(st: &mut State, i: usize, ui: &mut egui::Ui) {
                 if let Some(note) = &st.issue_note {
                     note.as_str()
                 } else if contact_review {
-                    "Checker X-ray · yellow contact review (not a draft blocker)"
+                    "Checker X-ray · yellow warning (loose or unverified)"
                 } else if cleared {
-                    "Checker X-ray · blue reviewed connection (cleared)"
+                    "Checker X-ray · blue piece checked OK"
                 } else {
                     "Checker X-ray · red issue / amber neighbour"
                 },
@@ -579,20 +579,22 @@ pub fn ui(st: &mut State, i: usize, ui: &mut egui::Ui) {
                     egui::Color32::LIGHT_RED
                 },
             );
-            if let Some(p) = diagnosis {
-                if !p.reasons.is_empty() {
-                    ui.painter_at(rect).text(
-                        rect.left_top() + egui::vec2(12., 34.),
-                        egui::Align2::LEFT_TOP,
-                        format!("#{} ↔ #{}: {}", p.a + 1, p.b + 1, p.reasons.join("; ")),
-                        egui::FontId::proportional(13.),
-                        if contact_review {
-                            Color32::YELLOW
-                        } else {
-                            Color32::LIGHT_RED
-                        },
-                    );
-                }
+            let first_note = indices
+                .first()
+                .and_then(|i| st.report.as_ref().and_then(|r| r.flat_row(*i)))
+                .and_then(|r| r.notes.first().cloned());
+            if let Some(note) = first_note {
+                ui.painter_at(rect).text(
+                    rect.left_top() + egui::vec2(12., 34.),
+                    egui::Align2::LEFT_TOP,
+                    note,
+                    egui::FontId::proportional(13.),
+                    if contact_review {
+                        Color32::YELLOW
+                    } else {
+                        Color32::LIGHT_RED
+                    },
+                );
             }
         }
     }

@@ -110,27 +110,6 @@ fn a_failed_batch_leaves_no_draft_and_explains_the_collision() {
 }
 
 #[test]
-fn floating_groups_are_flagged_but_grounded_islands_are_not() {
-    let mut e = engine_from(
-        "0 test\r\n\
-         1 4 0 0 0 1 0 0 0 1 0 0 0 1 3003.dat\r\n\
-         1 4 200 0 0 1 0 0 0 1 0 0 0 1 3003.dat\r\n\
-         1 4 400 -200 0 1 0 0 0 1 0 0 0 1 3003.dat\r\n",
-    );
-    let flat = e.model.flat(0);
-    let lib = e.lib.clone();
-    let report = e.validator.check(&lib, &flat);
-    let floating: Vec<_> = report
-        .rows
-        .iter()
-        .filter(|r| r.status.iter().any(|s| s == "FLOATING"))
-        .map(|r| r.uid)
-        .collect();
-    assert_eq!(floating, vec![3]);
-    assert_eq!(report.floating, 1);
-}
-
-#[test]
 fn stud_candidates_enumerate_distinct_legal_seats() {
     let mut e = engine();
     let part = spec("3003.dat", DVec3::ZERO);

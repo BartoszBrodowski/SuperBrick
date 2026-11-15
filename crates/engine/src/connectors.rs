@@ -115,7 +115,7 @@ pub fn request(model: &Model, file: usize, mut action: Value) -> Result<Value> {
     let parts: Vec<_> = model
         .flat(file)
         .iter()
-        .map(|p| {let hidden=p.ancestors.iter().chain(std::iter::once(&p.src)).any(|s|hidden.contains(s));json!({"id":ids.get(&p.root_line),"name":p.name,"pos":p.pos,"rot":p.rot,"hidden":hidden})})
+        .map(|p| {let hidden=p.ancestors.iter().chain(std::iter::once(&p.src)).any(|s|hidden.contains(s));json!({"id":ids.get(&p.root_line),"name":p.name,"color":p.color.0,"step":p.step,"pos":p.pos,"rot":p.rot,"hidden":hidden})})
         .collect();
     action["parts"] = json!(parts);
     action["roots"] = json!(
@@ -144,10 +144,12 @@ pub fn request(model: &Model, file: usize, mut action: Value) -> Result<Value> {
     static SERVICE: OnceLock<Mutex<Option<Backend>>> = OnceLock::new();
     // Interactive endpoint discovery must never queue behind a planner/drag solve.
     static PICK_SERVICE: OnceLock<Mutex<Option<Backend>>> = OnceLock::new();
-    let service = if matches!(action["action"].as_str(), Some("endpoints" | "compatible")) {
-        &PICK_SERVICE
-    } else {
-        &SERVICE
+    // The checker keeps its own process (and pair cache): a cold full check never blocks a drag.
+    static CHECK_SERVICE: OnceLock<Mutex<Option<Backend>>> = OnceLock::new();
+    let service = match action["action"].as_str() {
+        Some("endpoints" | "compatible") => &PICK_SERVICE,
+        Some("validate" | "check_candidates") => &CHECK_SERVICE,
+        _ => &SERVICE,
     };
     let mut slot = service
         .get_or_init(|| Mutex::new(None))

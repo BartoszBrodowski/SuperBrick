@@ -71,7 +71,7 @@ def main():
 SEARCH_ASSETS = ["out/catalog.json", "out/emb-potion-base-8m.bin", "out/sets.bin"] + [
     f"models/potion-base-8m/{name}" for name in ["config.json", "model.safetensors", "tokenizer.json"]
 ]
-BENCH_FILES = ["physics.py", "snaps.py", "ldraw.py", "raster.py", "render.py"]
+BENCH_FILES = ["physics.py", "snaps.py", "ldraw.py", "raster.py", "render.py", "validate.py", "scene.py", "orient.py"]
 
 
 def sources(root):
@@ -110,6 +110,7 @@ def stage_share(root, share, min_macos=None):
     for name in BENCH_FILES:
         atomic_copy(found["bench"] / name, connector_target / "bench" / name)
     atomic_copy(root / "app/src/cad_contact_policy.py", connector_target / "bench/cad_contact_policy.py")
+    atomic_copy(root / "app/src/cad_snap_rules.py", connector_target / "bench/cad_snap_rules.py")
     for folder, destination in [(found["bench"] / "shadow_extra", connector_target / "bench/shadow_extra"), (found["shadow"], connector_target / "shadow")]:
         for path in folder.rglob("*"):
             if path.is_file() and ".git" not in path.parts and "__pycache__" not in path.parts:

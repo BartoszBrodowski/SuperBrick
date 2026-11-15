@@ -1,5 +1,6 @@
-//! Conservative native validator over the current voxel relation port.
-//! Unknown connectors are UNVERIFIED, never silently claimed to be verified.
+//! Native voxel validator: instant stud-only feedback for placement search, nudges and GUI
+//! drags. It is not the checker — `checker` (the bench validator in the Python service) is
+//! what verify, edit refusal, `where` and the Checker panel use.
 use ldraw::{FlatPart, Library};
 use physics::{Body, Shape};
 use rayon::prelude::*;
@@ -19,7 +20,6 @@ pub struct Row {
 #[derive(Clone, Debug, Serialize)]
 pub struct Report {
     pub colour_warnings: Vec<crate::availability::ColourWarning>,
-    pub reviewed: Vec<PairReview>,
     pub pieces: usize,
     pub verdict: String,
     pub rows: Vec<Row>,
@@ -61,79 +61,6 @@ impl Pair {
             }
         }
         best
-    }
-}
-#[derive(Clone, Debug, Serialize, serde::Deserialize)]
-pub struct PairReview {
-    pub a: usize,
-    pub b: usize,
-    pub collision: bool,
-    #[serde(default)]
-    pub warning: bool,
-    pub overlap: f64,
-    pub types: Vec<String>,
-    #[serde(default)]
-    pub reasons: Vec<String>,
-    #[serde(default)]
-    pub points: Vec<[f64; 3]>,
-    #[serde(default)]
-    pub raw_overlap: f64,
-}
-impl Report {
-    /// Full pairwise narrow phase, including conflicts missed by the native port.
-    pub fn review_collisions(&mut self, model: &crate::Model, file: usize) -> crate::Result<()> {
-        let pairs: Vec<_> = self
-            .rows
-            .iter()
-            .flat_map(|r| r.collides.iter().map(move |&b| (r.uid - 1, b)))
-            .collect();
-        let response = crate::connectors::request(
-            model,
-            file,
-            serde_json::json!({"action":"check_pairs","pairs":pairs,"all_nearby":true}),
-        )?;
-        let checked: Vec<PairReview> =
-            serde_json::from_value(response["pairs"].clone()).map_err(|e| e.to_string())?;
-        if pairs
-            .iter()
-            .any(|&(a, b)| !checked.iter().any(|p| p.a == a && p.b == b))
-            || checked.iter().any(|r| {
-                r.a >= self.rows.len()
-                    || r.b >= self.rows.len()
-                    || r.a == r.b
-                    || !r.overlap.is_finite()
-                    || r.points.iter().flatten().any(|v| !v.is_finite())
-            })
-        {
-            return Err("Incomplete connector collision review".into());
-        }
-        for p in &checked {
-            if p.warning && !self.rows[p.a].status.iter().any(|s| s == "CONTACT_REVIEW") {
-                self.rows[p.a].status.push("CONTACT_REVIEW".into());
-            }
-            if !p.collision {
-                self.rows[p.a].collides.retain(|&b| b != p.b);
-            } else if !self.rows[p.a].collides.contains(&p.b) {
-                self.rows[p.a].collides.push(p.b);
-            }
-        }
-        for r in &mut self.rows {
-            if r.collides.is_empty() {
-                r.status.retain(|s| s != "COLLISION");
-            } else if !r.status.iter().any(|s| s == "COLLISION") {
-                r.status.push("COLLISION".into());
-            }
-        }
-        self.errors = self.rows.iter().filter(|r| !r.collides.is_empty()).count();
-        self.verdict = if self.errors > 0 {
-            "ILLEGAL"
-        } else {
-            "UNVERIFIED"
-        }
-        .into();
-        self.reviewed = checked;
-        self.limitations.push("All nearby piece pairs checked with full connector keep-outs and seating conflicts, not just native collision candidates. This is still not full stability, access or instruction-sequence certification.".into());
-        Ok(())
     }
 }
 #[derive(Default)]
@@ -349,7 +276,7 @@ impl Validator {
         if self.pairs.len() > 200000 {
             self.pairs.clear();
         }
-        Report { colour_warnings:crate::availability::check(parts),reviewed:vec![],pieces:parts.len(),verdict:if errors>0 {"ILLEGAL"}else if parts.is_empty(){"VERIFIED"}else{"UNVERIFIED"}.into(),rows,groups,errors,
+        Report { colour_warnings:crate::availability::check(parts),pieces:parts.len(),verdict:if errors>0 {"ILLEGAL"}else if parts.is_empty(){"VERIFIED"}else{"UNVERIFIED"}.into(),rows,groups,errors,
             link_types:BTreeMap::from([("stud".into(),stud_count)]),
             limitations:vec!["Native voxel port: shadow connectors, compliance, gears and precise tilted narrow phase are not yet implemented.".into()],
             floating, pairs }
