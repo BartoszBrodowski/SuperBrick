@@ -17,7 +17,8 @@ pub fn schema() -> Value {
         "type": "object",
         "properties": {
             "action": {"type": "string", "enum": ACTIONS,
-                "description": "info: summary. parts: list parts (ids/box, offset, limit). inspect: a part's connectors and size (id or part number), with a labelled picture. drafts: pending proposals. accept (human only) / reject / withdraw: drafts by id. log: versions. branches / branch (create, name, from). restore: a version (human). checkpoint: save a version now (human). export: LDraw to a path. selections / forget (a selection). prefs / set (key, value). assets / save_asset (id, path). colours: common colours. inventory: the model's parts counted by part and colour; with against (a set number, a booklet_inventory.json path or a [{part, color, qty}] list) also what is missing, extra or in the wrong colour."},
+                "description": "info: summary. parts: list parts (ids/box, offset, limit). inspect: a part's connectors and size (id or part number), with a labelled picture. drafts: pending proposals. accept (human only) / reject / withdraw: drafts by id. log: versions. branches / branch (create, name, from). restore: a version (human). checkpoint: save a version now (human). export: LDraw to a path. selections / forget (a selection). prefs / set (key, value). assets / save_asset (id, path). colours: common colours. inventory: the model's parts counted by part and colour (steps:\"1-8\" for some steps only, e.g. a bag or a sorting group); with against (a set number, a booklet_inventory.json path or a [{part, color, qty}] list) also what is missing, extra or in the wrong colour."},
+            "steps": {"description": "inventory: only parts in these steps, \"5\", \"3-7\", \"1-8,12\" or a list."},
             "against": {"description": "inventory: a set number (\"40809\"), a path to a JSON file {parts:[{part, color, qty}]} or such a list."},
             "ids": ids_prop("Parts (parts, inspect) or draft ids (accept, reject, withdraw)"),
             "part": {"type": "string", "description": "Part number for inspect."},
@@ -463,6 +464,27 @@ pub(crate) fn part_key(lib: &ldraw::Library, name: &str) -> String {
 }
 
 /// "a; b; c" with at most `max` items, then "… and N more".
+/// Steps from "5", "3-7", "1-8,12" or a list of numbers; `last` is the model's last step.
+fn step_list(v: &Value, last: u32) -> Result<std::collections::BTreeSet<u32>> {
+    let mut out = std::collections::BTreeSet::new();
+    let text = match v {
+        Value::Number(n) => n.to_string(),
+        Value::Array(list) => list.iter().map(|x| x.to_string().trim_matches('"').to_string()).collect::<Vec<_>>().join(","),
+        Value::String(t) => t.clone(),
+        _ => return Err("steps: \"3-7\", \"1-8,12\" or a list of step numbers".into()),
+    };
+    for range in text.split(',').map(str::trim).filter(|r| !r.is_empty()) {
+        let (a, b) = range.split_once('-').unwrap_or((range, range));
+        let num = |t: &str| t.trim().parse::<u32>().map_err(|_| format!("steps: bad step {t:?}"));
+        let (a, b) = (num(a)?, num(b)?);
+        if a == 0 || b < a {
+            return Err(format!("steps: bad range {range:?}"));
+        }
+        out.extend(a..=b.min(last.max(a)));
+    }
+    Ok(out)
+}
+
 fn capped(items: Vec<String>, max: usize) -> String {
     let n = items.len();
     let mut t = items.into_iter().take(max).collect::<Vec<_>>().join("; ");
@@ -491,17 +513,23 @@ pub(crate) fn counts_from(lib: &ldraw::Library, list: &[Value]) -> Result<Counts
 fn inventory(s: &mut Session, args: &Value) -> Result<Reply> {
     let view = s.view();
     let file = file_arg(&view, args)?;
+    let flat = view.flat(file);
+    let last = flat.iter().map(|p| p.step).max().unwrap_or(1);
+    let steps = match args.get("steps") {
+        None | Some(Value::Null) => None,
+        Some(v) => Some(step_list(v, last)?),
+    };
     let mut have = Counts::new();
-    for p in view.flat(file) {
+    for p in flat.iter().filter(|p| steps.as_ref().is_none_or(|st| st.contains(&p.step))) {
         *have.entry((part_key(&s.lib, &p.name), p.color.0)).or_default() += 1;
     }
     let total: u32 = have.values().sum();
-    let line = |(p, c): &(String, i32), n: u32| format!("{n}× {p} {} ({c})", colour_name(&s.lib, *c));
+    let line = |(p, c): &(String, i32), n: u32| format!("{n}× {p} {} {} ({c})", s.lib.description(&format!("{p}.dat")).split_whitespace().collect::<Vec<_>>().join(" "), colour_name(&s.lib, *c));
     let rows = |m: &Counts| m.iter().map(|((p, c), n)| json!({"part": p, "color": c, "qty": n})).collect::<Vec<_>>();
     let Some(against) = args.get("against") else {
         let lines: Vec<String> = have.iter().map(|(k, n)| line(k, *n)).collect();
         return Ok(Reply::ok(
-            format!("{total} pieces in {} kinds: {}.", have.len(), capped(lines, 60)),
+            format!("{total} pieces in {} kinds{}: {}.", have.len(), steps.as_ref().map(|st| format!(" in {} step(s)", st.len())).unwrap_or_default(), capped(lines, 60)),
             json!({"pieces": total, "parts": rows(&have)}),
         ));
     };

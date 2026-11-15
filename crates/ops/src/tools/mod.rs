@@ -54,7 +54,7 @@ pub const TOOLS: &[Tool] = &[
     },
     Tool {
         name: "verify",
-        summary: "Check the build (or some parts): collisions, floating groups, weak links between two regions (strength = number of connections at the weakest cut). Problems come back highlighted in red with an explanation.",
+        summary: "Check the build (or some parts) with the full connection checker: every link type (studs, side studs, clips, bars, pins, axles, hinges, balls), statuses OK / COLLISION / CONFLICT / FLOATING / LOOSE (held only by a later step) / UNVERIFIED / UNCHECKED and the verdict LEGAL (verified) / UNVERIFIED / ILLEGAL; also weak links between two regions (strength = number of connections at the weakest cut). Problems come back highlighted in red with an explanation.",
         schema: verify::schema,
     },
     Tool {

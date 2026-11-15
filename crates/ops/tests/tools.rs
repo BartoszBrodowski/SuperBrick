@@ -289,6 +289,22 @@ fn element_ids_sets_and_inventory() {
 }
 
 #[test]
+fn inventory_of_some_steps() {
+    let path = project("inventory-steps");
+    let mut s = Session::open(&path, "claude", lib()).unwrap();
+    assert!(call(&mut s, "edit", json!({"images": false, "step": true, "ops": [brick([0.0, 0.0, 0.0])]})).ok);
+    assert!(call(&mut s, "edit", json!({"images": false, "step": true, "ops": [
+        {"op": "add", "part": "3023", "color": 15, "at": [100, 0, 0]},
+        {"op": "add", "part": "3023", "color": 15, "at": [100, 0, 40]}]})).ok);
+    let r = call(&mut s, "project", json!({"action": "inventory", "steps": "2"}));
+    assert!(r.ok, "{}", r.text);
+    assert!(r.text.starts_with("2 pieces in 1 kinds in 1 step(s)") && r.text.contains("Plate 1 x 2"), "{}", r.text);
+    let r = call(&mut s, "project", json!({"action": "inventory", "steps": [1, 2]}));
+    assert!(r.text.starts_with("3 pieces in 2 kinds"), "{}", r.text);
+    assert!(!call(&mut s, "project", json!({"action": "inventory", "steps": "3-1"})).ok);
+}
+
+#[test]
 fn callout_and_booklet_compare() {
     let path = project("callout");
     let mut s = Session::open(&path, "claude", lib()).unwrap();
@@ -415,4 +431,27 @@ fn fill_box_in_running_bond_with_ends_and_one_check_per_batch() {
         "images": false}));
     assert!(!r.ok);
     assert!(r.text.contains("op 2 (pattern)"), "{}", r.text);
+}
+
+#[test]
+fn corner_anchors_ops_files_and_dropped_clashes() {
+    let path = project("corner");
+    let mut agent = Session::open(&path, "claude", lib()).unwrap();
+    // Corner (0,0,0) in grid units: a 2x4 brick sitting on y=0, spanning x 0..4 and z 0..2 studs.
+    let ops = json!([{"op": "add", "part": "3001", "at": [0, 0, 0], "anchor": "corner"},
+                     {"op": "add", "parts": [{"part": "3001", "at": [0, 3, 0], "rot": "yaw90", "anchor": "corner"}]}]);
+    let file = path.with_extension("ops.json");
+    std::fs::write(&file, serde_json::to_string(&json!({"ops": ops, "units": "grid"})).unwrap()).unwrap();
+    let r = call(&mut agent, "edit", json!({"ops_file": file.to_str().unwrap(), "images": false}));
+    assert!(r.ok, "{}", r.text);
+    let flat = agent.view().flat(0);
+    let at = |i: usize| flat[i].pos.to_array().map(|v| v.round() as i64);
+    assert_eq!(at(0), [40, -24, 20], "origin = corner + half the footprint, top of the brick");
+    assert_eq!(at(1), [20, -48, 40], "turned: 2 studs along x, 4 along z, one brick up");
+    // drop_clashes leaves out the brick that would overlap the first one, keeps the free one.
+    let r = call(&mut agent, "edit", json!({"units": "grid", "images": false, "ops": [{"op": "add", "drop_clashes": true,
+        "parts": [{"part": "3001", "at": [1, 0, 0], "anchor": "corner"}, {"part": "3001", "at": [10, 0, 0], "anchor": "corner"}]}]}));
+    assert!(r.ok, "{}", r.text);
+    assert_eq!(agent.view().flat(0).len(), 3);
+    assert!(r.text.contains("1 of 2 dropped"), "{}", r.text);
 }

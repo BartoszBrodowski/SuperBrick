@@ -13,11 +13,11 @@ use serde_json::{json, Value};
 pub fn schema() -> Value {
     json!({
         "type": "object",
-        "required": ["ops"],
         "properties": {
+            "ops_file": {"type": "string", "description": "Instead of ops: absolute path of a JSON file with the ops list (or {ops:[...], units?, label?, ...}), e.g. a clump a generator script wrote."},
             "ops": {"type": "array", "minItems": 1, "description":
 "Operations, applied in order as one atomic batch (all or nothing), collision-checked once at the end. Each is an object with \"op\":
-- add: {part:\"3001\", color:4, at:[x,y,z], rot:\"yaw90\"} or {parts:[{part,color,at,rot},...]} or {ldraw:\"1 15 0 -24 0 1 0 0 0 1 0 0 0 1 3001.dat\\n...\"} (LDraw lines, LDU, row order). at is the part's LDraw origin. free:true skips the collision check.
+- add: {part:\"3001\", color:4, at:[x,y,z], rot:\"yaw90\"} or {parts:[{part,color,at,rot},...]} or {ldraw:\"1 15 0 -24 0 1 0 0 0 1 0 0 0 1 3001.dat\\n...\"} (LDraw lines, LDU, row order). at is the part's LDraw origin. anchor:\"corner\" (on the op or a part) makes at the low corner of the turned part's body box instead (least x, y and z in grid units: left, bottom, front), studs left out. drop_clashes:true leaves out parts that clash with the model and says how many (not checked against each other). free:true skips the collision check.
 - place: {from:\"c3\", pick:2, color?} places candidate 2 of a `where` result; or {part, color, near:[x,y,z] or near_ids, rot?} snaps to the nearest legal stud seat.
 - move: {ids, by:[dx,dy,dz]} or {ids, to:[x,y,z]} (the first part's origin goes there).
 - rotate: {ids, axis:\"y\" or [x,y,z], angle:90, pivot?} (pivot defaults to the parts' centre).
@@ -296,11 +296,33 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
     let before: BTreeSet<Id> = if anchor.is_some() { tx.model().parts.keys().copied().collect() } else { BTreeSet::new() };
     match kind.as_str() {
         "add" => {
-            let parts = match (op.get("ldraw"), op.get("parts").and_then(Value::as_array)) {
+            let anchor_of = |v: &Value| args::str_arg(v, "anchor").or_else(|| args::str_arg(op, "anchor")).unwrap_or("origin").to_string();
+            let mut parts = match (op.get("ldraw"), op.get("parts").and_then(Value::as_array)) {
                 (Some(lines), _) => ldraw_specs(lines, colour_arg(op, colour)?)?,
-                (None, Some(list)) => list.iter().map(|p| spec(p, units, colour_arg(op, colour)?)).collect::<Result<Vec<_>>>()?,
-                (None, None) => vec![spec(op, units, colour)?],
+                (None, Some(list)) => list
+                    .iter()
+                    .map(|p| super::pattern::anchored(s.lib, spec(p, units, colour_arg(op, colour)?)?, &anchor_of(p)))
+                    .collect::<Result<Vec<_>>>()?,
+                (None, None) => vec![super::pattern::anchored(s.lib, spec(op, units, colour)?, &anchor_of(op))?],
             };
+            if op.get("drop_clashes").and_then(Value::as_bool).unwrap_or(false) {
+                let total = parts.len();
+                let singles: Vec<Vec<PartSpec>> = parts.iter().map(|p| vec![p.clone()]).collect();
+                let verdicts = engine::checker::check_candidates(tx.model(), file, &[], &singles)?;
+                let mut kept = Vec::new();
+                for (p, v) in parts.into_iter().zip(verdicts) {
+                    if v.is_none() {
+                        kept.push(p);
+                    }
+                }
+                if kept.is_empty() {
+                    return Err(format!("drop_clashes: all {total} parts clash with the model"));
+                }
+                if kept.len() < total {
+                    note = Some(format!("{} of {total} dropped: they clash with the model", total - kept.len()));
+                }
+                parts = kept;
+            }
             tx.apply(Cmd::Add { file, parts, free })?;
         }
         "pattern" | "fill" => {
@@ -547,6 +569,7 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
 }
 
 pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
+    let args = &with_ops_file(args)?;
     // `images:false` holds for this call only; the session's own setting comes back afterwards.
     let images = s.images;
     let reply = run_once(s, args);
@@ -554,9 +577,32 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply> {
     reply
 }
 
+/// `ops_file`: the batch from a JSON file a script wrote (a generator's clump), so its parts
+/// need not pass through the conversation. The file holds the ops list, or an object with `ops`
+/// and any other edit arguments (units, label, step...), which the call's own arguments override.
+fn with_ops_file(args: &Value) -> Result<Value> {
+    let Some(path) = args::str_arg(args, "ops_file") else { return Ok(args.clone()) };
+    if args.get("ops").is_some() {
+        return Err("give either ops or ops_file, not both".into());
+    }
+    let text = std::fs::read_to_string(path).map_err(|e| format!("ops_file {path}: {e}"))?;
+    let file: Value = serde_json::from_str(&text).map_err(|e| format!("ops_file {path}: not JSON: {e}"))?;
+    let mut out = match file {
+        Value::Array(ops) => json!({ "ops": ops }),
+        Value::Object(_) if file.get("ops").is_some_and(Value::is_array) => file,
+        _ => return Err(format!("ops_file {path}: expected a list of ops or {{\"ops\": [...], ...}}")),
+    };
+    for (k, v) in args.as_object().into_iter().flatten() {
+        if k != "ops_file" {
+            out[k] = v.clone();
+        }
+    }
+    Ok(out)
+}
+
 fn run_once(s: &mut Session, args: &Value) -> Result<Reply> {
     super::compare::view(args)?;
-    let ops = args.get("ops").and_then(Value::as_array).cloned().ok_or("edit needs \"ops\": a list of operations")?;
+    let ops = args.get("ops").and_then(Value::as_array).cloned().ok_or("edit needs \"ops\" (a list of operations) or \"ops_file\"")?;
     if ops.is_empty() {
         return Err("\"ops\" is empty".into());
     }

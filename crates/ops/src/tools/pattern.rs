@@ -280,6 +280,29 @@ fn overlaps(alo: DVec3, ahi: DVec3, blo: DVec3, bhi: DVec3) -> bool {
     (0..3).all(|k| ahi[k].min(bhi[k]) - alo[k].max(blo[k]) > 0.5)
 }
 
+/// `anchor:"corner"`: move a part whose `pos` names the low corner of its turned body box
+/// (least x, bottom, least z; studs left out) to put its LDraw origin there instead.
+pub(crate) fn anchored(lib: &Library, mut part: PartSpec, anchor: &str) -> Result<PartSpec> {
+    match anchor {
+        "origin" => Ok(part),
+        "corner" => {
+            let (mut lo, mut hi) = body_box(lib, &part.name, DVec3::ZERO, part.rot).ok_or_else(|| format!("{}: no geometry to anchor by", part.name))?;
+            // Turned by quarter turns only: snap to the half-stud / half-plate grid, so parts whose
+            // mesh stops short of their footprint (wedges, tapered tiles) still land on the studs.
+            let r = part.rot.to_cols_array();
+            if r.iter().all(|v| (v.abs() - v.abs().round()).abs() < 1e-6) {
+                let g = DVec3::new(10.0, 4.0, 10.0);
+                lo = (lo / g).round() * g;
+                hi = (hi / g).round() * g;
+            }
+            // y points down: the bottom of the box is its largest y.
+            part.pos -= DVec3::new(lo.x, hi.y, lo.z);
+            Ok(part)
+        }
+        o => Err(format!("anchor must be \"origin\" or \"corner\", not {o:?}")),
+    }
+}
+
 /// World box of a placed part's body, studs left out.
 fn body_box(lib: &Library, name: &str, pos: DVec3, rot: DMat3) -> Option<(DVec3, DVec3)> {
     let mesh = lib.mesh(name, Lod::Low).ok()?;

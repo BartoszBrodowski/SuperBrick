@@ -334,6 +334,20 @@ impl Server {
         Ok(self.lib.clone().unwrap())
     }
 
+    /// Act as another agent name from now on (`project open {as}`): concurrent agent sessions that
+    /// share one MCP configuration each pick their own name, so their drafts stay apart.
+    fn rename(&mut self, name: &str) -> Result<(), String> {
+        if !crate::valid_user(name) || name == crate::HUMAN {
+            return Err(format!("as: {name:?} is not an agent name (letters, digits, - _ . ; not {:?})", crate::HUMAN));
+        }
+        if name != self.user {
+            self.user = name.to_string();
+            self.sessions.clear();
+            self.current = None;
+        }
+        Ok(())
+    }
+
     fn open(&mut self, path: &Path, create: bool, import: Option<&Path>) -> Result<PathBuf, String> {
         if !path.exists() {
             if !create && import.is_none() {
@@ -368,6 +382,9 @@ impl Server {
                     .ok_or("open needs path")?;
                 let create = args.get("create").and_then(Value::as_bool).unwrap_or(false);
                 let import = args.get("import").and_then(Value::as_str).map(PathBuf::from);
+                if let Some(name) = args.get("as").and_then(Value::as_str) {
+                    self.rename(name)?;
+                }
                 let key = self.open(&path, create, import.as_deref())?;
                 let s = self.sessions.get_mut(&key).unwrap();
                 return Ok(s.call("project", &json!({"action": "info"})));
@@ -433,11 +450,12 @@ fn tool_list() -> Value {
                     props.insert("path".into(), json!({"type": "string", "description": "open: the .sb file to open or create."}));
                     props.insert("create".into(), json!({"type": "boolean", "description": "open: create the project if it does not exist."}));
                     props.insert("import".into(), json!({"type": "string", "description": "open with create: an .ldr/.mpd model to start from."}));
+                    props.insert("as".into(), json!({"type": "string", "description": "open: your agent name for this and later calls (default: the server's --user). Use your own (claude, codex…), made unique when several agent sessions work at once, e.g. \"claude-roof\"."}));
                     if let Some(actions) = props.get_mut("action").and_then(|a| a.get_mut("enum")).and_then(Value::as_array_mut) {
                         actions.insert(0, json!("open"));
                     }
                     if let Some(text) = props.get_mut("action").and_then(|a| a.get_mut("description")) {
-                        *text = json!(format!("open: pick the project for later calls (path, create, import). {}", text.as_str().unwrap_or("")));
+                        *text = json!(format!("open: pick the project for later calls (path, create, import, as). {}", text.as_str().unwrap_or("")));
                     }
                 }
             }
@@ -571,5 +589,17 @@ mod tests {
         assert_eq!(lines[0]["result"]["serverInfo"]["name"], "superbrick");
         assert_eq!(lines[1]["result"]["tools"].as_array().unwrap().len(), TOOLS.len());
         assert_eq!(lines[2]["result"]["isError"], true);
+    }
+
+    #[test]
+    fn open_as_picks_a_unique_agent_name() {
+        let mut server = Server { user: "claude".into(), lib: None, sessions: HashMap::new(), current: None };
+        assert!(server.rename("human").is_err(), "agents never act as the human");
+        assert!(server.rename("bad name").is_err());
+        server.rename("claude-roof").unwrap();
+        assert_eq!(server.user, "claude-roof");
+        let r = server.call("project", json!({"action": "open", "path": "/nonexistent/x.sb", "as": "codex"}));
+        assert!(!r.ok);
+        assert_eq!(server.user, "codex");
     }
 }
