@@ -7,6 +7,7 @@
 //! * stud primitives are also recorded as instances (full matrix, primitive, colour) for the renderer;
 //! * direct colours are written back as `0x2RRGGBB`, not as Python's internal negative code.
 
+pub mod bricklink;
 pub mod color;
 pub mod library;
 pub mod mesh;

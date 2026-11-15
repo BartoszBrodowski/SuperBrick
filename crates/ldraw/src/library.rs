@@ -285,6 +285,31 @@ impl Library {
         n
     }
 
+    /// BrickLink catalogue number for a part (no `.dat`): follows `~Moved to`, then takes the
+    /// `Bricklink <n>` entry of the header's `!KEYWORDS` when the library records one (LDraw
+    /// `3023b` is BrickLink `3023`, `6141` is `4073`), else the LDraw number itself.
+    pub fn bricklink_number(&self, name: &str) -> String {
+        let n = self.canonical_part(name);
+        let stem = n.trim_end_matches(".dat").to_string();
+        let Ok(text) = self.read_text(&n) else {
+            return stem;
+        };
+        for line in split_lines(&text).take(40) {
+            let Some(kw) = line.trim().strip_prefix("0 !KEYWORDS") else {
+                continue;
+            };
+            for item in kw.split(',') {
+                let mut w = item.split_whitespace();
+                if w.next().is_some_and(|k| k.eq_ignore_ascii_case("bricklink")) {
+                    if let (Some(id), None) = (w.next(), w.next()) {
+                        return id.to_string();
+                    }
+                }
+            }
+        }
+        stem
+    }
+
     /// File names of all top-level parts (`parts/xxx.dat` → `xxx.dat`), unsorted.
     pub fn part_names(&self) -> impl Iterator<Item = &str> {
         self.index.keys().filter_map(|k| {

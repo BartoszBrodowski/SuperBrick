@@ -34,7 +34,7 @@ const SUPPLIERS: [Supplier; 5] = [
         url: "https://www.bricklink.com/v2/wanted/upload.page",
         csv: false,
         pab: false,
-        info: "Upload the exported .ldr to a Wanted List; review part/colour mappings, then use Buy All to compare sellers. Login required. No API credentials are stored by CAD.",
+        info: "Upload the exported .bsx (BrickLink part and colour IDs) to a Wanted List, then use Buy All to compare sellers. Login required. No API credentials are stored by CAD.",
     },
     Supplier {
         name: "BuyMeBricks",
@@ -246,7 +246,8 @@ impl Panel {
     }
     fn export(&mut self, st: &State, supplier: Option<Supplier>, ui: &egui::Ui) {
         let csv = supplier.is_none_or(|s| s.csv);
-        let ext = if csv { "csv" } else { "ldr" };
+        let bricklink = supplier.is_some_and(|s| s.name == "BrickLink");
+        let ext = if csv { "csv" } else if bricklink { "bsx" } else { "ldr" };
         let filename = format!(
             "build-parts-{}.{}",
             supplier
@@ -254,7 +255,12 @@ impl Panel {
                 .unwrap_or("inventory".into()),
             ext
         );
-        let Some(path) = rfd::FileDialog::new()
+        let mut dialog = rfd::FileDialog::new();
+        // Start next to the project, not wherever the last save dialog happened to be.
+        if let Some(dir) = st.snapshot.model.path.as_deref().and_then(Path::parent) {
+            dialog = dialog.set_directory(dir);
+        }
+        let Some(path) = dialog
             .set_file_name(filename)
             .add_filter("Parts inventory", &[ext])
             .save_file()
@@ -269,20 +275,37 @@ impl Panel {
             self.export_pab(&path, st, supplier.unwrap(), ui);
             return;
         }
+        let mut skipped = Vec::new();
         let data = if csv {
             self.inventory.upload_csv()
+        } else if bricklink {
+            // BrickLink rejects the whole upload on one item it doesn't know, and its own .ldr
+            // importer turns some current LDraw numbers into retired ones (3062 → 3062b), so
+            // write BrickStore XML with BrickLink's own part and colour IDs.
+            let (xml, s) = self
+                .inventory
+                .bricklink_bsx(|p| st.lib.bricklink_number(p), ldraw::bricklink::colour);
+            skipped = s;
+            xml
         } else {
-            self.inventory.upload_ldr()
+            self.inventory.upload_ldr_as(|p| st.lib.canonical_part(p))
         };
         match write_export(&path, st.snapshot.model.path.as_deref(), data.as_bytes()) {
             Ok(()) => {
-                self.last_export = Some(path);
+                self.last_export = Some(path.clone());
                 self.status="Saved complete inventory. Review supplier mapping and missing items before ordering.".into();
                 if let Some(s) = supplier {
                     ui.ctx().open_url(egui::OpenUrl::new_tab(s.url));
                     self.status = format!(
-                        "Saved inventory for {}. Upload/send the saved file using the page just opened; no list was sent automatically.",
-                        s.name
+                        "Saved inventory for {} to {}. Upload/send the saved file using the page just opened; no list was sent automatically.",
+                        s.name,
+                        path.display()
+                    );
+                }
+                if !skipped.is_empty() {
+                    self.status += &format!(
+                        " Left out (colour has no BrickLink ID): {}.",
+                        skipped.join(", ")
                     );
                 }
             }

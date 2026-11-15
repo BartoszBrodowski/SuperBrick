@@ -1,0 +1,221 @@
+# LDraw colour code	BrickLink colour ID	names. Built 2026-11-14 from LDConfig names matched to
+# https://v2.bricklink.com/en-us/catalog/color-guide (Rubber_/Canvas_ use the base colour);
+# hand-checked renames: 23, 85, 89, 423. Unlisted LDraw colours have no BrickLink ID here.
+0	11	Black -> Black
+1	7	Blue -> Blue
+2	6	Green -> Green
+3	39	Dark_Turquoise -> Dark Turquoise
+4	5	Red -> Red
+5	47	Dark_Pink -> Dark Pink
+6	8	Brown -> Brown
+7	9	Light_Grey -> Light Gray
+8	10	Dark_Grey -> Dark Gray
+9	62	Light_Blue -> Light Blue
+10	36	Bright_Green -> Bright Green
+11	40	Light_Turquoise -> Light Turquoise
+12	25	Salmon -> Salmon
+13	23	Pink -> Pink
+14	3	Yellow -> Yellow
+15	1	White -> White
+17	38	Light_Green -> Light Green
+18	33	Light_Yellow -> Light Yellow
+19	2	Tan -> Tan
+20	44	Light_Violet -> Light Violet
+21	46	Glow_In_Dark_Opaque -> Glow In Dark Opaque
+22	24	Purple -> Purple
+23	109	Dark_Blue_Violet -> Dark Royal Blue (BrickLink renamed Dark Blue-Violet)
+25	4	Orange -> Orange
+26	71	Magenta -> Magenta
+27	34	Lime -> Lime
+28	69	Dark_Tan -> Dark Tan
+29	104	Bright_Pink -> Bright Pink
+30	157	Medium_Lavender -> Medium Lavender
+31	154	Lavender -> Lavender
+33	14	Trans_Dark_Blue -> Trans-Dark Blue
+34	20	Trans_Green -> Trans-Green
+35	108	Trans_Bright_Green -> Trans-Bright Green
+36	17	Trans_Red -> Trans-Red
+37	50	Trans_Dark_Pink -> Trans-Dark Pink
+38	18	Trans_Neon_Orange -> Trans-Neon Orange
+40	13	Trans_Brown -> Trans-Brown
+41	74	Trans_Medium_Blue -> Trans-Medium Blue
+42	16	Trans_Neon_Green -> Trans-Neon Green
+43	15	Trans_Light_Blue -> Trans-Light Blue
+45	107	Trans_Pink -> Trans-Pink
+46	19	Trans_Yellow -> Trans-Yellow
+47	12	Trans_Clear -> Trans-Clear
+52	51	Trans_Purple -> Trans-Purple
+54	121	Trans_Neon_Yellow -> Trans-Neon Yellow
+57	98	Trans_Orange -> Trans-Orange
+60	57	Chrome_Antique_Brass -> Chrome Antique Brass
+61	52	Chrome_Blue -> Chrome Blue
+62	64	Chrome_Green -> Chrome Green
+63	82	Chrome_Pink -> Chrome Pink
+64	122	Chrome_Black -> Chrome Black
+65	3	Rubber_Yellow -> Yellow
+66	19	Rubber_Trans_Yellow -> Trans-Yellow
+67	12	Rubber_Trans_Clear -> Trans-Clear
+68	96	Very_Light_Orange -> Very Light Orange
+70	88	Reddish_Brown -> Reddish Brown
+71	86	Light_Bluish_Grey -> Light Bluish Gray
+72	85	Dark_Bluish_Grey -> Dark Bluish Gray
+73	42	Medium_Blue -> Medium Blue
+74	37	Medium_Green -> Medium Green
+78	90	Light_Nougat -> Light Nougat
+79	60	Milky_White -> Milky White
+80	67	Metallic_Silver -> Metallic Silver
+81	70	Metallic_Green -> Metallic Green
+82	65	Metallic_Gold -> Metallic Gold
+83	244	Pearl_Black -> Pearl Black
+84	150	Medium_Nougat -> Medium Nougat
+85	89	Medium_Lilac -> Dark Purple
+86	91	Light_Brown -> Light Brown
+89	97	Blue_Violet -> Royal Blue (BrickLink renamed Blue-Violet)
+92	28	Nougat -> Nougat
+100	26	Light_Salmon -> Light Salmon
+110	43	Violet -> Violet
+112	73	Medium_Violet -> Medium Violet
+114	100	Glitter_Trans_Dark_Pink -> Glitter Trans-Dark Pink
+115	76	Medium_Lime -> Medium Lime
+117	101	Glitter_Trans_Clear -> Glitter Trans-Clear
+118	41	Aqua -> Aqua
+120	35	Light_Lime -> Light Lime
+121	32	Light_Orange -> Light Orange
+123	231	Dark_Salmon -> Dark Salmon
+128	225	Dark_Nougat -> Dark Nougat
+129	102	Glitter_Trans_Purple -> Glitter Trans-Purple
+134	84	Copper -> Copper
+135	66	Pearl_Light_Grey -> Pearl Light Gray
+142	61	Pearl_Light_Gold -> Pearl Light Gold
+148	77	Pearl_Dark_Grey -> Pearl Dark Gray
+150	119	Pearl_Very_Light_Grey -> Pearl Very Light Gray
+151	99	Very_Light_Bluish_Grey -> Very Light Bluish Gray
+176	252	Pearl_Red -> Pearl Red
+180	161	Dark_Yellow -> Dark Yellow
+183	83	Pearl_White -> Pearl White
+187	255	Pearl_Brown -> Pearl Brown
+189	235	Reddish_Gold -> Reddish Gold
+191	110	Bright_Light_Orange -> Bright Light Orange
+212	105	Bright_Light_Blue -> Bright Light Blue
+216	27	Rust -> Rust
+219	245	Lilac -> Lilac
+220	246	Light_Lilac -> Light Lilac
+225	172	Warm_Yellowish_Orange -> Warm Yellowish Orange
+226	103	Bright_Light_Yellow -> Bright Light Yellow
+232	87	Sky_Blue -> Sky Blue
+256	11	Rubber_Black -> Black
+272	63	Dark_Blue -> Dark Blue
+273	7	Rubber_Blue -> Blue
+285	221	Trans_Light_Green -> Trans-Light Green
+288	80	Dark_Green -> Dark Green
+294	118	Glow_In_Dark_Trans -> Glow In Dark Trans
+297	115	Pearl_Gold -> Pearl Gold
+300	250	Metallic_Copper -> Metallic Copper
+302	162	Glitter_Trans_Light_Blue -> Glitter Trans-Light Blue
+308	120	Dark_Brown -> Dark Brown
+313	72	Maersk_Blue -> Maersk Blue
+315	95	Flat_Silver -> Flat Silver
+320	59	Dark_Red -> Dark Red
+321	153	Dark_Azure -> Dark Azure
+322	156	Medium_Azure -> Medium Azure
+323	152	Light_Aqua -> Light Aqua
+324	5	Rubber_Red -> Red
+326	158	Yellowish_Green -> Yellowish Green
+329	159	Glow_In_Dark_White -> Glow In Dark White
+330	155	Olive_Green -> Olive Green
+334	21	Chrome_Gold -> Chrome Gold
+335	58	Sand_Red -> Sand Red
+339	163	Glitter_Trans_Neon_Green -> Glitter Trans-Neon Green
+341	222	Glitter_Trans_Orange -> Glitter Trans-Orange
+346	249	Reddish_Copper -> Reddish Copper
+350	4	Rubber_Orange -> Orange
+351	94	Medium_Dark_Pink -> Medium Dark Pink
+353	220	Coral -> Coral
+366	29	Earth_Orange -> Earth Orange
+368	236	Neon_Yellow -> Neon Yellow
+370	240	Medium_Brown -> Medium Brown
+371	241	Medium_Tan -> Medium Tan
+373	54	Sand_Purple -> Sand Purple
+375	9	Rubber_Light_Grey -> Light Gray
+378	48	Sand_Green -> Sand Green
+379	55	Sand_Blue -> Sand Blue
+383	22	Chrome_Silver -> Chrome Silver
+402	167	Reddish_Orange -> Reddish Orange
+406	63	Rubber_Dark_Blue -> Dark Blue
+423	168	Umber_Brown -> Umber
+424	173	Ochre_Yellow -> Ochre Yellow
+430	175	Warm_Pink -> Warm Pink
+449	24	Rubber_Purple -> Purple
+450	106	Fabuland_Brown -> Fabuland Brown
+462	31	Medium_Orange -> Medium Orange
+484	68	Dark_Orange -> Dark Orange
+490	34	Rubber_Lime -> Lime
+496	86	Rubber_Light_Bluish_Grey -> Light Bluish Gray
+503	49	Very_Light_Grey -> Very Light Gray
+504	95	Rubber_Flat_Silver -> Flat Silver
+509	160	Fabuland_Orange -> Fabuland Orange
+510	248	Fabuland_Lime -> Fabuland Lime
+511	1	Rubber_White -> White
+10002	6	Rubber_Green -> Green
+10003	39	Rubber_Dark_Turquoise -> Dark Turquoise
+10005	47	Rubber_Dark_Pink -> Dark Pink
+10008	10	Rubber_Dark_Grey -> Dark Gray
+10010	36	Rubber_Bright_Green -> Bright Green
+10015	171	Lemon -> Lemon
+10017	56	Rose_Pink -> Rose Pink
+10019	2	Rubber_Tan -> Tan
+10026	71	Rubber_Magenta -> Magenta
+10028	69	Rubber_Dark_Tan -> Dark Tan
+10029	104	Rubber_Bright_Pink -> Bright Pink
+10030	157	Rubber_Medium_Lavender -> Medium Lavender
+10031	154	Rubber_Lavender -> Lavender
+10035	108	Rubber_Trans_Bright_Green -> Trans-Bright Green
+10036	17	Rubber_Trans_Red -> Trans-Red
+10043	15	Rubber_Trans_Light_Blue -> Trans-Light Blue
+10057	98	Rubber_Trans_Orange -> Trans-Orange
+10070	88	Rubber_Reddish_Brown -> Reddish Brown
+10072	85	Rubber_Dark_Bluish_Grey -> Dark Bluish Gray
+10073	42	Rubber_Medium_Blue -> Medium Blue
+10078	90	Rubber_Light_Nougat -> Light Nougat
+10079	60	Rubber_Milky_White -> Milky White
+10084	150	Rubber_Medium_Nougat -> Medium Nougat
+10092	28	Rubber_Nougat -> Nougat
+10135	66	Rubber_Pearl_Light_Grey -> Pearl Light Gray
+10148	77	Rubber_Pearl_Dark_Grey -> Pearl Dark Gray
+10150	119	Rubber_Pearl_Very_Light_Grey -> Pearl Very Light Gray
+10151	99	Rubber_Very_Light_Bluish_Grey -> Very Light Bluish Gray
+10189	235	Rubber_Reddish_Gold -> Reddish Gold
+10191	110	Rubber_Bright_Light_Orange -> Bright Light Orange
+10212	105	Rubber_Bright_Light_Blue -> Bright Light Blue
+10226	103	Rubber_Bright_Light_Yellow -> Bright Light Yellow
+10288	80	Rubber_Dark_Green -> Dark Green
+10297	115	Rubber_Pearl_Gold -> Pearl Gold
+10308	120	Rubber_Dark_Brown -> Dark Brown
+10320	59	Rubber_Dark_Red -> Dark Red
+10321	153	Rubber_Dark_Azure -> Dark Azure
+10322	156	Rubber_Medium_Azure -> Medium Azure
+10323	152	Rubber_Light_Aqua -> Light Aqua
+10326	158	Rubber_Yellowish_Green -> Yellowish Green
+10330	155	Rubber_Olive_Green -> Olive Green
+10375	251	Trans_Black -> Trans-Black
+10378	48	Rubber_Sand_Green -> Sand Green
+10484	68	Rubber_Dark_Orange -> Dark Orange
+20000	11	Canvas_Black -> Black
+20001	7	Canvas_Blue -> Blue
+20002	6	Canvas_Green -> Green
+20004	5	Canvas_Red -> Red
+20006	8	Canvas_Brown -> Brown
+20007	9	Canvas_Light_Grey -> Light Gray
+20010	36	Canvas_Bright_Green -> Bright Green
+20014	3	Canvas_Yellow -> Yellow
+20015	1	Canvas_White -> White
+20019	2	Canvas_Tan -> Tan
+20022	24	Canvas_Purple -> Purple
+20028	69	Canvas_Dark_Tan -> Dark Tan
+20070	88	Canvas_Reddish_Brown -> Reddish Brown
+20071	86	Canvas_Light_Bluish_Grey -> Light Bluish Gray
+20072	85	Canvas_Dark_Bluish_Grey -> Dark Bluish Gray
+20086	91	Canvas_Light_Brown -> Light Brown
+20288	80	Canvas_Dark_Green -> Dark Green
+20320	59	Canvas_Dark_Red -> Dark Red
+20335	58	Canvas_Sand_Red -> Sand Red

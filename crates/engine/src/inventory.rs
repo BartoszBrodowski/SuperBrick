@@ -117,17 +117,26 @@ impl Inventory {
     /// One type-1 line per counted instance. Suppliers perform their own catalogue
     /// mapping; never silently treat LDraw IDs as BrickLink colour/part IDs.
     pub fn upload_ldr(&self) -> String {
+        self.upload_ldr_as(|p| p.to_string())
+    }
+    /// `upload_ldr` with every part number renamed by `rename` (`xxx.dat` in, `xxx.dat` out);
+    /// lots that end up with the same part and colour are merged.
+    pub fn upload_ldr_as(&self, rename: impl Fn(&str) -> String) -> String {
         let mut out = String::from(
             "0 CAD supplier inventory - NOT an assembled model\r\n0 All base-document instances; hidden included; unaccepted drafts excluded\r\n",
         );
-        let mut i = 0usize;
+        let mut lots = BTreeMap::<(String, i32), usize>::new();
         for l in &self.lots {
-            for _ in 0..l.quantity {
+            *lots.entry((rename(&l.part), l.color)).or_default() += l.quantity;
+        }
+        let mut i = 0usize;
+        for ((name, color), quantity) in lots {
+            for _ in 0..quantity {
                 let part = PartLine {
-                    color: Color(l.color),
+                    color: Color(color),
                     pos: DVec3::new((i % 100) as f64 * 200., 0., (i / 100) as f64 * 200.),
                     rot: DMat3::IDENTITY,
-                    name: l.part.clone(),
+                    name: name.clone(),
                 };
                 out += &part.to_text();
                 out += "\r\n";
@@ -136,6 +145,40 @@ impl Inventory {
         }
         out
     }
+}
+impl Inventory {
+    /// A BrickStore (.bsx) file, which BrickLink's wanted-list upload takes with its own
+    /// catalogue IDs: `part` turns `xxx.dat` into a BrickLink item number, `colour` an LDraw
+    /// colour into a BrickLink colour ID. Lots whose colour has no BrickLink ID are left out
+    /// (one unknown item makes BrickLink refuse the whole file) and listed in the second value.
+    pub fn bricklink_bsx(
+        &self,
+        part: impl Fn(&str) -> String,
+        colour: impl Fn(i32) -> Option<u32>,
+    ) -> (String, Vec<String>) {
+        let mut lots = BTreeMap::<(String, u32), usize>::new();
+        let mut skipped = Vec::new();
+        for l in &self.lots {
+            match colour(l.color) {
+                Some(c) => *lots.entry((part(&l.part), c)).or_default() += l.quantity,
+                None => skipped.push(format!("{}× {} in LDraw colour {}", l.quantity, l.part, l.color)),
+            }
+        }
+        let mut out = String::from(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE BrickStoreXML>\n<BrickStoreXML>\n<Inventory>\n",
+        );
+        for ((item, c), qty) in lots {
+            out += &format!(
+                "<Item><ItemID>{}</ItemID><ItemTypeID>P</ItemTypeID><ColorID>{c}</ColorID><Qty>{qty}</Qty></Item>\n",
+                xml_text(&item)
+            );
+        }
+        out += "</Inventory>\n</BrickStoreXML>\n";
+        (out, skipped)
+    }
+}
+fn xml_text(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 fn csv_field(s: &str) -> String {
     format!("\"{}\"", s.replace('"', "\"\""))
@@ -190,6 +233,42 @@ mod tests {
             inv.lots
         );
         assert!(inv.upload_csv().contains("\"3004\",14,2,False\r\n"));
+    }
+    #[test]
+    fn renamed_ldr_export_merges_lots_that_become_the_same_part() {
+        let inv = Inventory {
+            lots: vec![
+                Lot { part: "4073.dat".into(), color: 15, quantity: 2 },
+                Lot { part: "6141.dat".into(), color: 15, quantity: 3 },
+                Lot { part: "6141.dat".into(), color: 1, quantity: 1 },
+            ],
+            pieces: 6,
+            warnings: vec![],
+        };
+        let out = inv.upload_ldr_as(|_| "4073.dat".into());
+        let lines: Vec<_> = out.lines().filter(|l| l.starts_with('1')).collect();
+        assert_eq!(lines.len(), 6);
+        assert!(lines.iter().all(|l| l.ends_with(" 4073.dat")));
+        assert_eq!(lines.iter().filter(|l| l.starts_with("1 15 ")).count(), 5);
+    }
+    #[test]
+    fn bricklink_bsx_uses_catalogue_ids_and_lists_unmapped_colours() {
+        let inv = Inventory {
+            lots: vec![
+                Lot { part: "3062b.dat".into(), color: 15, quantity: 2 },
+                Lot { part: "3062a.dat".into(), color: 15, quantity: 1 },
+                Lot { part: "3001.dat".into(), color: 999, quantity: 4 },
+            ],
+            pieces: 7,
+            warnings: vec![],
+        };
+        let (xml, skipped) = inv.bricklink_bsx(
+            |_| "3062".into(),
+            |c| (c == 15).then_some(1),
+        );
+        assert!(xml.contains("<Item><ItemID>3062</ItemID><ItemTypeID>P</ItemTypeID><ColorID>1</ColorID><Qty>3</Qty></Item>"));
+        assert_eq!(xml.matches("<Item>").count(), 1);
+        assert_eq!(skipped, vec!["4× 3001.dat in LDraw colour 999"]);
     }
     #[test]
     fn unresolved_items_are_flagged_not_omitted_or_recoloured() {
