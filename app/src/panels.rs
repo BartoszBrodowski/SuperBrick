@@ -1,7 +1,6 @@
 use crate::app::{State, Tool};
 use eframe::egui;
 use engine::Cmd;
-use glam::DVec3;
 use serde_json::json;
 
 pub fn parts(st: &mut State, ui: &mut egui::Ui) {
@@ -481,55 +480,15 @@ fn colour_picker(st: &mut State, ui: &mut egui::Ui) {
             ui.close();
         }
         ui.separator();
-        if st.colour_commonality.is_empty() {
-            if let Some(s) = st.search.as_ref() {
-                for part in &s.cat.parts {
-                    for c in &part.colors {
-                        *st.colour_commonality.entry(*c).or_default() += 1;
-                    }
-                }
+        let selected = (!st.all_colors).then_some(st.color);
+        if let Some(id) = colour_grid(st, ui, "part-colour-swatches", selected) {
+            if st.all_colors {
+                st.filters.color = Some(id);
             }
+            st.all_colors = false;
+            st.color = id;
+            ui.close();
         }
-        ui.horizontal(|ui| {
-            ui.label("Sort:");
-            ui.selectable_value(&mut st.colour_by_commonality, false, "Number")
-                .on_hover_text("Standard LEGO/LDraw colour number order");
-            ui.selectable_value(&mut st.colour_by_commonality, true, "Commonality")
-                .on_hover_text("Colours that the most different parts come in first");
-        });
-        let mut order: Vec<_> = st.lib.colors.by_code.iter().filter(|(id, _)| **id != 16 && **id != 24).collect();
-        if st.colour_by_commonality {
-            order.sort_by_key(|(id, _)| (std::cmp::Reverse(st.colour_commonality.get(*id).copied().unwrap_or(0)), **id));
-        }
-        egui::ScrollArea::vertical()
-            .max_height(300.0)
-            .show(ui, |ui| {
-                egui::Grid::new("part-colour-swatches")
-                    .spacing([3.0, 3.0])
-                    .show(ui, |ui| {
-                        let mut n = 0;
-                        for (id, c) in order {
-                            let (rect, response) = ui
-                                .allocate_exact_size(egui::vec2(25.0, 25.0), egui::Sense::click());
-                            paint_swatch(ui, rect.shrink(2.0), c.rgb, c.alpha, !st.all_colors && *id == st.color);
-                            if response
-                                .on_hover_text(format!("{} · {id} · {} parts", c.name, st.colour_commonality.get(id).copied().unwrap_or(0)))
-                                .clicked()
-                            {
-                                if st.all_colors {
-                                    st.filters.color = Some(*id);
-                                }
-                                st.all_colors = false;
-                                st.color = *id;
-                                ui.close();
-                            }
-                            n += 1;
-                            if n % 10 == 0 {
-                                ui.end_row();
-                            }
-                        }
-                    });
-            });
     });
     let rgba = st.lib.colors.display_rgba(ldraw::Color(st.color));
     let swatch = egui::Rect::from_min_size(
@@ -559,6 +518,52 @@ fn colour_picker(st: &mut State, ui: &mut egui::Ui) {
             .map(|c| format!("{} · choose part colour", c.name))
             .unwrap_or_else(|| "Choose part colour".into())
     });
+}
+
+/// Every colour as a swatch grid, sortable by number or commonality. Returns the clicked colour.
+pub(crate) fn colour_grid(st: &mut State, ui: &mut egui::Ui, salt: &str, selected: Option<i32>) -> Option<i32> {
+    if st.colour_commonality.is_empty() {
+        if let Some(s) = st.search.as_ref() {
+            for part in &s.cat.parts {
+                for c in &part.colors {
+                    *st.colour_commonality.entry(*c).or_default() += 1;
+                }
+            }
+        }
+    }
+    ui.horizontal(|ui| {
+        ui.label("Sort:");
+        ui.selectable_value(&mut st.colour_by_commonality, false, "Number")
+            .on_hover_text("Standard LEGO/LDraw colour number order");
+        ui.selectable_value(&mut st.colour_by_commonality, true, "Commonality")
+            .on_hover_text("Colours that the most different parts come in first");
+    });
+    let mut order: Vec<_> = st.lib.colors.by_code.iter().filter(|(id, _)| **id != 16 && **id != 24).collect();
+    if st.colour_by_commonality {
+        order.sort_by_key(|(id, _)| (std::cmp::Reverse(st.colour_commonality.get(*id).copied().unwrap_or(0)), **id));
+    }
+    let mut picked = None;
+    egui::ScrollArea::vertical()
+        .id_salt(salt)
+        .max_height(300.0)
+        .show(ui, |ui| {
+            egui::Grid::new(salt).spacing([3.0, 3.0]).show(ui, |ui| {
+                for (n, (id, c)) in order.into_iter().enumerate() {
+                    let (rect, response) = ui.allocate_exact_size(egui::vec2(25.0, 25.0), egui::Sense::click());
+                    paint_swatch(ui, rect.shrink(2.0), c.rgb, c.alpha, selected == Some(*id));
+                    if response
+                        .on_hover_text(format!("{} · {id} · {} parts", c.name, st.colour_commonality.get(id).copied().unwrap_or(0)))
+                        .clicked()
+                    {
+                        picked = Some(*id);
+                    }
+                    if (n + 1) % 10 == 0 {
+                        ui.end_row();
+                    }
+                }
+            });
+        });
+    picked
 }
 
 // LDraw shapes generally have no single factory/default colour. In unrestricted
@@ -615,7 +620,7 @@ mod layout_tests {
     }
 }
 
-fn paint_swatch(ui: &egui::Ui, rect: egui::Rect, rgb: [u8; 3], alpha: u8, selected: bool) {
+pub(crate) fn paint_swatch(ui: &egui::Ui, rect: egui::Rect, rgb: [u8; 3], alpha: u8, selected: bool) {
     let painter = ui.painter();
     painter.rect_filled(rect, 2.0, egui::Color32::WHITE);
     if alpha < 255 {
@@ -650,163 +655,7 @@ fn paint_swatch(ui: &egui::Ui, rect: egui::Rect, rgb: [u8; 3], alpha: u8, select
 }
 pub fn inspector(st: &mut State, ui: &mut egui::Ui) {
     egui::ScrollArea::vertical().show(ui, |ui| {
-        let ids = st.ids();
-        ui.heading("Selection");
-        ui.label(format!("{} source parts", ids.len()));
-        if ids.len() == 1 {
-            if let Some(p) = st.snapshot.model.parts.get(&ids[0]) {
-                ui.label(format!(
-                    "#{} · {} · colour {} · step {}",
-                    p.id, p.name, p.color, p.step
-                ));
-                ui.monospace(format!(
-                    "LDU: {:.3}, {:.3}, {:.3}",
-                    p.pos.x, p.pos.y, p.pos.z
-                ));
-                ui.label(format!("revision {}", p.revision));
-                if let Some(file) = st.snapshot.model.doc.file_index(&p.name) {
-                    if ui.button("Open subbuild panel").clicked() {
-                        st.views[st.active].open_submodel = Some(file);
-                    }
-                }
-            }
-        }
-        ui.separator();
-        ui.label("Translation (LDraw units)");
-        ui.horizontal(|ui| {
-            for (axis, v) in ["X", "Y", "Z"].iter().zip(st.inspect_delta.iter_mut()) {
-                ui.label(*axis);
-                ui.add(egui::DragValue::new(v).speed(1.0));
-            }
-        });
-        if ui.button("Move").clicked() {
-            st.command(Cmd::Move {
-                ids: ids.clone(),
-                delta: DVec3::from_array(st.inspect_delta),
-                free: false,
-            });
-        }
-        ui.horizontal(|ui| {
-            ui.add(egui::DragValue::new(&mut st.angle).suffix("°"));
-            for (name, axis) in [("X", DVec3::X), ("Y", DVec3::Y), ("Z", DVec3::Z)] {
-                if ui.button(format!("Rotate {name}")).clicked() {
-                    let pivot = ids
-                        .first()
-                        .and_then(|id| st.snapshot.model.parts.get(id))
-                        .map(|p| p.pos)
-                        .unwrap_or_default();
-                    st.command(Cmd::Rotate {
-                        ids: ids.clone(),
-                        axis,
-                        angle: st.angle,
-                        pivot,
-                        free: false,
-                    });
-                }
-            }
-        });
-        ui.horizontal(|ui| {
-            if ui.button("Paint").clicked() {
-                st.command(Cmd::Paint {
-                    ids: ids.clone(),
-                    color: st.color,
-                });
-            }
-            if ui.button("Delete").clicked() {
-                st.command(Cmd::Remove { ids: ids.clone() });
-            }
-        if ui.button("Copy · Ctrl/Cmd+C").clicked() {
-                st.copy_to_place();
-            }
-        });
-        ui.horizontal(|ui| {
-            for (label, c) in [
-                (
-                    "Hide",
-                    Cmd::Hide {
-                        ids: ids.clone(),
-                        value: true,
-                    },
-                ),
-                (
-                    "Show",
-                    Cmd::Hide {
-                        ids: ids.clone(),
-                        value: false,
-                    },
-                ),
-                (
-                    "Lock",
-                    Cmd::Lock {
-                        ids: ids.clone(),
-                        value: true,
-                    },
-                ),
-                (
-                    "Unlock",
-                    Cmd::Lock {
-                        ids: ids.clone(),
-                        value: false,
-                    },
-                ),
-            ] {
-                if ui.button(label).clicked() {
-                    st.command(c);
-                }
-            }
-        });
-        ui.separator();
-        ui.heading("Subbuild");
-        ui.text_edit_singleline(&mut st.sub_name);
-        if ui.button("Selection → editable subbuild").clicked() {
-            match st.handle.command(Cmd::MakeSubbuild {
-                ids: ids.clone(),
-                name: st.sub_name.clone(),
-            }) {
-                Ok(v) => {
-                    if let Some(file) = v["file"].as_u64() {
-                        st.views[st.active].open_submodel = Some(file as usize);
-                    }
-                }
-                Err(e) => st.message = e,
-            }
-        }
-        ui.horizontal(|ui| {
-            let pending=st.tool==Tool::Place && st.assembly_clipboard.first().is_some_and(|p|st.place.as_deref()==Some(p.name.as_str()));
-            ui.label(if pending {"Mirror pending copy:"}else{"Mirror selected assembly:"});
-            for (axis,label) in [(0,"X"),(1,"Y"),(2,"Z")] {
-                if ui.add_enabled(st.mirror_job.is_none(),egui::Button::new(label)).on_hover_text("Verify every part's reflected geometry and counterpart. Unsupported/printed parts refuse the whole operation.").clicked(){st.mirror_selection(axis);}
-            }
-        });
-        ui.separator();
-        ui.heading("Parts in this model");
-        let file = st.views[st.active].file;
-        let parts: Vec<_> = st
-            .snapshot
-            .model
-            .parts
-            .values()
-            .filter(|p| p.file == file)
-            .map(|p| (p.id, p.name.clone(), p.hidden, p.locked))
-            .collect();
-        for (id, name, hidden, locked) in parts.iter().take(500) {
-            if ui
-                .selectable_label(
-                    ids.contains(id),
-                    format!(
-                        "#{id} {name}{}{}",
-                        if *hidden { " [hidden]" } else { "" },
-                        if *locked { " [locked]" } else { "" }
-                    ),
-                )
-                .clicked()
-            {
-                st.command(Cmd::Select { ids: vec![*id] });
-            }
-        }
-        if parts.len() > 500 {
-            ui.label("First 500 shown; use MCP list_parts for the full model.");
-        }
+        crate::inspector::show(st, ui);
         if let Some(report) = st.report.clone() {
             ui.separator();
             ui.heading(format!("Validation: {}", report.verdict_words()));
@@ -1158,7 +1007,7 @@ pub fn palette(st: &mut State, ctx: &egui::Context) {
                     "move"=>json!({"ids":ids,"delta":[20,0,0]}),"nudge"=>json!({"ids":ids,"direction":[1,0,0]}),"rotate"=>json!({"ids":ids,"axis":[0,-1,0],"angle":90,"pivot":[0,0,0]}),
                     "paint"=>json!({"ids":ids,"color":st.color}),"copy"=>json!({"ids":ids,"delta":[20,0,0],"count":1}),
                     "mirror"=>json!({"ids":ids,"axis":0,"pivot":[0,0,0]}),
-                    "make_subbuild"|"group"=>json!({"ids":ids,"name":"subbuild"}),"hide"|"lock"=>json!({"ids":ids,"value":true}),
+                    "make_subbuild"|"group"=>json!({"ids":ids,"name":"subbuild"}),"rename_subbuild"=>json!({"file":st.views[st.active].file,"name":"subbuild"}),"hide"|"lock"=>json!({"ids":ids,"value":true}),
                     "add"=>json!({"file":st.views[st.active].file,"parts":[{"name":"3003.dat","color":st.color,"pos":[0,0,0]}]}),
                     _=>json!({"ids":ids}),
                 }.to_string();

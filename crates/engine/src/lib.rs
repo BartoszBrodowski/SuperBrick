@@ -136,6 +136,12 @@ pub enum Cmd {
         ids: Vec<Id>,
         name: String,
     },
+    /// Rename a subbuild (a model file other than the main model) and every part line that
+    /// uses it, in all files.
+    RenameSubbuild {
+        file: usize,
+        name: String,
+    },
     Select {
         ids: Vec<Id>,
     },
@@ -161,7 +167,7 @@ pub enum Cmd {
 impl Cmd {
     pub fn ids(&self) -> &[Id] {
         match self {
-            Cmd::Add { .. } | Cmd::Step { .. } => &[],
+            Cmd::Add { .. } | Cmd::Step { .. } | Cmd::RenameSubbuild { .. } => &[],
             Cmd::Snap { ids, .. }
             | Cmd::Mirror { ids, .. }
             | Cmd::Connect { ids, .. }
@@ -288,6 +294,12 @@ pub fn registry() -> Vec<CommandDef> {
             "",
             json!({"ids":ids,"name":{"type":"string"}}),
             vec!["ids", "name"],
+        ),
+        (
+            "rename_subbuild",
+            "",
+            json!({"file":{"type":"integer","minimum":0},"name":{"type":"string"}}),
+            vec!["file", "name"],
         ),
         ("select", "s", json!({"ids":ids}), vec!["ids"]),
         (
@@ -1061,6 +1073,11 @@ impl Engine {
                 changed = ids;
                 json!({"file":sub,"name":self.model.doc.files[sub].name})
             }
+            Cmd::RenameSubbuild { file, name } => {
+                let (old, users) = self.rename_subbuild(file, &name)?;
+                changed = users.clone();
+                json!({"file":file,"name":self.model.doc.files[file].name,"from":old,"instances":users})
+            }
         };
         for id in &changed {
             if let Some(p) = self.model.parts.get_mut(id) {
@@ -1092,6 +1109,54 @@ impl Engine {
             }
         }
         Ok(())
+    }
+    /// Returns the old file name and the ids of the part lines that now use the new one.
+    fn rename_subbuild(&mut self, file: usize, name: &str) -> Result<(String, Vec<Id>)> {
+        let doc = &self.model.doc;
+        let f = doc.files.get(file).ok_or("unknown subbuild")?;
+        if f.kind != FileKind::Model || doc.main_index() == Some(file) {
+            return Err("only subbuilds can be renamed".into());
+        }
+        let name = name.trim();
+        safe_name(name)?;
+        let name = if name.to_lowercase().ends_with(".ldr") {
+            name.to_string()
+        } else {
+            format!("{name}.ldr")
+        };
+        let old = f.name.clone();
+        if name == old {
+            return Err(format!("the subbuild is already called {old}"));
+        }
+        if doc.file_index(&name).is_some_and(|other| other != file) {
+            return Err("submodel name already exists".into());
+        }
+        let users: Vec<Id> = self
+            .model
+            .parts
+            .values()
+            .filter(|p| doc.file_index(&p.name) == Some(file))
+            .map(|p| p.id)
+            .collect();
+        let eol = doc.eol;
+        let f = &mut self.model.doc.files[file];
+        f.name = name.clone();
+        for line in f
+            .lines
+            .iter_mut()
+            .take_while(|l| !matches!(l.kind, LineKind::Part(_)))
+        {
+            let text = line.text.trim_start();
+            if text.starts_with("0 FILE ") {
+                *line = Line::new(&format!("0 FILE {name}"), eol);
+            } else if text.starts_with("0 Name:") {
+                *line = Line::new(&format!("0 Name: {name}"), eol);
+            }
+        }
+        for id in &users {
+            self.model.parts.get_mut(id).unwrap().name = name.clone();
+        }
+        Ok((old, users))
     }
     fn make_subbuild(&mut self, ids: &[Id], name: &str) -> Result<usize> {
         safe_name(name)?;

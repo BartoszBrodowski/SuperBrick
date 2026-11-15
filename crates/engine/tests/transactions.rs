@@ -360,7 +360,7 @@ fn registry_has_unique_commands() {
     let defs = engine::registry();
     let names: std::collections::BTreeSet<_> = defs.iter().map(|d| d.name).collect();
     assert_eq!(defs.len(), names.len());
-    assert_eq!(defs.len(), 16);
+    assert_eq!(defs.len(), 17);
     for d in defs {
         assert_eq!(d.schema["type"], "object");
         assert!(d.schema["properties"].is_object());
@@ -533,6 +533,56 @@ fn subbuild_creation_refuses_step_loss_and_bad_names() {
         e.execute(add("3003.dat\n1 4 3003.dat", DVec3::ZERO))
             .is_err()
     );
+}
+#[test]
+fn renaming_a_subbuild_updates_its_header_and_every_instance() {
+    let mut e = engine();
+    let made = e
+        .execute(Cmd::MakeSubbuild {
+            ids: vec![1],
+            name: "wing".into(),
+        })
+        .unwrap();
+    let sub = made["file"].as_u64().unwrap() as usize;
+    let other = e
+        .execute(Cmd::MakeSubbuild {
+            ids: vec![2],
+            name: "tail".into(),
+        })
+        .unwrap()["file"]
+        .as_u64()
+        .unwrap() as usize;
+    let instance = e.model.parts.values().find(|p| p.name == "wing.ldr").unwrap().id;
+    assert_eq!(e.model.parts[&instance].name, "wing.ldr");
+    let before = e.model.doc.to_bytes();
+    for refused in [
+        Cmd::RenameSubbuild { file: sub, name: "tail".into() },
+        Cmd::RenameSubbuild { file: sub, name: "wing.ldr".into() },
+        Cmd::RenameSubbuild { file: sub, name: "a/b".into() },
+        Cmd::RenameSubbuild { file: sub, name: "  ".into() },
+        Cmd::RenameSubbuild { file: 0, name: "main".into() },
+        Cmd::RenameSubbuild { file: 99, name: "x".into() },
+    ] {
+        assert!(e.execute(refused).is_err());
+        assert_eq!(e.model.doc.to_bytes(), before);
+    }
+    let renamed = e
+        .execute(Cmd::RenameSubbuild { file: sub, name: " Left wing ".into() })
+        .unwrap();
+    assert_eq!(renamed["name"], "Left wing.ldr");
+    assert_eq!(renamed["instances"], serde_json::json!([instance]));
+    assert_eq!(e.model.doc.files[sub].name, "Left wing.ldr");
+    assert_eq!(e.model.doc.file_index("left wing.ldr"), Some(sub));
+    assert_eq!(e.model.doc.file_index("wing.ldr"), None);
+    assert_eq!(e.model.parts[&instance].name, "Left wing.ldr");
+    let text = String::from_utf8(e.model.doc.to_bytes()).unwrap();
+    assert!(text.contains("0 FILE Left wing.ldr"), "{text}");
+    assert!(!text.lines().any(|l| l.ends_with(" wing.ldr") && !l.ends_with("Left wing.ldr")), "{text}");
+    assert!(text.lines().any(|l| l.starts_with("1 ") && l.ends_with("Left wing.ldr")), "{text}");
+    assert_eq!(e.model.doc.files[other].name, "tail.ldr");
+    // Case-only renames keep the same file.
+    e.execute(Cmd::RenameSubbuild { file: sub, name: "left wing".into() }).unwrap();
+    assert_eq!(e.model.doc.files[sub].name, "left wing.ldr");
 }
 #[test]
 fn draft_copy_and_subbuild_allocate_stable_ids_across_previews_and_acceptance() {

@@ -905,6 +905,10 @@ impl App {
                                 self.st.message = format!("Submodel not found: {name}");
                             }
                         }
+                        if !self.args.select.is_empty() {
+                            let ids = std::mem::take(&mut self.args.select);
+                            self.st.command(engine::Cmd::Select { ids });
+                        }
                         // Closed submodel tabs must not outlive the old document.
                         self.dock = DockState::new(vec![Tab::View(0)]);
                         let [c, _] = self.dock.main_surface_mut().split_left(

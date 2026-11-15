@@ -1,12 +1,13 @@
 //! SuperBrick (`sb`) — the LDraw desktop editor, its headless operations and the agent server.
 //!
-//! `sb [PROJECT.sb|MODEL.ldr] [--size WxH] [--bench FRAMES] [--shot FILE.png]`
+//! `sb [PROJECT.sb|MODEL.ldr] [--size WxH] [--bench FRAMES] [--shot FILE.png] [--select ID,ID…]`
 //! `sb <dev-command> ...` runs a development command (see `sb-dev`).
 
 mod app;
 mod autosave;
 mod brand;
 mod home;
+mod inspector;
 mod interaction;
 mod lasso;
 mod mechanical;
@@ -30,6 +31,8 @@ pub struct Args {
     pub shot: Option<PathBuf>,
     pub window_shot: Option<PathBuf>,
     pub submodel: Option<String>,
+    /// Part ids to select once the file has opened (for screenshots and smoke tests).
+    pub select: Vec<u64>,
     pub suppliers: bool,
     pub instructions: bool,
     pub studio: bool,
@@ -44,6 +47,7 @@ fn parse_args() -> Args {
         shot: None,
         window_shot: None,
         submodel: None,
+        select: Vec::new(),
         suppliers: false,
         instructions: false,
         studio: false,
@@ -56,6 +60,12 @@ fn parse_args() -> Args {
             "--shot" => a.shot = it.next().map(PathBuf::from),
             "--window-shot" => a.window_shot = it.next().map(PathBuf::from),
             "--open-submodel" => a.submodel = it.next(),
+            "--select" => {
+                a.select = it
+                    .next()
+                    .map(|v| v.split(',').filter_map(|id| id.trim().trim_start_matches('#').parse().ok()).collect())
+                    .unwrap_or_default()
+            }
             "--suppliers" => a.suppliers = true,
             "--instructions" => a.instructions = true,
             "--studio" => a.studio = true,
