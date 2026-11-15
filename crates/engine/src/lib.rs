@@ -534,6 +534,8 @@ pub struct Engine {
     /// Structured detail of the last refused placement (collisions with part ids, overlap and
     /// an estimated separation), so callers can draw and label it instead of parsing text.
     pub last_failure: Option<Value>,
+    /// While a batch defers its collision check: the parts it changed so far.
+    pub(crate) deferred: Option<Vec<Id>>,
 }
 impl Engine {
     pub fn new(lib: Arc<Library>, doc: Document, path: Option<PathBuf>) -> Self {
@@ -563,6 +565,7 @@ impl Engine {
             block_end: Id::MAX,
             read_only: false,
             last_failure: None,
+            deferred: None,
         }
     }
     /// Swap in a model read from elsewhere (another process's publish, a checkout).
@@ -1066,7 +1069,10 @@ impl Engine {
             }
         }
         if legal {
-            self.validate_changes(&changed)?;
+            match self.deferred.as_mut() {
+                Some(pending) => pending.extend(changed.iter().copied()),
+                None => self.validate_changes(&changed)?,
+            }
         }
         Ok(result)
     }

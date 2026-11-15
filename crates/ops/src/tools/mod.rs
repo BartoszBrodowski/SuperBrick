@@ -4,6 +4,7 @@ mod compare;
 mod edit;
 mod find;
 mod look;
+mod pattern;
 mod project;
 mod publish;
 mod select;

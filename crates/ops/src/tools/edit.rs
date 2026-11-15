@@ -16,12 +16,15 @@ pub fn schema() -> Value {
         "required": ["ops"],
         "properties": {
             "ops": {"type": "array", "minItems": 1, "description":
-"Operations, applied in order as one atomic batch (all or nothing). Each is an object with \"op\":
+"Operations, applied in order as one atomic batch (all or nothing), collision-checked once at the end. Each is an object with \"op\":
 - add: {part:\"3001\", color:4, at:[x,y,z], rot:\"yaw90\"} or {parts:[{part,color,at,rot},...]} or {ldraw:\"1 15 0 -24 0 1 0 0 0 1 0 0 0 1 3001.dat\\n...\"} (LDraw lines, LDU, row order). at is the part's LDraw origin. free:true skips the collision check.
 - place: {from:\"c3\", pick:2, color?} places candidate 2 of a `where` result; or {part, color, near:[x,y,z] or near_ids, rot?} snaps to the nearest legal stud seat.
 - move: {ids, by:[dx,dy,dz]} or {ids, to:[x,y,z]} (the first part's origin goes there).
 - rotate: {ids, axis:\"y\" or [x,y,z], angle:90, pivot?} (pivot defaults to the parts' centre).
 - mirror: {ids, axis:\"x\"|\"y\"|\"z\", pivot?}.
+- pattern: {part, color?, rot?, at, along:[{by:[dx,dy,dz], count}, ...1-3], bond?:{offset:[dx,dy,dz], row?}} repeats a cell (part, or parts:[{part,at,rot,color}] / ldraw relative to at) along each direction, first fastest. bond shifts odd rows of direction `row` (default the last) by offset (running bond). E.g. a 1x4 wall 8 long, 10 high: {op:\"pattern\", part:\"3010\", at:[0,0,0], along:[{by:[80,0,0],count:8},{by:[0,-24,0],count:10}], bond:{offset:[40,0,0]}}.
+- fill: {part, from, to, rot?, bond?:true, ends?:\"3004\"} fills a box (opposite corners) with layers of that brick, bottom up, rows along its long side; bond offsets odd layers by half a brick and ends closes the row ends.
+  pattern and fill also take colors:[...] (cycled per part, or per row with colors_by:\"row\", or random with seed:N) and skip:[{from,to}] boxes (doors, windows: parts whose body overlaps one are left out). One op adds up to 5000 parts.
 - copy: {ids, by, count?:1}.
 - remove: {ids}. paint: {ids, color}.
 - connect: {source:{part,index}, target:{part,index}, pose?} joins connector to connector (indexes from project inspect); the source part and everything connected to it moves.
@@ -72,7 +75,7 @@ pub(crate) fn colour_code(name: &str) -> Result<i32> {
     }
 }
 
-fn spec(v: &Value, units: Units, colour: i32) -> Result<PartSpec> {
+pub(crate) fn spec(v: &Value, units: Units, colour: i32) -> Result<PartSpec> {
     let name = args::str_arg(v, "part").or_else(|| args::str_arg(v, "name")).ok_or("each part needs \"part\" (a part number such as \"3001\")")?;
     let at = v.get("at").or_else(|| v.get("pos")).ok_or("each part needs \"at\": [x, y, z]")?;
     Ok(PartSpec {
@@ -283,11 +286,11 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
     // `after`: the parts this op adds join the construction step of that part (their lines go
     // right after its line), instead of the step being built at the end of the file.
     let anchor = match op.get("after") {
-        Some(v) if kind == "add" || kind == "place" => {
+        Some(v) if matches!(kind.as_str(), "add" | "place" | "pattern" | "fill") => {
             let ids = s.resolve(tx.model(), &args::id_refs(v)?, file)?;
             Some(*ids.last().ok_or("after: no such part")?)
         }
-        Some(_) => return Err("\"after\" only applies to add and place (use op restep to move existing parts)".into()),
+        Some(_) => return Err("\"after\" only applies to add, place, pattern and fill (use op restep to move existing parts)".into()),
         None => None,
     };
     let before: BTreeSet<Id> = if anchor.is_some() { tx.model().parts.keys().copied().collect() } else { BTreeSet::new() };
@@ -299,6 +302,11 @@ fn apply_op(s: &Ctx, tx: &mut DraftTx, op: &Value, file: usize, units: Units, co
                 (None, None) => vec![spec(op, units, colour)?],
             };
             tx.apply(Cmd::Add { file, parts, free })?;
+        }
+        "pattern" | "fill" => {
+            let (parts, what) = super::pattern::expand(s.lib, op, units, colour)?;
+            tx.apply(Cmd::Add { file, parts, free })?;
+            note = Some(what);
         }
         "place" => {
             if let Some(from) = args::str_arg(op, "from") {
@@ -579,6 +587,10 @@ fn run_once(s: &mut Session, args: &Value) -> Result<Reply> {
             let original: std::collections::HashSet<Id> = tx.model().parts.keys().copied().collect();
             // Inside a batch, "last" means what the earlier ops of this batch made or changed.
             let mut batch_last: Vec<Id> = Vec::new();
+            // One collision check for the whole batch, after its last op; `op_of` says which op
+            // last changed each part, to name the op a clash comes from.
+            tx.defer_checks();
+            let mut op_of: std::collections::HashMap<Id, usize> = std::collections::HashMap::new();
             for (i, op) in ops.iter().enumerate() {
                 let before: std::collections::HashMap<Id, u64> =
                     tx.model().parts.iter().map(|(id, p)| (*id, p.content_hash())).collect();
@@ -589,6 +601,7 @@ fn run_once(s: &mut Session, args: &Value) -> Result<Reply> {
                         .filter(|(id, p)| before.get(*id) != Some(&p.content_hash()))
                         .map(|(id, _)| *id).collect();
                     for id in changed {
+                        op_of.insert(id, i);
                         if !batch_last.contains(&id) {
                             batch_last.push(id);
                         }
@@ -602,6 +615,16 @@ fn run_once(s: &mut Session, args: &Value) -> Result<Reply> {
                         return Err(if ops.len() > 1 { format!("op {} ({kind}): {e}", i + 1) } else { e });
                     }
                 }
+            }
+            if let Err(e) = tx.check_deferred() {
+                let moving = tx.engine().last_failure.as_ref().and_then(|f| f["collisions"][0]["moving"].as_u64());
+                failed = moving.and_then(|m| op_of.get(&m).copied());
+                return Err(match failed {
+                    Some(i) if ops.len() > 1 => {
+                        format!("op {} ({}): {e}", i + 1, ops[i].get("op").and_then(Value::as_str).unwrap_or("?"))
+                    }
+                    _ => e,
+                });
             }
             // `callout`: the parts this batch adds must be exactly the booklet's callout.
             if let Some(list) = args.get("callout") {
@@ -804,7 +827,9 @@ fn failure(s: &mut Session, view: &Model, file: usize, ops: &[Value], failed: Op
     let mut attempted: Vec<PartSpec> = Vec::new();
     if let Some(op) = op {
         let kind = op.get("op").and_then(Value::as_str).unwrap_or("");
-        if kind == "add" || (kind == "place" && op.get("from").is_none()) {
+        if kind == "pattern" || kind == "fill" {
+            attempted.extend(super::pattern::expand(&s.lib, op, units, colour).map(|r| r.0).unwrap_or_default());
+        } else if kind == "add" || (kind == "place" && op.get("from").is_none()) {
             match (op.get("ldraw"), op.get("parts").and_then(Value::as_array)) {
                 (Some(lines), _) => attempted.extend(ldraw_specs(lines, colour).unwrap_or_default()),
                 (None, Some(list)) => attempted.extend(list.iter().filter_map(|p| spec(p, units, colour).ok())),

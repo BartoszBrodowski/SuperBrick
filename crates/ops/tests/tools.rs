@@ -335,3 +335,84 @@ fn batch_last_accumulates_and_subbuild_callout_counts_moved_parts() {
         "ops": [{"op": "place", "from": set, "pick": 1}]}));
     assert!(right.ok, "{}", right.text);
 }
+
+#[test]
+fn pattern_wall_with_running_bond_colours_and_a_door() {
+    let path = project("pattern");
+    let mut agent = Session::open(&path, "claude", lib()).unwrap();
+    // A 1x4 wall, 4 bricks long and 4 high, running bond, a door gap, two colours by row.
+    let wall = json!({"op": "pattern", "part": "3010", "color": 4, "at": [0, 0, 0],
+        "along": [{"by": [80, 0, 0], "count": 4}, {"by": [0, -24, 0], "count": 4}],
+        "bond": {"offset": [40, 0, 0]}, "colors": [4, 15], "colors_by": "row",
+        "skip": [{"from": [70, 24, -10], "to": [170, -24, 10]}]});
+    let r = call(&mut agent, "edit", json!({"ops": [wall], "images": false}));
+    assert!(r.ok, "{}", r.text);
+    let view = agent.view();
+    let flat = view.flat(0);
+    // 16 bricks; the door box (the bottom two rows, x 70..170) removes 2 + 3 = 5 of them.
+    assert_eq!(flat.len(), 11, "{}", r.text);
+    assert!(r.text.contains("5 skipped"), "{}", r.text);
+    for p in &flat {
+        let row = (-p.pos.y / 24.0).round() as i32;
+        let x0 = if row % 2 == 1 { 40.0 } else { 0.0 };
+        assert_eq!(((p.pos.x - x0) / 80.0).fract(), 0.0, "bond offset on odd rows: {:?}", p.pos);
+        assert_eq!(p.color.0, if row % 2 == 0 { 4 } else { 15 }, "colour by row");
+    }
+}
+
+#[test]
+fn pattern_cells_grid_units_and_seeded_colours() {
+    let path = project("pattern-grid");
+    let mut agent = Session::open(&path, "claude", lib()).unwrap();
+    // A two-part cell (1x2 brick + 1x2 plate on top) repeated 3 x 2 in grid units.
+    let op = json!({"op": "pattern", "at": [0, 0, 0],
+        "parts": [{"part": "3004", "at": [0, 0, 0]}, {"part": "3023", "at": [0, 3, 0]}],
+        "along": [{"by": [2, 0, 0], "count": 3}, {"by": [0, 0, 1], "count": 2}],
+        "colors": ["red", "blue", "yellow"], "seed": 7});
+    let r = call(&mut agent, "edit", json!({"ops": [op], "units": "grid", "images": false}));
+    assert!(r.ok, "{}", r.text);
+    let flat = agent.view().flat(0);
+    assert_eq!(flat.len(), 12);
+    let xs: std::collections::BTreeSet<i64> = flat.iter().map(|p| p.pos.x.round() as i64).collect();
+    assert_eq!(xs.into_iter().collect::<Vec<_>>(), vec![0, 40, 80], "grid steps of 2 studs");
+    assert!(flat.iter().any(|p| p.name.starts_with("3023") && (p.pos.y + 24.0).abs() < 1e-6), "plates on the bricks");
+    // The same seed picks the same colours again.
+    let colours: Vec<i32> = flat.iter().map(|p| p.color.0).collect();
+    let path2 = project("pattern-grid2");
+    let mut again = Session::open(&path2, "claude", lib()).unwrap();
+    let r = call(&mut again, "edit", json!({"ops": [op], "units": "grid", "images": false}));
+    assert!(r.ok);
+    assert_eq!(again.view().flat(0).iter().map(|p| p.color.0).collect::<Vec<_>>(), colours);
+    assert!(colours.iter().any(|&c| c != colours[0]), "random colours vary: {colours:?}");
+}
+
+#[test]
+fn fill_box_in_running_bond_with_ends_and_one_check_per_batch() {
+    let path = project("fill");
+    let mut agent = Session::open(&path, "claude", lib()).unwrap();
+    // 8 studs long, 1 deep, 3 bricks high: 1x4 bricks, odd layers shifted by 2 studs and closed with 1x2s.
+    let op = json!({"op": "fill", "part": "3010", "color": 1, "from": [0, 0, -10], "to": [160, -72, 10],
+        "bond": true, "ends": "3004"});
+    let r = call(&mut agent, "edit", json!({"ops": [op], "images": false}));
+    assert!(r.ok, "{}", r.text);
+    let flat = agent.view().flat(0);
+    let long = flat.iter().filter(|p| p.name.starts_with("3010")).count();
+    let ends = flat.iter().filter(|p| p.name.starts_with("3004")).count();
+    assert_eq!((long, ends), (2 + 1 + 2, 2), "{}", r.text);
+    // A batch is checked once: a brick in the way and the op moving it away pass together...
+    let blocker = json!({"op": "add", "part": "3001", "at": [300, 0, 0]});
+    let r = call(&mut agent, "edit", json!({"ops": [blocker], "images": false}));
+    assert!(r.ok, "{}", r.text);
+    let id = agent.last.first().copied().unwrap();
+    let r = call(&mut agent, "edit", json!({"ops": [
+        {"op": "add", "part": "3001", "at": [300, 0, 0]},
+        {"op": "move", "ids": [id], "by": [0, 0, 100]}], "images": false}));
+    assert!(r.ok, "a clash undone later in the batch is fine: {}", r.text);
+    // ...and a clash that stays names the op it comes from.
+    let r = call(&mut agent, "edit", json!({"ops": [
+        {"op": "add", "part": "3003", "at": [-200, 0, 0]},
+        {"op": "pattern", "part": "3001", "at": [0, 0, 0], "along": [{"by": [80, 0, 0], "count": 2}]}],
+        "images": false}));
+    assert!(!r.ok);
+    assert!(r.text.contains("op 2 (pattern)"), "{}", r.text);
+}

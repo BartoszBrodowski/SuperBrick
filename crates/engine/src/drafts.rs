@@ -201,6 +201,23 @@ impl DraftTx<'_> {
     pub fn commands(&self) -> &[Cmd] {
         &self.commands
     }
+    /// Check collisions once for the whole batch instead of after every command: commands
+    /// apply unchecked until [`DraftTx::check_deferred`].
+    pub fn defer_checks(&mut self) {
+        self.engine.deferred = Some(Vec::new());
+    }
+    /// The batch's one collision check over every part its commands changed (and still exist).
+    /// Ends deferral; refuses like a single command would (`last_failure` says what clashed).
+    pub fn check_deferred(&mut self) -> Result<()> {
+        let Some(mut ids) = self.engine.deferred.take() else { return Ok(()) };
+        ids.sort_unstable();
+        ids.dedup();
+        ids.retain(|id| self.engine.model.parts.contains_key(id));
+        if ids.is_empty() {
+            return Ok(());
+        }
+        self.engine.validate_changes(&ids)
+    }
     /// Run one command. On error nothing from this command remains.
     pub fn apply(&mut self, mut cmd: Cmd) -> Result<Value> {
         if matches!(cmd, Cmd::Select { .. } | Cmd::Hide { .. } | Cmd::Lock { .. }) {
@@ -358,6 +375,7 @@ impl Engine {
             results: Vec::new(),
         };
         let out = f(&mut tx);
+        tx.engine.deferred = None;
         let DraftTx {
             base,
             refs,
