@@ -9,7 +9,7 @@
 
 <!-- demo-video -->
 <p align="center">
-  <a href="https://github.com/levtechs/SuperBrick/releases/download/v0.2.0/superbrick-opencode-demo.mp4">
+  <a href="https://github.com/levtechs/SuperBrick/blob/main/docs/superbrick-opencode-demo.mp4">
     <img src="docs/images/demo-poster.jpg" alt="Watch the SuperBrick demo" width="800">
   </a>
 </p>
