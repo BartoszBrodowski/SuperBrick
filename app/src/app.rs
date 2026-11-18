@@ -1141,7 +1141,7 @@ impl App {
                     ui.label("Click a piece to hide/unhide it. Hidden pieces still collide.");
                 });
             }
-            if ui.button("Commands ⌘K").clicked() {
+            if ui.button(if cfg!(target_os = "macos") { "Commands ⌘K" } else { "Commands Ctrl+K" }).clicked() {
                 self.st.palette = true;
             }
             ui.menu_button("Panels", |ui| {
