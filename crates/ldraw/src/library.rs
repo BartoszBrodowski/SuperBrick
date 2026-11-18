@@ -16,7 +16,21 @@ use crate::{
     zipfs::ZipFs,
 };
 
-pub const DEFAULT_ZIP: &str = "/Applications/LeoCAD.app/Contents/Resources/library.bin";
+/// Where an installed LeoCAD keeps its `library.bin`.
+pub fn default_zips() -> Vec<PathBuf> {
+    #[cfg(windows)]
+    {
+        ["ProgramFiles", "ProgramFiles(x86)"]
+            .iter()
+            .filter_map(|v| std::env::var_os(v))
+            .map(|d| PathBuf::from(d).join("LeoCAD").join("library.bin"))
+            .collect()
+    }
+    #[cfg(not(windows))]
+    {
+        vec![PathBuf::from("/Applications/LeoCAD.app/Contents/Resources/library.bin")]
+    }
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -69,8 +83,10 @@ pub struct Library {
 }
 
 fn expand_home(p: &Path) -> PathBuf {
-    match (p.strip_prefix("~"), std::env::var_os("HOME")) {
-        (Ok(rest), Some(home)) => PathBuf::from(home).join(rest),
+    // `Path` splits on `\` on Windows, so `~\x` is accepted there too.
+    let home = crate::platform::home_dir();
+    match p.strip_prefix("~") {
+        Ok(rest) if !home.as_os_str().is_empty() => home.join(rest),
         _ => p.to_path_buf(),
     }
 }

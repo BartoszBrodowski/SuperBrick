@@ -64,7 +64,7 @@ pub fn library_zip() -> Option<PathBuf> {
     let mut places = vec![downloaded_library()];
     // SB_NO_LEOCAD=1 ignores LeoCAD's copy (to try the first-run setup on a Mac that has it).
     if crate::app_env("NO_LEOCAD").is_none() {
-        places.push(PathBuf::from(crate::library::DEFAULT_ZIP));
+        places.extend(crate::library::default_zips());
     }
     places.into_iter().find(|p| p.is_file())
 }
