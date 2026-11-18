@@ -1,0 +1,16 @@
+[package]
+name = "superbrick-launcher"
+description = "SuperBrick.exe: a tiny windowless launcher that starts sb.exe from its own folder"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "SuperBrick"
+path = "src/main.rs"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
+
+[build-dependencies]
+winresource = "0.1"
