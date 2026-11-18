@@ -84,6 +84,14 @@ def main():
     missing = [p for p in REQUIRED if not (share / p).exists()]
     if missing:
         raise SystemExit(f"the release bundle lacks: {', '.join(missing)}")
+    # A release can predate helpers the code now imports (install.py's BENCH_FILES); record which
+    # ones are missing so the checks that need them report "blocked by data" instead of failing.
+    sys.path.insert(0, str(ROOT / "tools"))
+    import install
+    absent = [n for n in install.BENCH_FILES if not (share / "connectors/bench" / n).is_file()]
+    (share / "ci-missing-helpers.txt").write_text("".join(f"{n}\n" for n in absent), encoding="utf-8")
+    if absent:
+        print(f"warning: this release lacks helpers the code imports: {', '.join(absent)}")
     replace_tree(share / "connectors/bench", ROOT.parent / "bench-next")
     replace_tree(share / "connectors/shadow", ROOT.parent / "data-next/ldcad_shadow/LDCadShadowLibrary-main")
     for path in REQUIRED:
