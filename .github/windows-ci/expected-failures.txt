@@ -1,15 +1,15 @@
 # Tests the full Windows suite expects to fail because their data is not available to CI.
-# CI now supplies the release bundle's helpers, shadow library and search catalogue, so many of
-# these should pass; the compare step lists those, and they are removed here once confirmed.
 # The full-tests job fails only when a test NOT listed here fails, and reports listed tests that
 # started passing (remove them here). One test name per line; blank lines and # comments ignored.
 #
-# Why they fail (Windows run 2026-11-18, job 135128746949, sources fingerprint 0c531a326454c1dd):
-# - ../bench-next (connector/physics Python helpers and test models) is missing: the connector
-#   backend dies on `import physics`, so connect/hinge/check/verify calls see "pipe is being closed".
-# - spikes/search/out (part search catalogue) is missing: search tests.
-# - meshes_match_python: the reference fixture was made with a different LDraw library release than
-#   the one CI downloads; the hinge/click parts 30383, 30553, 44301a, 44302a and 44567a differ.
+# CI supplies upstream's release bundle (connector helpers, LDCad shadow library, search
+# catalogue); with release v0.2.0 (job 135166751701: 157 passed, these 35 failed):
+# - The connector backend imports validate.py, scene.py and orient.py, which were added after
+#   v0.2.0, so it stops on `import validate`: connect/hinge/check/verify tests see "pipe is being
+#   closed" / "Connector backend stopped". Expected to pass once a newer release ships them.
+# - Some tests read models from bench-next/tests/connections, which no release bundle contains.
+# - meshes_match_python: the reference fixture was made with a different LDraw library release
+#   than the one CI downloads; the hinge/click parts 30383, 30553, 44301a, 44302a and 44567a differ.
 auto_hinge_mating_keeps_the_plate_facing_the_same_way
 automatic_drag_reuses_free_connector_index_and_omits_occupied_studs
 ball_connect_keeps_the_moving_piece_turned_as_it_is
@@ -38,10 +38,8 @@ pasted_assembly_ids_come_from_the_reserved_block
 pieces_connected_to_nothing_float
 pins_axles_and_hinge_fingers_can_mate_from_separate_positions
 rotate_keeps_parts_on_their_turntable
-search_returns_thumbnails
 stacked_bricks_are_verified
 symmetric_surfaces_do_not_require_identical_triangle_diagonals
-tests::literal_ids_always_win_even_if_filters_exclude_them
 unseated_stud_is_a_conflict
 unsupported_mirror_refuses_atomically_and_plain_mirror_undoes
 verify_lists_what_chosen_parts_connect_to
