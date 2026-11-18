@@ -22,7 +22,7 @@ the agent command line.
 
 | Area | What it's for |
 |---|---|
-| **Toolbar** | Tools (Select, Lasso, Hinge, Connect, Hide, Delete, Paint, Place), **Check**, **Parts list / suppliers**, **Commands ⌘K**, **Panels** and **Theme** (light, dark, system). |
+| **Toolbar** | Tools (Select, Lasso, Hinge, Connect, Hide, Delete, Paint, Place), **Check**, **Parts list / suppliers**, **Commands ⌘K / Ctrl+K**, **Panels** and **Theme** (light, dark, system). |
 | **Parts** (left) | Search the LDraw library by words or part number, pick a colour, and drag a piece into the model. |
 | **View** (middle) | The model, one tab per file or subbuild. Fit, Front, Top, Right and 3D cameras; Ortho, Edges and Low LOD switches. |
 | **Inspector, Checker, Agents** (right) | The selection, build problems, and the agents' pending drafts. |
@@ -46,7 +46,7 @@ Every panel docks, closes, and reopens from **Panels**.
 
 ## Selecting and the inspector
 
-Click to select, Shift/Cmd-click to add, or use **Lasso (L)**. The inspector describes the
+Click to select, Shift/Cmd-click (Ctrl-click on Windows) to add, or use **Lasso (L)**. The inspector describes the
 selection (pieces, kinds, colours, size in studs and plates, build step) and edits it:
 
 <img src="images/inspector-panel.jpg" alt="The inspector with seven pieces selected" width="320" align="right">
@@ -63,8 +63,8 @@ selection (pieces, kinds, colours, size in studs and plates, build step) and edi
 
 ## Mirror, copy and subbuilds
 
-- **Copy (Cmd+C)** picks up the selection, pieces, colours and all, and lets you place it
-  again and again; **Cmd+V** brings back the last copy, **Esc** stops.
+- **Copy (Cmd+C / Ctrl+C)** picks up the selection, pieces, colours and all, and lets you place it
+  again and again; **Cmd+V / Ctrl+V** brings back the last copy, **Esc** stops.
 - **Mirror** makes the left-hand version of a right-hand assembly. Each piece is checked
   against the real LDraw geometry: symmetric pieces are turned, handed pieces are swapped for
   their counterparts (for example 41769 ↔ 41770). If a piece has no mirror image, nothing
@@ -147,12 +147,12 @@ SuperBrick doesn't log in or order anything; prices and stock are on the supplie
 | Pan | Middle- or right-drag |
 | Zoom | Scroll or pinch (toward the pointer) |
 | Select, Lasso, Hinge, Connect, Hide, Delete, Paint | S, L, H, C, V, D, P |
-| Add to selection | Shift- or Cmd-click |
+| Add to selection | Shift- or Cmd/Ctrl-click |
 | Rotate selection | R, or the arrow keys |
 | Move selection | Shift + arrow keys |
 | Delete selection | Delete or Backspace |
-| Duplicate | Cmd+D |
-| Copy and place repeatedly / place last copy | Cmd+C / Cmd+V |
+| Duplicate | Cmd+D / Ctrl+D |
+| Copy and place repeatedly / place last copy | Cmd+C / Cmd+V (Ctrl on Windows) |
 | Cancel | Esc |
-| Undo / redo | Cmd+Z / Cmd+Shift+Z |
-| Command palette | Cmd+K |
+| Undo / redo | Cmd+Z / Cmd+Shift+Z (Ctrl on Windows) |
+| Command palette | Cmd+K / Ctrl+K |
