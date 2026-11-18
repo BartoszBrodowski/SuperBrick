@@ -149,12 +149,11 @@ jobs:
       # SB_LDRAW_ZIP. The full suite runs in the full-tests job.
       - name: Rust tests that need no external data
         if: needs.plan.outputs.tests == 'true'
-        shell: bash
+        shell: cmd  # not bash: Git Bash's /usr/bin/link shadows MSVC's link.exe
         run: |
-          set -e
-          cargo test --locked -p ldraw -p cad-cli -p physics
-          cargo test --locked -p engine -p store --lib
-          cargo test --locked -p render --lib --test service
+          cargo test --locked -p ldraw -p cad-cli -p physics || exit /b 1
+          cargo test --locked -p engine -p store --lib || exit /b 1
+          cargo test --locked -p render --lib --test service || exit /b 1
 
       - name: Binary checks (subsystem, icon, system DLLs only, studio_rays.dll exports)
         if: env.PACKAGE == 'true'
@@ -240,12 +239,16 @@ jobs:
           upstream: ${{ needs.plan.outputs.upstream }}
           share: target/share/superbrick
 
+      # cmd, not bash: in Git Bash, /usr/bin/link shadows MSVC's link.exe. Failures are judged
+      # by the next step against the expected list.
       - name: Run every test
-        shell: bash
+        shell: cmd
         env:
-          SB_SEARCH_DATA: ${{ github.workspace }}/target/share/superbrick/search
-        # Failures are judged by the next step against the expected list.
-        run: cargo test --locked --workspace --no-fail-fast 2>&1 | tee test-output.txt || true
+          SB_SEARCH_DATA: ${{ github.workspace }}\target\share\superbrick\search
+        run: |
+          cargo test --locked --workspace --no-fail-fast > test-output.txt 2>&1
+          type test-output.txt
+          exit /b 0
 
       - name: Compare with the expected failures
         run: python tools/ci/compare_tests.py test-output.txt .github/windows-ci/expected-failures.txt
