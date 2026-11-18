@@ -260,9 +260,9 @@ The LeoCAD LDraw library is still required (or set `BENCH_LDRAW_ZIP` to your lib
 To rebuild/update your installed command, rerun `python3 tools/install.py --force`.
 `--prefix PATH` installs under a different prefix with the same `bin`/`share` layout.
 
-**Windows:** run `py tools\install.py` (add `--force` to update). To remove SuperBrick, run the
-installer with `--uninstall` (`py tools\install.py --uninstall`, or `install.ps1 -Uninstall`
-from a release zip if it offers it). It removes the program files, the PATH entry, the Start
+**Windows:** run `py tools\install.py` (it also updates an existing install). To remove
+SuperBrick, run `py tools\install.py --uninstall`, or `install.ps1 -Uninstall` from a release
+zip. It removes the program files, the PATH entry, the Start
 Menu shortcut and the file associations; your projects and the data in `%APPDATA%\SuperBrick`
 are kept. Reinstalling while SuperBrick runs is fine: the installer moves the running `sb.exe`
 aside first.

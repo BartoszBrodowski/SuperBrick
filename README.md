@@ -36,8 +36,9 @@ project. The agent's changes come to you as drafts, and you accept or reject eac
 Click **Done**, then go to **System Settings → Privacy & Security** and click **Open Anyway**.
 On first launch the app also downloads the LDraw parts library (about 150 MB).
 
-**First launch on Windows:** unzip `SuperBrick-<version>-Windows-x64.zip`, then run `install.ps1`
-(right-click → **Run with PowerShell**), or run `SuperBrick\bin\SuperBrick.exe` directly. If
+**First launch on Windows:** unzip `SuperBrick-<version>-Windows-x64.zip`, then in that folder run
+`powershell -ExecutionPolicy Bypass -File .\install.ps1` (or right-click it → **Run with
+PowerShell**), or run `SuperBrick\bin\SuperBrick.exe` directly. If
 SmartScreen says "Windows protected your PC", click **More info → Run anyway**; SuperBrick isn't
 code-signed. On first launch the app downloads the LDraw parts library (about 150 MB). Windows
 support is new; see [the notes in SETUP.md](docs/SETUP.md#windows-support-is-new).
