@@ -844,21 +844,5 @@ fn row_commit(r: &rusqlite::Row) -> rusqlite::Result<Commit> {
 
 /// Best effort: whether a process with this pid still exists on this machine.
 pub fn pid_alive(pid: u32) -> bool {
-    if pid == std::process::id() {
-        return true;
-    }
-    #[cfg(unix)]
-    {
-        // `kill -0` semantics without a libc dependency.
-        std::process::Command::new("kill")
-            .args(["-0", &pid.to_string()])
-            .stderr(std::process::Stdio::null())
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(true)
-    }
-    #[cfg(not(unix))]
-    {
-        true
-    }
+    ldraw::platform::pid_alive(pid)
 }

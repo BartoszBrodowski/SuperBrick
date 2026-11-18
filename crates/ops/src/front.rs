@@ -647,6 +647,11 @@ pub fn mcp(user: &str, project: Option<PathBuf>, any_project: bool) -> Result<()
     };
     #[cfg(not(unix))]
     let input = {
+        // Hot reload is unix only (it needs `exec`; Windows has no equivalent that keeps the same
+        // process). Without a watcher `Served::Reload` is never produced, so nothing tries it. A
+        // Windows version would spawn the new exe with RESUME and pipe stdin/stdout through, but
+        // std's process-wide stdin buffer swallows read-ahead bytes, so it needs a raw handle
+        // reader first; also a reinstall must rename the running sb.exe away (T6).
         watch = None;
         Box::new(input) as Box<dyn std::io::Read>
     };
@@ -936,7 +941,7 @@ mod reload {
         #[cfg(not(unix))]
         {
             let _ = std::fs::remove_file(&path);
-            "reloading needs exec (unix only)".into()
+            "hot reload is not supported on this platform (it needs exec); restart `sb mcp` to use a new install".into()
         }
     }
 
