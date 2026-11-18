@@ -10,10 +10,8 @@ pub fn directory() -> PathBuf {
     ldraw::app_env("RECOVERY_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
-            let support = PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
-                .join("Library/Application Support");
-            let old = support.join("cad/recovery");
-            let new = support.join("SuperBrick/recovery");
+            let old = ldraw::platform::support_root().join("cad/recovery");
+            let new = ldraw::runtime::support_dir().join("recovery");
             if !new.exists() && old.exists() { old } else { new }
         })
 }
@@ -78,20 +76,22 @@ impl Recovery {
     }
 }
 fn write(path: &Path, bytes: &[u8], meta: &serde_json::Value) -> std::io::Result<()> {
+    #[cfg(unix)]
     use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
     let dir = path.parent().unwrap();
     std::fs::create_dir_all(dir)?;
+    #[cfg(unix)]
     std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
     let suffix = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
     let tmp = path.with_extension(format!("{suffix}.tmp"));
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(&tmp)?;
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create_new(true);
+    #[cfg(unix)]
+    opts.mode(0o600);
+    let mut file = opts.open(&tmp)?;
     let result: std::io::Result<()> = (|| {
         file.write_all(bytes)?;
         file.sync_all()?;
