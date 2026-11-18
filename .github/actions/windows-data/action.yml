@@ -1,0 +1,60 @@
+name: Windows test data
+description: >
+  Lays out the data that is not in this repository (connector helpers, LDCad shadow library and
+  search catalogue from upstream's release bundle, plus studio_rays.dll), and the LDraw parts
+  library, and sets SB_LDRAW_ZIP. Needs Python and the MSVC developer environment.
+inputs:
+  upstream:
+    description: Upstream release tag to take the bundle data from
+    required: true
+  share:
+    description: Folder to lay the bundle's share/superbrick out in
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Cache the upstream release DMG
+      id: dmg
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/upstream
+        key: upstream-dmg-${{ inputs.upstream }}
+
+    - name: Download the upstream release DMG
+      if: steps.dmg.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: gh release download "${{ inputs.upstream }}" --repo "$UPSTREAM_REPO" --pattern '*.dmg' --dir "$RUNNER_TEMP/upstream"
+
+    - name: Lay out the bundle data and build studio_rays.dll
+      shell: bash
+      run: |
+        set -e
+        dmg=$(ls "$RUNNER_TEMP"/upstream/*.dmg | head -1)
+        python tools/ci/fetch_upstream_data.py "$dmg" "${{ inputs.share }}"
+        python tools/ci/windows_checks.py raylib "${{ inputs.share }}/connectors"
+
+    - name: Cache key for the LDraw library (monthly)
+      id: month
+      shell: bash
+      run: echo "month=$(date +%Y-%m)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache the LDraw parts library
+      id: ldraw
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/ldraw
+        key: ldraw-complete-${{ steps.month.outputs.month }}
+
+    - name: Download the LDraw parts library
+      if: steps.ldraw.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        mkdir -p "$RUNNER_TEMP/ldraw"
+        curl --fail --location --retry 3 --silent --show-error \
+          -o "$RUNNER_TEMP/ldraw/complete.zip" https://library.ldraw.org/library/updates/complete.zip
+
+    - name: Point SuperBrick at the library
+      shell: bash
+      run: echo "SB_LDRAW_ZIP=$RUNNER_TEMP/ldraw/complete.zip" >> "$GITHUB_ENV"

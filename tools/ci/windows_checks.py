@@ -272,10 +272,123 @@ def cmd_instance(release):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+# ---------------------------------------------------------------- runtime (needs data)
+
+def cmd_raylib(folder):
+    """Build studio_rays.dll into FOLDER (e.g. a share/superbrick/connectors folder)."""
+    import install
+    folder.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="sb-ray-") as build:
+        dll = install.build_ray_library(ROOT, Path(build), platform="win32")
+        shutil.copy2(dll, folder / dll.name)
+    ok(f"studio_rays.dll built into {folder}")
+
+
+def text_of(reply):
+    return "\n".join(c.get("text", "") for c in reply.get("result", {}).get("content", []) if c.get("type") == "text")
+
+
+def call(i, tool, arguments):
+    return {"jsonrpc": "2.0", "id": i, "method": "tools/call", "params": {"name": tool, "arguments": arguments}}
+
+
+def png_ok(path, minimum=4000):
+    return path.is_file() and path.stat().st_size >= minimum and path.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def cmd_runtime(release):
+    """End to end with the parts library and the bundle data (connectors, search, renders, GUI),
+    plus SuperBrick's own downloads (Python, LDraw library) into scratch support folders."""
+    sb = release / "sb.exe"
+    out = release.parent / "runtime-output"
+    shutil.rmtree(out, ignore_errors=True)
+    out.mkdir(parents=True)
+    share = release.parent / "share/superbrick"
+    check((share / "connectors/bench/physics.py").is_file() and (share / "connectors/studio_rays.dll").is_file(),
+          "installed share folder (bin/../share/superbrick) has the helpers and studio_rays.dll")
+    check(Path(os.environ.get("SB_LDRAW_ZIP", "")).is_file(), "SB_LDRAW_ZIP points at the parts library")
+    model = ROOT / "tests/fixtures/parallel_hinges.ldr"
+
+    proc = run([sb, "setup"], timeout=120)
+    print(proc.stdout.rstrip())
+    check(proc.returncode == 0, "sb setup finds the parts library")
+
+    # Agent tools through MCP: connector checks (Python backend), search (catalogue), pictures (GPU).
+    work = Path(tempfile.mkdtemp(prefix="sb-runtime-"))
+    proc, replies = mcp_session(sb, [
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+         "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "ci", "version": "0"}}},
+        {"jsonrpc": "2.0", "method": "notifications/initialized"},
+        call(2, "project", {"action": "open", "path": "runtime.sb", "create": True}),
+        call(3, "edit", {"images": False, "ops": [
+            {"op": "add", "part": "3001", "at": [0, 0, 0], "color": 4},
+            {"op": "add", "part": "3001", "at": [0, -24, 0], "color": 1}]}),
+        call(4, "verify", {}),
+        call(5, "search", {"query": "curved slope 2x1", "limit": 3}),
+        call(6, "look", {}),
+    ], cwd=work, timeout=900)
+    (out / "mcp-stderr.txt").write_text(proc.stderr, encoding="utf-8")
+    for i, name in [(2, "project open"), (3, "edit"), (4, "verify"), (5, "search"), (6, "look")]:
+        reply = replies.get(i, {})
+        body = text_of(reply)
+        print(f"--- {name}: {body[:400]}")
+        check("result" in reply and not reply["result"].get("isError"), f"MCP {name} succeeds", body[:300] or proc.stderr[-300:])
+    for i, name in [(3, "edit"), (4, "verify")]:
+        body = text_of(replies[i])
+        check("Not checked" not in body and "pipe" not in body.lower(), f"{name} ran the connector checker (Python helper)", body[:300])
+    images = [c for c in replies[6]["result"].get("content", []) if c.get("type") == "image"]
+    check(images, f"look returns rendered pictures ({len(images)})")
+
+    # Instructions and a studio render: publication.py + the native ray library.
+    instructions = out / "instructions"
+    proc = run([sb, model, "--generate-instructions", "--output", instructions, "--image-size", "192"], timeout=900)
+    (out / "instructions-log.txt").write_text(proc.stdout + proc.stderr, encoding="utf-8")
+    check(proc.returncode == 0, "instructions generate", (proc.stdout + proc.stderr)[-800:])
+    check((instructions / "instructions.html").is_file() and png_ok(instructions / "step-0001.png", 1000),
+          "instructions.html and step images written")
+    studio = out / "studio"
+    proc = run([sb, model, "--generate-instructions", "--studio-render", "--output", studio, "--image-size", "192"], timeout=900)
+    (out / "studio-log.txt").write_text(proc.stdout + proc.stderr, encoding="utf-8")
+    check(proc.returncode == 0, "studio render runs", (proc.stdout + proc.stderr)[-800:])
+    check(any(png_ok(p, 1000) for p in studio.rglob("*.png")), "studio render writes an image")
+
+    # The real window, rendered and captured (WARP is enough).
+    proc = run([sb, model, "--size", "1280x800", "--bench", "120", "--shot", out / "viewport.png",
+                "--window-shot", out / "window.png"], timeout=600)
+    print(proc.stderr.strip()[-600:])
+    check(png_ok(out / "viewport.png") and png_ok(out / "window.png", 20000), "GUI opens the model and renders the window")
+
+    # SuperBrick's own Python (python-build-standalone + NumPy/Pillow/SciPy), then a job on it.
+    support = Path(tempfile.mkdtemp(prefix="sb-support-"))
+    env = {k: v for k, v in os.environ.items() if k not in ("SB_PYTHON", "CAD_PYTHON")}
+    env["SB_SUPPORT_DIR"] = str(support)
+    proc = run([sb, "setup", "--python", "--force"], env=env, timeout=1200)
+    print((proc.stdout + proc.stderr).strip()[-600:])
+    managed = support / "python/python.exe"
+    check(managed.is_file(), "sb setup --python installs python\\python.exe", (proc.stdout + proc.stderr)[-600:])
+    line = next((l for l in run([sb, "setup"], env=env).stdout.splitlines() if l.startswith("Python")), "")
+    check(str(support).lower() in line.lower(), "the managed Python is the one SuperBrick now uses", line)
+    proc = run([sb, model, "--generate-instructions", "--output", out / "instructions-managed-python",
+                "--image-size", "128"], env=env, timeout=900)
+    check(proc.returncode == 0 and (out / "instructions-managed-python/instructions.html").is_file(),
+          "instructions run on the managed Python", (proc.stdout + proc.stderr)[-800:])
+
+    # The parts library download (curl.exe), into a support folder without one.
+    support = Path(tempfile.mkdtemp(prefix="sb-support-"))
+    env = {k: v for k, v in os.environ.items() if k not in ("SB_LDRAW_ZIP", "BENCH_LDRAW_ZIP", "CAD_LDRAW_ZIP")}
+    env.update(SB_SUPPORT_DIR=str(support), SB_NO_LEOCAD="1")
+    proc = run([sb, "setup", "--library"], env=env, timeout=1200)
+    print(proc.stdout.strip())
+    check(proc.returncode == 0 and (support / "ldraw/complete.zip").is_file(), "sb setup --library downloads the parts library",
+          (proc.stdout + proc.stderr)[-600:])
+    shutil.rmtree(support, ignore_errors=True)
+
+
 def main():
     if sys.platform != "win32":
         raise SystemExit("windows_checks.py runs on Windows")
-    commands = {"binaries": cmd_binaries, "smoke": cmd_smoke, "install": cmd_install, "instance": cmd_instance}
+    commands = {"binaries": cmd_binaries, "smoke": cmd_smoke, "install": cmd_install, "instance": cmd_instance,
+                "raylib": cmd_raylib, "runtime": cmd_runtime}
     if len(sys.argv) != 3 or sys.argv[1] not in commands:
         raise SystemExit(__doc__)
     commands[sys.argv[1]](Path(sys.argv[2]).resolve())

@@ -1,4 +1,6 @@
-# Tests the full Windows suite expects to fail because their data is not in this repository.
+# Tests the full Windows suite expects to fail because their data is not available to CI.
+# CI now supplies the release bundle's helpers, shadow library and search catalogue, so many of
+# these should pass; the compare step lists those, and they are removed here once confirmed.
 # The full-tests job fails only when a test NOT listed here fails, and reports listed tests that
 # started passing (remove them here). One test name per line; blank lines and # comments ignored.
 #
