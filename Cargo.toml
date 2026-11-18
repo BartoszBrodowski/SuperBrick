@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/ldraw", "crates/render", "crates/physics", "crates/engine", "crates/search", "crates/store", "crates/ops", "cli", "app"]
+members = ["crates/ldraw", "crates/render", "crates/physics", "crates/engine", "crates/search", "crates/store", "crates/ops", "cli", "app", "crates/launcher"]
 # Each spike under spikes/ is its own standalone cargo project.
 exclude = ["spikes"]
 
