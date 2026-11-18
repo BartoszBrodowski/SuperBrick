@@ -13,6 +13,7 @@ pub mod library;
 pub mod mesh;
 pub mod model;
 pub mod num;
+pub mod platform;
 pub mod runtime;
 pub mod zipfs;
 

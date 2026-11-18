@@ -31,21 +31,24 @@ const PYTHON_PROBE: &str = "import numpy, PIL";
 pub const NEEDS_PYTHON: &str = "needs Python with NumPy and Pillow";
 
 fn home() -> PathBuf {
-    PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
+    crate::platform::home_dir()
 }
 
-/// `~/Library/Application Support/SuperBrick` (or `$SB_SUPPORT_DIR`).
+/// `~/Library/Application Support/SuperBrick`, `%APPDATA%\SuperBrick` on Windows (or `$SB_SUPPORT_DIR`).
 pub fn support_dir() -> PathBuf {
     crate::app_env("SUPPORT_DIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|| home().join("Library/Application Support").join(crate::APP_NAME))
+        .unwrap_or_else(|| crate::platform::support_root().join(crate::APP_NAME))
 }
 
-/// `~/Library/Caches/SuperBrick` (or `$SB_CACHE_DIR`).
+/// `~/Library/Caches/SuperBrick`, `%LOCALAPPDATA%\SuperBrick\Cache` on Windows (or `$SB_CACHE_DIR`).
 pub fn cache_dir() -> PathBuf {
     crate::app_env("CACHE_DIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|| home().join("Library/Caches").join(crate::APP_NAME))
+        .unwrap_or_else(|| {
+            let root = crate::platform::cache_root().join(crate::APP_NAME);
+            if cfg!(windows) { root.join("Cache") } else { root }
+        })
 }
 
 /// Where a downloaded library lives.
