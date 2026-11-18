@@ -2,5 +2,7 @@
 # Format: <suite> <fingerprint> <evidence>. New passes are recorded automatically as cache
 # markers; this file only seeds results that ran before the markers existed.
 #   data-free: the tests that need no external data (fingerprint of Cargo files, app, cli, crates except the launcher, tests)
-#   (full-data, runtime and package results are recorded as cache markers once they pass)
+#   package:   the build, binary, smoke, installer and single-instance checks
+#   (full-data and runtime results are recorded as cache markers once they pass)
 data-free 38bc7483383662a8 job 135128746949 (all of these targets passed inside the full suite)
+package fabb2d9290b13417 job 135163561666 (every package step passed there; this fingerprint only adds runtime-suite reporting, cmd for cargo test and per-suite verdicts)

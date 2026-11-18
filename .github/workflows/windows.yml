@@ -117,6 +117,11 @@ jobs:
     if: needs.plan.outputs.package == 'true' || needs.plan.outputs.runtime == 'true' || needs.plan.outputs.tests == 'true'
     runs-on: windows-latest
     timeout-minutes: 120
+    # Each suite's own verdict, so a failure in one does not stop the others' passes being recorded.
+    outputs:
+      package: ${{ steps.build.outcome == 'success' && steps.binaries.outcome == 'success' && steps.smoke.outcome == 'success' && steps.install.outcome == 'success' && steps.unit.outcome == 'success' && steps.instance.outcome == 'success' }}
+      runtime: ${{ steps.build.outcome == 'success' && steps.runtime.outcome == 'success' }}
+      tests: ${{ steps.datafree.outcome == 'success' }}
     env:
       BUILD: ${{ needs.plan.outputs.package == 'true' || needs.plan.outputs.runtime == 'true' }}
       PACKAGE: ${{ needs.plan.outputs.package }}
@@ -142,12 +147,14 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@v1
 
       - name: Build release binaries (sb.exe, sb-dev.exe, SuperBrick.exe)
+        id: build
         if: env.BUILD == 'true'
         run: cargo build --release --locked -p cad-app -p cad-cli -p superbrick-launcher
 
       # Test targets that need no external data; they run before the data step below sets
       # SB_LDRAW_ZIP. The full suite runs in the full-tests job.
       - name: Rust tests that need no external data
+        id: datafree
         if: needs.plan.outputs.tests == 'true'
         shell: cmd  # not bash: Git Bash's /usr/bin/link shadows MSVC's link.exe
         run: |
@@ -156,18 +163,22 @@ jobs:
           cargo test --locked -p render --lib --test service || exit /b 1
 
       - name: Binary checks (subsystem, icon, system DLLs only, studio_rays.dll exports)
+        id: binaries
         if: env.PACKAGE == 'true'
         run: python tools/ci/windows_checks.py binaries target/release
 
       - name: CLI, MCP and launcher smoke test
+        id: smoke
         if: env.PACKAGE == 'true'
         run: python tools/ci/windows_checks.py smoke target/release
 
       - name: Installer round trip (install.ps1 and install.py, update while running, uninstall)
+        id: install
         if: env.PACKAGE == 'true'
         run: python tools/ci/windows_checks.py install target/release
 
       - name: Installer unit tests and Python helpers compile
+        id: unit
         if: env.PACKAGE == 'true'
         run: |
           python tools/test_install_windows.py
@@ -175,6 +186,7 @@ jobs:
           python -m py_compile app/src/publication.py crates/engine/src/connectors.py app/src/cad_contact_policy.py app/src/cad_snap_rules.py tools/install.py tools/release.py tools/windows/winsetup.py
 
       - name: Single instance hand-over
+        id: instance
         if: env.PACKAGE == 'true'
         run: python tools/ci/windows_checks.py instance target/release
 
@@ -186,6 +198,7 @@ jobs:
           share: target/share/superbrick
 
       - name: End to end with data (connectors, search, pictures, instructions, studio, GUI, downloads)
+        id: runtime
         if: env.RUNTIME == 'true'
         run: python tools/ci/windows_checks.py runtime target/release
 
@@ -267,15 +280,15 @@ jobs:
     steps:
       - run: echo "passed" > .ci-marker
 
-      - if: needs.plan.outputs.package == 'true' && needs.build-and-check.result == 'success'
+      - if: needs.plan.outputs.package == 'true' && needs.build-and-check.outputs.package == 'true'
         uses: actions/cache/save@v4
         with: {path: .ci-marker, key: "windows-green-package-${{ needs.plan.outputs.fp_pkg }}"}
 
-      - if: needs.plan.outputs.runtime == 'true' && needs.build-and-check.result == 'success'
+      - if: needs.plan.outputs.runtime == 'true' && needs.build-and-check.outputs.runtime == 'true'
         uses: actions/cache/save@v4
         with: {path: .ci-marker, key: "windows-green-runtime-${{ needs.plan.outputs.fp_run }}"}
 
-      - if: needs.plan.outputs.tests == 'true' && needs.build-and-check.result == 'success'
+      - if: needs.plan.outputs.tests == 'true' && needs.build-and-check.outputs.tests == 'true'
         uses: actions/cache/save@v4
         with: {path: .ci-marker, key: "windows-green-data-free-${{ needs.plan.outputs.fp_src }}"}
 

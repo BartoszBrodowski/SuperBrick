@@ -30,15 +30,23 @@ def ok(message):
     print(f"ok   {message}", flush=True)
 
 
+FAILURES = []
+KEEP_GOING = False  # the runtime suite reports every failure in one run instead of stopping
+
+
 def fail(message):
     print(f"FAIL {message}", flush=True)
-    raise SystemExit(1)
+    if not KEEP_GOING:
+        raise SystemExit(1)
+    FAILURES.append(message)
 
 
 def check(condition, message, detail=""):
     if not condition:
         fail(f"{message}{': ' + detail if detail else ''}")
+        return False
     ok(message)
+    return True
 
 
 def run(args, timeout=60, **kw):
@@ -299,6 +307,8 @@ def png_ok(path, minimum=4000):
 def cmd_runtime(release):
     """End to end with the parts library and the bundle data (connectors, search, renders, GUI),
     plus SuperBrick's own downloads (Python, LDraw library) into scratch support folders."""
+    global KEEP_GOING
+    KEEP_GOING = True
     sb = release / "sb.exe"
     out = release.parent / "runtime-output"
     shutil.rmtree(out, ignore_errors=True)
@@ -328,28 +338,31 @@ def cmd_runtime(release):
         call(6, "look", {}),
     ], cwd=work, timeout=900)
     (out / "mcp-stderr.txt").write_text(proc.stderr, encoding="utf-8")
+    print("--- MCP server stderr (last 6000 characters) ---")
+    print(proc.stderr[-6000:] or "(empty)")
+    print("--- end of MCP server stderr ---")
     for i, name in [(2, "project open"), (3, "edit"), (4, "verify"), (5, "search"), (6, "look")]:
         reply = replies.get(i, {})
         body = text_of(reply)
         print(f"--- {name}: {body[:400]}")
         check("result" in reply and not reply["result"].get("isError"), f"MCP {name} succeeds", body[:300] or proc.stderr[-300:])
     for i, name in [(3, "edit"), (4, "verify")]:
-        body = text_of(replies[i])
+        body = text_of(replies.get(i, {}))
         check("Not checked" not in body and "pipe" not in body.lower(), f"{name} ran the connector checker (Python helper)", body[:300])
-    images = [c for c in replies[6]["result"].get("content", []) if c.get("type") == "image"]
+    images = [c for c in replies.get(6, {}).get("result", {}).get("content", []) if c.get("type") == "image"]
     check(images, f"look returns rendered pictures ({len(images)})")
 
     # Instructions and a studio render: publication.py + the native ray library.
     instructions = out / "instructions"
     proc = run([sb, model, "--generate-instructions", "--output", instructions, "--image-size", "192"], timeout=900)
     (out / "instructions-log.txt").write_text(proc.stdout + proc.stderr, encoding="utf-8")
-    check(proc.returncode == 0, "instructions generate", (proc.stdout + proc.stderr)[-800:])
+    check(proc.returncode == 0, "instructions generate", (proc.stdout + proc.stderr)[-3000:])
     check((instructions / "instructions.html").is_file() and png_ok(instructions / "step-0001.png", 1000),
           "instructions.html and step images written")
     studio = out / "studio"
     proc = run([sb, model, "--generate-instructions", "--studio-render", "--output", studio, "--image-size", "192"], timeout=900)
     (out / "studio-log.txt").write_text(proc.stdout + proc.stderr, encoding="utf-8")
-    check(proc.returncode == 0, "studio render runs", (proc.stdout + proc.stderr)[-800:])
+    check(proc.returncode == 0, "studio render runs", (proc.stdout + proc.stderr)[-3000:])
     check(any(png_ok(p, 1000) for p in studio.rglob("*.png")), "studio render writes an image")
 
     # The real window, rendered and captured (WARP is enough).
@@ -382,6 +395,11 @@ def cmd_runtime(release):
     check(proc.returncode == 0 and (support / "ldraw/complete.zip").is_file(), "sb setup --library downloads the parts library",
           (proc.stdout + proc.stderr)[-600:])
     shutil.rmtree(support, ignore_errors=True)
+    if FAILURES:
+        print(f"\n{len(FAILURES)} runtime check(s) failed:")
+        for message in FAILURES:
+            print(f"  - {message[:300]}")
+        raise SystemExit(1)
 
 
 def main():
