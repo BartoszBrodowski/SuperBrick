@@ -1,7 +1,7 @@
 # Fingerprints whose Windows results are already proven, so CI does not run them again.
 # Format: <suite> <fingerprint> <evidence>. New passes are recorded automatically as cache
 # markers; this file only seeds results that ran before the markers existed.
-#   data-free: the tests that need no external data (fingerprint of Cargo files, app, cli, crates, tests)
+#   data-free: the tests that need no external data (fingerprint of Cargo files, app, cli, crates except the launcher, tests)
 #   full:      the full suite, with only expected-failures.txt failing (same fingerprint)
-data-free 0c531a326454c1dd job 135128746949 (all of these targets passed inside the full suite)
-full 0c531a326454c1dd job 135128746949 (37 failures, all listed in expected-failures.txt)
+data-free 38bc7483383662a8 job 135128746949 (all of these targets passed inside the full suite)
+full 38bc7483383662a8 job 135128746949 (37 failures, all listed in expected-failures.txt)

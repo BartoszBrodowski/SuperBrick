@@ -17,7 +17,8 @@ fn main() {
         let sb = dir.join("sb.exe");
         std::process::Command::new(&sb)
             .args(std::env::args_os().skip(1))
-            .current_dir(&dir)
+            // Keep the caller's working directory: relative paths on the command line mean
+            // what they mean to the caller (Explorer passes absolute paths anyway).
             .env("SB_SHELL_LAUNCH", "1")
             .creation_flags(CREATE_NO_WINDOW)
             .spawn()
