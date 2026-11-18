@@ -4,8 +4,11 @@ use eframe::egui;
 use std::{
     io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
-    process::{Child, Command, Stdio},
-    sync::{Arc, Mutex, mpsc},
+    process::{Child, Stdio},
+    sync::{
+        Arc, Mutex, mpsc,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 #[derive(Clone, Copy, PartialEq)]
@@ -22,6 +25,7 @@ enum Event {
 pub struct Panel {
     rx: Option<mpsc::Receiver<Event>>,
     child: Option<Arc<Mutex<Child>>>,
+    cancelled: Arc<AtomicBool>,
     message: String,
     output: Option<PathBuf>,
     result: Option<serde_json::Value>,
@@ -39,6 +43,7 @@ impl Default for Panel {
         Self {
             rx: None,
             child: None,
+            cancelled: Arc::new(AtomicBool::new(false)),
             message: String::new(),
             output: None,
             result: None,
@@ -56,6 +61,7 @@ impl Default for Panel {
 
 impl Drop for Panel {
     fn drop(&mut self) {
+        self.cancelled.store(true, Ordering::SeqCst);
         if let Some(child) = &self.child {
             if let Ok(mut child) = child.lock() {
                 let _ = child.kill();
@@ -183,9 +189,13 @@ pub fn generate_cli(args: &[String]) -> Result<(), String> {
     )
     .map_err(|e| e.to_string())?;
     let log = out.join("worker.log");
+    let script = ldraw::runtime::helper_script("publication", include_str!("publication.py"))?;
+    let mut command = ldraw::runtime::python_command()?;
+    ldraw::platform::no_window(&mut command);
     let mut child =
-        ldraw::runtime::python_command()?
-            .args(["-u", "-c", include_str!("publication.py")])
+        command
+            .arg("-u")
+            .arg(&script)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::from(std::fs::File::create(&log).map_err(|e| e.to_string())?))
@@ -294,6 +304,8 @@ fn start(
     let samples = panel.samples;
     let high_quality = panel.high_quality;
     let ctx = ctx.clone();
+    panel.cancelled = Arc::new(AtomicBool::new(false));
+    let cancelled = panel.cancelled.clone();
     let (tx, rx) = mpsc::channel();
     panel.rx = Some(rx);
     panel.message = "Preparing complete build geometry…".into();
@@ -311,9 +323,13 @@ fn start(
             )
             .map_err(|e| e.to_string())?;
             let log = out.join("worker.log");
+            let script = ldraw::runtime::helper_script("publication", include_str!("publication.py"))?;
+            let mut command = ldraw::runtime::python_command()?;
+            ldraw::platform::no_window(&mut command);
             let mut child =
-                ldraw::runtime::python_command()?
-                    .args(["-u", "-c", include_str!("publication.py")])
+                command
+                    .arg("-u")
+                    .arg(&script)
                     .stdin(Stdio::piped())
                     .stdout(Stdio::piped())
                     .stderr(Stdio::from(std::fs::File::create(&log).map_err(|e| e.to_string())?))
@@ -351,8 +367,9 @@ fn start(
                 .wait()
                 .map_err(|e| e.to_string())?;
             if !status.success() {
-                // Killed by Stop (a signal) is a cancel; anything else is a failure with a log.
+                // Stop/close sets `cancelled` before killing; a bare signal (unix) is also a cancel.
                 return Err(error.unwrap_or_else(|| match status.code() {
+                    _ if cancelled.load(Ordering::SeqCst) => "Job stopped/cancelled.".into(),
                     None => "Job stopped/cancelled.".into(),
                     Some(code) => worker_failed(&format!("The instruction worker failed (exit {code})"), &log),
                 }));
@@ -478,6 +495,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, kind: Kind) {
         if panel.rx.is_some() {
             ui.spinner();
             if ui.button("Cancel").clicked() {
+                panel.cancelled.store(true, Ordering::SeqCst);
                 if let Some(child) = &panel.child {
                     if let Ok(mut child) = child.lock() {
                         let _ = child.kill();
@@ -513,13 +531,15 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, kind: Kind) {
             && panel.result.is_some()
             && ui.button("Open printable instruction document").clicked()
         {
-            let _ = Command::new("open")
-                .arg(out.join("instructions.html"))
-                .spawn();
+            if let Err(e) = ldraw::platform::open_path(&out.join("instructions.html")) {
+                panel.message = format!("Could not open the instruction document: {e}");
+            }
         }
         ui.collapsing("Cache / diagnostics", |ui| {
             if ui.button("Open cache folder").clicked() {
-                let _ = Command::new("open").arg(out).spawn();
+                if let Err(e) = ldraw::platform::open_path(out) {
+                    panel.message = format!("Could not open the cache folder: {e}");
+                }
             }
             ui.small(out.display().to_string());
         });
@@ -600,6 +620,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, kind: Kind) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::process::Command;
     #[test]
     fn worker_errors_show_the_log_tail() {
         let dir = std::env::temp_dir().join(format!("sb-log-tail-{}", std::process::id()));
@@ -608,7 +629,15 @@ mod tests {
         std::fs::write(&log, "noise\nTraceback (most recent call last):\n  File \"<string>\", line 7\nModuleNotFoundError: No module named 'PIL'\n").unwrap();
         let text = worker_failed("The instruction worker stopped before reading its job", &log);
         assert!(text.contains("No module named 'PIL'") && !text.contains("noise"), "{text}");
-        let mut child = Command::new("/bin/sh").args(["-c", "echo boom >&2; exit 3"]).stdin(Stdio::piped())
+        #[cfg(unix)]
+        let mut command = Command::new("/bin/sh");
+        #[cfg(unix)]
+        command.args(["-c", "echo boom >&2; exit 3"]);
+        #[cfg(windows)]
+        let mut command = Command::new("cmd");
+        #[cfg(windows)]
+        command.args(["/C", "echo boom 1>&2 & exit 3"]);
+        let mut child = command.stdin(Stdio::piped())
             .stderr(Stdio::from(std::fs::File::create(&log).unwrap())).spawn().unwrap();
         std::thread::sleep(std::time::Duration::from_millis(300));
         let big = serde_json::json!({"pad": "x".repeat(1 << 20)});

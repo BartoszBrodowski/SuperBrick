@@ -5,6 +5,9 @@ are edited. All writes remain native engine transactions.
 """
 import json, os, sys, traceback
 from pathlib import Path
+for _s in (sys.stdin, sys.stdout):  # JSON exchanged with Rust is UTF-8, not the locale encoding
+    if hasattr(_s, 'reconfigure'):
+        _s.reconfigure(encoding='utf-8')
 sys.path.insert(0, sys.argv[1])
 if not os.environ.get('BENCH_SHADOW') and Path(sys.argv[2]).is_dir():
     os.environ['BENCH_SHADOW'] = sys.argv[2]

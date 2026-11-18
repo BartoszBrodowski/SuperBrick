@@ -99,16 +99,21 @@ assert _drag_index.cache_info().hits>=1
 "#
     );
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
-    let output = std::process::Command::new(
+    let script = std::env::temp_dir().join(format!("sb-drag-test-{}.py", std::process::id()));
+    std::fs::write(&script, &code).unwrap();
+    let mut command = std::process::Command::new(
         std::env::var("CAD_PYTHON").unwrap_or_else(|_| "python3".into()),
-    )
-    .args(["-c", &code])
+    );
+    ldraw::platform::no_window(&mut command);
+    let output = command
+    .arg(&script)
     .arg(root.join("bench-next"))
     .arg(root.join("data-next/ldcad_shadow/LDCadShadowLibrary-main"))
     .env("PYTHONDONTWRITEBYTECODE", "1")
     .stdin(std::process::Stdio::null())
     .output()
     .unwrap();
+    let _ = std::fs::remove_file(&script);
     assert!(
         output.status.success(),
         "{}",
@@ -122,8 +127,13 @@ fn helper_exits_quietly_when_native_parent_closes_response_pipe() {
         process::{Command, Stdio},
     };
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
-    let mut child = Command::new(std::env::var("CAD_PYTHON").unwrap_or_else(|_| "python3".into()))
-        .args(["-u", "-c", include_str!("../src/connectors.py")])
+    let script =
+        ldraw::runtime::helper_script("connectors", include_str!("../src/connectors.py")).unwrap();
+    let mut command = Command::new(std::env::var("CAD_PYTHON").unwrap_or_else(|_| "python3".into()));
+    ldraw::platform::no_window(&mut command);
+    let mut child = command
+        .arg("-u")
+        .arg(script)
         .arg(root.join("bench-next"))
         .arg(root.join("data-next/ldcad_shadow/LDCadShadowLibrary-main"))
         .env("PYTHONDONTWRITEBYTECODE", "1")
