@@ -1,0 +1,47 @@
+# Tests the full Windows suite expects to fail because their data is not in this repository.
+# The full-tests job fails only when a test NOT listed here fails, and reports listed tests that
+# started passing (remove them here). One test name per line; blank lines and # comments ignored.
+#
+# Why they fail (Windows run 2026-11-18, job 135128746949, sources fingerprint 0c531a326454c1dd):
+# - ../bench-next (connector/physics Python helpers and test models) is missing: the connector
+#   backend dies on `import physics`, so connect/hinge/check/verify calls see "pipe is being closed".
+# - spikes/search/out (part search catalogue) is missing: search tests.
+# - meshes_match_python: the reference fixture was made with a different LDraw library release than
+#   the one CI downloads; the hinge/click parts 30383, 30553, 44301a, 44302a and 44567a differ.
+auto_hinge_mating_keeps_the_plate_facing_the_same_way
+automatic_drag_reuses_free_connector_index_and_omits_occupied_studs
+ball_connect_keeps_the_moving_piece_turned_as_it_is
+bar_in_clip_cone_is_a_link_but_solid_overlap_collides
+batch_last_accumulates_and_subbuild_callout_counts_moved_parts
+bench_asserts_are_honoured
+both_ball_socket_families_expose_three_axes_and_rotate
+corner_anchors_ops_files_and_dropped_clashes
+destination_filter_only_returns_endpoints_with_a_verified_mate
+drag_snaps_pins_axles_and_new_parts_without_connect_mode
+drag_uses_arbitrarily_tilted_stud_frames
+fast_connect_endpoints_and_compatibility_do_not_require_graph_or_solve
+flatten_matches_python
+helper_exits_quietly_when_native_parent_closes_response_pipe
+hidden_pinholes_are_not_offered_as_destinations
+hinge_rotation_is_a_validated_undo_transaction
+mechanical::tests::connect_tool_two_piece_selection_and_enter_seats_a_technic_pin
+mechanical::tests::paired_hinge_ring_release_commits_the_preview_without_detach_confirmation
+mechanical::tests::real_hinge_click_selects_chunk_and_plain_arrows_articulate
+meshes_match_python
+mirrors_are_proper_rotations_and_chiral_counterparts_are_verified
+near_technic_ball_is_explicitly_unseated_then_connect_restores_pivot
+paint_warns_without_rejecting_and_checker_keeps_colour_separate_from_errors
+paired_coaxial_hinges_rotate_together_without_breaking_either_bearing
+pasted_assembly_ids_come_from_the_reserved_block
+pieces_connected_to_nothing_float
+pins_axles_and_hinge_fingers_can_mate_from_separate_positions
+rotate_keeps_parts_on_their_turntable
+search_returns_thumbnails
+stacked_bricks_are_verified
+symmetric_surfaces_do_not_require_identical_triangle_diagonals
+tests::literal_ids_always_win_even_if_filters_exclude_them
+unseated_stud_is_a_conflict
+unsupported_mirror_refuses_atomically_and_plain_mirror_undoes
+verify_lists_what_chosen_parts_connect_to
+verify_reports_collisions_listed_on_one_row
+where_select_look_verify

@@ -123,6 +123,7 @@ SYSTEM_DLLS = {
     "mswsock.dll", "netapi32.dll", "ncrypt.dll", "rpcrt4.dll", "msvcrt.dll", "ucrtbase.dll", "dcomp.dll",
     "dwrite.dll", "d2d1.dll", "wldap32.dll", "normaliz.dll", "powrprof.dll", "psapi.dll", "synchronization.dll",
     "combase.dll", "shcore.dll", "windows.ui.dll", "user32", "kernel32",
+    "uiautomationcore.dll", "oleacc.dll",  # accessibility (egui accesskit)
 }
 
 
