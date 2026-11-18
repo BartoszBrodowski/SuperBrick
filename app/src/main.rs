@@ -122,6 +122,14 @@ fn main() -> eframe::Result {
     }
     let started = Instant::now();
     let args = parse_args();
+    // Windows: opening a file while SuperBrick runs hands it to that window instead of starting
+    // another (macOS does the same through Apple events). Headless runs never forward.
+    if let Some(file) = &args.file {
+        let headless = args.bench.is_some() || args.shot.is_some() || args.window_shot.is_some();
+        if cfg!(windows) && !headless && ldraw::single_instance::forward(std::slice::from_ref(file)) {
+            return Ok(());
+        }
+    }
     let mut viewport = egui::ViewportBuilder::default();
     if let Some(icon) = brand::icon() {
         viewport = viewport.with_icon(icon);
