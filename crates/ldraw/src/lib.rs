@@ -15,6 +15,7 @@ pub mod model;
 pub mod num;
 pub mod platform;
 pub mod runtime;
+pub mod single_instance;
 pub mod zipfs;
 
 pub use color::{Color, ColorDef, Colors, Finish};
