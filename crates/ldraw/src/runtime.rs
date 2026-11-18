@@ -321,3 +321,51 @@ mod tests {
         assert!(!usable(Path::new("/nonexistent/python3")));
     }
 }
+
+/// Writes an embedded helper script to `cache_dir()/helpers/<name>-<hash>.py` (once) and returns
+/// its path, so it can be started as `python -u <path>` (Windows limits `-c` source to 32 KB).
+pub fn helper_script(name: &str, source: &str) -> Result<PathBuf, String> {
+    helper_script_in(&cache_dir().join("helpers"), name, source)
+}
+
+fn helper_script_in(dir: &Path, name: &str, source: &str) -> Result<PathBuf, String> {
+    let path = dir.join(format!("{name}-{:016x}.py", crate::num::fnv1a64(source.as_bytes())));
+    if std::fs::metadata(&path).map(|m| m.len() == source.len() as u64).unwrap_or(false) {
+        return Ok(path);
+    }
+    std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let tmp = dir.join(format!(
+        ".{name}-{}-{}.tmp",
+        std::process::id(),
+        COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    std::fs::write(&tmp, source).map_err(|e| format!("{}: {e}", tmp.display()))?;
+    if let Err(e) = std::fs::rename(&tmp, &path) {
+        let _ = std::fs::remove_file(&tmp);
+        // Another process may have won the race.
+        if !path.is_file() {
+            return Err(format!("{}: {e}", path.display()));
+        }
+    }
+    Ok(path)
+}
+
+#[cfg(test)]
+mod helper_script_tests {
+    #[test]
+    fn helper_script_is_written_once_and_repaired() {
+        let dir = std::env::temp_dir().join(format!("sb-helper-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let a = super::helper_script_in(&dir, "t", "print(1)\n").unwrap();
+        assert_eq!(std::fs::read_to_string(&a).unwrap(), "print(1)\n");
+        assert_eq!(super::helper_script_in(&dir, "t", "print(1)\n").unwrap(), a);
+        std::fs::write(&a, "x").unwrap(); // truncated: rewritten
+        super::helper_script_in(&dir, "t", "print(1)\n").unwrap();
+        assert_eq!(std::fs::read_to_string(&a).unwrap(), "print(1)\n");
+        let b = super::helper_script_in(&dir, "t", "print(2)\n").unwrap();
+        assert_ne!(a, b);
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2, "no temp files left");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

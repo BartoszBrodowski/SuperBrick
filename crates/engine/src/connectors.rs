@@ -79,10 +79,12 @@ fn start() -> Result<Backend> {
             root.join("data-next/ldcad_shadow/LDCadShadowLibrary-main"),
         )
     };
-    let mut child = ldraw::runtime::python_command()?
+    let script = ldraw::runtime::helper_script("connectors", include_str!("connectors.py"))?;
+    let mut command = ldraw::runtime::python_command()?;
+    ldraw::platform::no_window(&mut command);
+    let mut child = command
         .arg("-u")
-        .arg("-c")
-        .arg(include_str!("connectors.py"))
+        .arg(script)
         .arg(bench)
         .arg(shadow)
         .stdin(Stdio::piped())
