@@ -61,8 +61,10 @@ jobs:
           # Rust sources, manifests and the Python helpers the tests run. The launcher has no
           # tests and nothing tested depends on it, so it only counts for the package checks.
           src=$(git ls-files -s -- Cargo.toml Cargo.lock app cli crates tests ':(exclude)crates/launcher' | sha256sum | cut -c1-16)
-          # The package checks also depend on the launcher, the installers and the CI scripts.
-          pkg=$( { echo "$src"; git ls-files -s -- crates/launcher tools .github/workflows/windows.yml; } | sha256sum | cut -c1-16)
+          # The package checks test the release binaries (not the crates' test files), the launcher,
+          # the installers and the CI scripts.
+          bin=$(git ls-files -s -- Cargo.toml Cargo.lock app cli crates tests ':(exclude)crates/launcher' ':(exclude,glob)crates/*/tests/**' | sha256sum | cut -c1-16)
+          pkg=$( { echo "$bin"; git ls-files -s -- crates/launcher tools .github/workflows/windows.yml; } | sha256sum | cut -c1-16)
           # Runs with release data also depend on which release supplied it.
           run=$(echo "$pkg $upstream" | sha256sum | cut -c1-16)
           full=$(echo "$src $upstream" | sha256sum | cut -c1-16)
@@ -164,6 +166,8 @@ jobs:
         run: |
           cargo test --locked -p ldraw -p cad-cli -p physics || exit /b 1
           cargo test --locked -p engine -p store -p render --lib || exit /b 1
+          rem The connector backend's transport (Python helper, pipe, UTF-8) with stand-in helpers.
+          cargo test --locked -p engine --test connectors_stand_in || exit /b 1
 
       - name: Binary checks (subsystem, icon, system DLLs only, studio_rays.dll exports)
         id: binaries

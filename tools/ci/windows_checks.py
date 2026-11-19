@@ -351,7 +351,8 @@ def cmd_runtime(release):
     if missing:
         # The release bundle predates helpers the connector backend imports: not a Windows result.
         print(f"SKIP connector checks (edit, verify): the release data lacks {', '.join(missing)}; "
-              "they run automatically once a release that has them is published", flush=True)
+              "they run automatically once a release that has them is published (the backend's transport is "
+              "covered by the connectors_stand_in test)", flush=True)
     else:
         check("result" in replies.get(4, {}) and not replies[4]["result"].get("isError"), "MCP verify succeeds",
               text_of(replies.get(4, {}))[:300])
