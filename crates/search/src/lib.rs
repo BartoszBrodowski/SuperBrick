@@ -24,7 +24,15 @@ pub fn data_dir() -> PathBuf {
             return installed;
         }
     }
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../spikes/search")
+    // A source build: the spike's own output, else `../superbrick-data/search` next to the checkout
+    // (same layout as an installed share folder, e.g. copied from a release bundle).
+    let checkout = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let spike = checkout.join("spikes/search");
+    let staged = checkout.join("../superbrick-data/search");
+    if !spike.join("out/catalog.json").is_file() && staged.join("out/catalog.json").is_file() {
+        return staged;
+    }
+    spike
 }
 
 pub fn load(dir: &Path, embeddings: bool) -> Result<Searcher> {

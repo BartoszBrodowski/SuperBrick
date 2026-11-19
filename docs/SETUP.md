@@ -443,8 +443,11 @@ Live API totals require a separate supported integration and any necessary crede
 
 Installed builds find search assets alongside their install prefix, independent of the working directory.
 Development builds use existing `spikes/search/out/catalog.json`, its Potion corpus and
-`spikes/search/models/potion-base-8m/`; falls back to BM25 when embeddings cannot load. Assets are not
-downloaded at runtime. Override their root with `CAD_SEARCH_DATA`. The original spike's `catalog` and
+`spikes/search/models/potion-base-8m/`; falls back to BM25 when embeddings cannot load. Without those,
+a development build uses `../superbrick-data/search` next to the checkout (same layout, e.g. the
+`share/superbrick/search` folder copied out of a release bundle). Assets are not
+downloaded at runtime. Override their root with `SB_SEARCH_DATA` (or `CAD_SEARCH_DATA`). If none is
+found, the Parts panel says so and shows the folder it looked in. The original spike's `catalog` and
 `index --enc potion-base-8m` commands build them. Includes manufactured-colour filtering, feature chips,
 thumbnail/list modes and recent/used parts.
 
