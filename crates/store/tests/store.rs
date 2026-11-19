@@ -40,7 +40,7 @@ fn ldr_round_trips_byte_exact_with_ids() {
 
 #[test]
 fn real_model_round_trips() {
-    let src = PathBuf::from(std::env::var("HOME").unwrap()).join("np.ldr");
+    let src = ldraw::platform::home_dir().join("np.ldr");
     let Ok(bytes) = std::fs::read(&src) else {
         return;
     };

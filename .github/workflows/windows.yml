@@ -1,0 +1,308 @@
+name: Windows
+
+on:
+  push:
+    branches: [main, windows-port-plan]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Run every suite even if its inputs already passed
+        type: boolean
+        default: false
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # Releases link the C runtime statically (tools/release.py), so CI builds the same way and
+  # the dependency check below holds the binaries to "Windows system DLLs only".
+  RUSTFLAGS: -C target-feature=+crt-static
+  PYTHONUTF8: "1"
+  # The connector/physics helpers, the LDCad shadow library and the search catalogue are not in
+  # this repository; CI takes them from upstream's published release (tools/ci/fetch_upstream_data.py).
+  UPSTREAM_REPO: levtechs/SuperBrick
+
+# Nothing is run twice for the same inputs. The plan job fingerprints what each suite depends
+# on and skips a suite whose fingerprint already passed: either seeded in
+# .github/windows-ci/green.txt or recorded as a cache marker by the record job after a pass.
+# Run the workflow by hand with "force" to repeat everything.
+#
+#   package    build + binary, CLI/MCP/launcher, installer and single-instance checks
+#   runtime    end to end with the parts library and the release data: connectors, search,
+#              pictures, instructions, studio render, the GUI window, sb setup --python/--library
+#   data-free  Rust tests that need no external data
+#   full       every Rust test with the library and the release data (expected-failures.txt allowed)
+jobs:
+  plan:
+    name: Plan (skip what already passed)
+    runs-on: ubuntu-latest
+    outputs:
+      package: ${{ steps.decide.outputs.package }}
+      runtime: ${{ steps.decide.outputs.runtime }}
+      tests: ${{ steps.decide.outputs.tests }}
+      full: ${{ steps.decide.outputs.full }}
+      fp_src: ${{ steps.fp.outputs.src }}
+      fp_pkg: ${{ steps.fp.outputs.pkg }}
+      fp_run: ${{ steps.fp.outputs.run }}
+      fp_full: ${{ steps.fp.outputs.full }}
+      upstream: ${{ steps.fp.outputs.upstream }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fingerprint the inputs of each suite
+        id: fp
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          upstream=$(gh release view --repo "$UPSTREAM_REPO" --json tagName -q .tagName)
+          # Rust sources, manifests and the Python helpers the tests run. The launcher has no
+          # tests and nothing tested depends on it, so it only counts for the package checks.
+          src=$(git ls-files -s -- Cargo.toml Cargo.lock app cli crates tests ':(exclude)crates/launcher' | sha256sum | cut -c1-16)
+          # The package checks test the release binaries (not the crates' test files), the launcher,
+          # the installers and the CI scripts.
+          bin=$(git ls-files -s -- Cargo.toml Cargo.lock app cli crates tests ':(exclude)crates/launcher' ':(exclude,glob)crates/*/tests/**' | sha256sum | cut -c1-16)
+          pkg=$( { echo "$bin"; git ls-files -s -- crates/launcher tools .github/workflows/windows.yml; } | sha256sum | cut -c1-16)
+          # Runs with release data also depend on which release supplied it.
+          run=$(echo "$pkg $upstream" | sha256sum | cut -c1-16)
+          full=$(echo "$src $upstream" | sha256sum | cut -c1-16)
+          { echo "upstream=$upstream"; echo "src=$src"; echo "pkg=$pkg"; echo "run=$run"; echo "full=$full"; } >> "$GITHUB_OUTPUT"
+          echo "upstream release $upstream; fingerprints: sources $src, package $pkg, runtime $run, full $full"
+
+      - uses: actions/cache/restore@v4
+        id: package
+        with: {path: .ci-marker, key: "windows-green-package-${{ steps.fp.outputs.pkg }}", lookup-only: true}
+
+      - uses: actions/cache/restore@v4
+        id: runtime
+        with: {path: .ci-marker, key: "windows-green-runtime-${{ steps.fp.outputs.run }}", lookup-only: true}
+
+      - uses: actions/cache/restore@v4
+        id: tests
+        with: {path: .ci-marker, key: "windows-green-data-free-${{ steps.fp.outputs.src }}", lookup-only: true}
+
+      - uses: actions/cache/restore@v4
+        id: full
+        with: {path: .ci-marker, key: "windows-green-full-data-${{ steps.fp.outputs.full }}", lookup-only: true}
+
+      - name: Decide
+        id: decide
+        env:
+          FORCE: ${{ inputs.force == true }}
+          HIT_PACKAGE: ${{ steps.package.outputs.cache-hit == 'true' }}
+          HIT_RUNTIME: ${{ steps.runtime.outputs.cache-hit == 'true' }}
+          HIT_TESTS: ${{ steps.tests.outputs.cache-hit == 'true' }}
+          HIT_FULL: ${{ steps.full.outputs.cache-hit == 'true' }}
+          SRC: ${{ steps.fp.outputs.src }}
+          PKG: ${{ steps.fp.outputs.pkg }}
+          RUN: ${{ steps.fp.outputs.run }}
+          FULL: ${{ steps.fp.outputs.full }}
+        run: |
+          seeded() { grep -Eq "^$1 $2( |$)" .github/windows-ci/green.txt; }
+          need() {  # need NAME HIT SUITE FINGERPRINT
+            if [ "$FORCE" = true ]; then echo "$1=true"; echo "run $1: forced" >&2
+            elif [ "$2" = true ] || seeded "$3" "$4"; then echo "$1=false"; echo "skip $1: $3 $4 already passed" >&2
+            else echo "$1=true"; echo "run $1: $3 $4 not proven yet" >&2; fi
+          }
+          {
+            need package "$HIT_PACKAGE" package "$PKG"
+            need runtime "$HIT_RUNTIME" runtime "$RUN"
+            need tests "$HIT_TESTS" data-free "$SRC"
+            need full "$HIT_FULL" full-data "$FULL"
+          } >> "$GITHUB_OUTPUT"
+
+  build-and-check:
+    name: Build, package and runtime checks, data-free tests
+    needs: plan
+    if: needs.plan.outputs.package == 'true' || needs.plan.outputs.runtime == 'true' || needs.plan.outputs.tests == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 120
+    # Each suite's own verdict, so a failure in one does not stop the others' passes being recorded.
+    outputs:
+      package: ${{ steps.build.outcome == 'success' && steps.binaries.outcome == 'success' && steps.smoke.outcome == 'success' && steps.install.outcome == 'success' && steps.unit.outcome == 'success' && steps.instance.outcome == 'success' }}
+      runtime: ${{ steps.build.outcome == 'success' && steps.runtime.outcome == 'success' }}
+      tests: ${{ steps.datafree.outcome == 'success' }}
+    env:
+      BUILD: ${{ needs.plan.outputs.package == 'true' || needs.plan.outputs.runtime == 'true' }}
+      PACKAGE: ${{ needs.plan.outputs.package }}
+      RUNTIME: ${{ needs.plan.outputs.runtime }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-msvc
+          cache-on-failure: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Python packages the helpers import
+        run: python -m pip install --disable-pip-version-check numpy pillow scipy
+
+      # cl.exe and dumpbin.exe for studio_rays.dll and the binary checks.
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Build release binaries (sb.exe, sb-dev.exe, SuperBrick.exe)
+        id: build
+        if: env.BUILD == 'true'
+        run: cargo build --release --locked -p cad-app -p cad-cli -p superbrick-launcher
+
+      # Test targets that need no external data; they run before the data step below sets
+      # SB_LDRAW_ZIP. The full suite runs in the full-tests job.
+      - name: Rust tests that need no external data
+        id: datafree
+        if: needs.plan.outputs.tests == 'true'
+        # A failure here must not skip the package and runtime checks; the last step fails the job.
+        continue-on-error: true
+        shell: cmd  # not bash: Git Bash's /usr/bin/link shadows MSVC's link.exe
+        # render's service tests are not here: they skip without a GPU but need the parts library
+        # when there is one (WARP on the runners); the full suite runs them with the library.
+        run: |
+          cargo test --locked -p ldraw -p cad-cli -p physics || exit /b 1
+          cargo test --locked -p engine -p store -p render --lib || exit /b 1
+          rem The connector backend's transport (Python helper, pipe, UTF-8) with stand-in helpers.
+          cargo test --locked -p engine --test connectors_stand_in || exit /b 1
+
+      - name: Binary checks (subsystem, icon, system DLLs only, studio_rays.dll exports)
+        id: binaries
+        if: env.PACKAGE == 'true'
+        run: python tools/ci/windows_checks.py binaries target/release
+
+      - name: CLI, MCP and launcher smoke test
+        id: smoke
+        if: env.PACKAGE == 'true'
+        run: python tools/ci/windows_checks.py smoke target/release
+
+      - name: Installer round trip (install.ps1 and install.py, update while running, uninstall)
+        id: install
+        if: env.PACKAGE == 'true'
+        run: python tools/ci/windows_checks.py install target/release
+
+      - name: Installer unit tests and Python helpers compile
+        id: unit
+        if: env.PACKAGE == 'true'
+        run: |
+          python tools/test_install_windows.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -m py_compile app/src/publication.py crates/engine/src/connectors.py app/src/cad_contact_policy.py app/src/cad_snap_rules.py tools/install.py tools/release.py tools/windows/winsetup.py
+
+      - name: Single instance hand-over
+        id: instance
+        if: env.PACKAGE == 'true'
+        run: python tools/ci/windows_checks.py instance target/release
+
+      - name: Release data and parts library
+        if: env.RUNTIME == 'true'
+        uses: ./.github/actions/windows-data
+        with:
+          upstream: ${{ needs.plan.outputs.upstream }}
+          share: target/share/superbrick
+
+      - name: End to end with data (connectors, search, pictures, instructions, studio, GUI, downloads)
+        id: runtime
+        if: env.RUNTIME == 'true'
+        run: python tools/ci/windows_checks.py runtime target/release
+
+      - name: Upload runtime output (renders, GUI screenshots, logs)
+        if: always() && env.RUNTIME == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-runtime-output
+          path: target/runtime-output
+          if-no-files-found: ignore
+
+      - name: Upload Windows binaries
+        if: env.BUILD == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: superbrick-windows-x64
+          path: |
+            target/release/sb.exe
+            target/release/sb-dev.exe
+            target/release/SuperBrick.exe
+          if-no-files-found: error
+
+      - name: Fail if the data-free tests failed
+        if: always() && steps.datafree.outcome == 'failure'
+        run: exit 1
+
+  full-tests:
+    name: Full test suite with the release data (expected failures allowed)
+    needs: plan
+    if: needs.plan.outputs.full == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-msvc-tests
+          cache-on-failure: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Python packages the helpers import
+        run: python -m pip install --disable-pip-version-check numpy pillow scipy
+
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Release data and parts library
+        uses: ./.github/actions/windows-data
+        with:
+          upstream: ${{ needs.plan.outputs.upstream }}
+          share: target/share/superbrick
+
+      # cmd, not bash: in Git Bash, /usr/bin/link shadows MSVC's link.exe. Failures are judged
+      # by the next step against the expected list.
+      - name: Run every test
+        shell: cmd
+        env:
+          SB_SEARCH_DATA: ${{ github.workspace }}\target\share\superbrick\search
+        run: |
+          cargo test --locked --workspace --no-fail-fast > test-output.txt 2>&1
+          type test-output.txt
+          exit /b 0
+
+      - name: Compare with the expected failures
+        run: python tools/ci/compare_tests.py test-output.txt .github/windows-ci/expected-failures.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: full-test-output
+          path: test-output.txt
+
+  record:
+    name: Record passes (so they are not run again)
+    needs: [plan, build-and-check, full-tests]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "passed" > .ci-marker
+
+      - if: needs.plan.outputs.package == 'true' && needs.build-and-check.outputs.package == 'true'
+        uses: actions/cache/save@v4
+        with: {path: .ci-marker, key: "windows-green-package-${{ needs.plan.outputs.fp_pkg }}"}
+
+      - if: needs.plan.outputs.runtime == 'true' && needs.build-and-check.outputs.runtime == 'true'
+        uses: actions/cache/save@v4
+        with: {path: .ci-marker, key: "windows-green-runtime-${{ needs.plan.outputs.fp_run }}"}
+
+      - if: needs.plan.outputs.tests == 'true' && needs.build-and-check.outputs.tests == 'true'
+        uses: actions/cache/save@v4
+        with: {path: .ci-marker, key: "windows-green-data-free-${{ needs.plan.outputs.fp_src }}"}
+
+      - if: needs.plan.outputs.full == 'true' && needs.full-tests.result == 'success'
+        uses: actions/cache/save@v4
+        with: {path: .ci-marker, key: "windows-green-full-data-${{ needs.plan.outputs.fp_full }}"}

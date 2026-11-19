@@ -1,0 +1,6 @@
+# Fingerprints whose Windows results are already proven, so CI does not run them again.
+# Format: <suite> <fingerprint> <evidence>. New passes are recorded automatically as cache
+# markers; this file only seeds results that ran before the markers existed.
+#   data-free: the tests that need no external data (fingerprint of Cargo files, app, cli, crates except the launcher, tests)
+#   (package, full-data and runtime results are recorded as cache markers once they pass)
+data-free 38bc7483383662a8 job 135128746949 (all of these targets passed inside the full suite)

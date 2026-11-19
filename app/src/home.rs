@@ -172,10 +172,19 @@ fn ago(secs: u64) -> String {
 
 fn tilde(path: &Path) -> String {
     let s = path.display().to_string();
-    match std::env::var("HOME") {
-        Ok(h) if !h.is_empty() && s.starts_with(&h) => format!("~{}", &s[h.len()..]),
-        _ => s,
+    let h = ldraw::platform::home_dir().display().to_string();
+    if h.is_empty() {
+        return s;
     }
+    let matches = if cfg!(windows) {
+        s.get(..h.len()).is_some_and(|p| p.eq_ignore_ascii_case(&h))
+    } else {
+        s.starts_with(&h)
+    };
+    // Only at a folder boundary: home `/Users/bob` must not shorten `/Users/bobby/x`.
+    let rest = s.get(h.len()..).unwrap_or("");
+    let boundary = rest.is_empty() || rest.starts_with('/') || (cfg!(windows) && rest.starts_with('\\'));
+    if matches && boundary { format!("~{rest}") } else { s }
 }
 
 /// The start page. `current` names the model that is open behind it, if any.
@@ -280,8 +289,8 @@ fn recent_card(ui: &mut egui::Ui, home: &mut Home, r: &Recent, size: Vec2) -> Op
         action = Some(Action::OpenPath(r.path.clone()));
     }
     resp.context_menu(|ui| {
-        if ui.button("Show in Finder").clicked() {
-            let _ = std::process::Command::new("open").arg("-R").arg(&r.path).spawn();
+        if ui.button(format!("Show in {}", ldraw::platform::file_manager_name())).clicked() {
+            let _ = ldraw::platform::reveal_path(&r.path);
             ui.close();
         }
         if ui.button("Remove from list").clicked() {

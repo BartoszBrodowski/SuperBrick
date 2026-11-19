@@ -6,6 +6,8 @@ For what the app does, see [FEATURES.md](FEATURES.md); to just use it,
 
 ## Build from source
 
+**macOS**
+
 ```sh
 python3 tools/install.py --app     # builds release, installs SuperBrick.app and the `sb` command
 python3 tools/release.py           # builds the downloadable dist/SuperBrick-VERSION-macOS-arm64.dmg
@@ -23,6 +25,35 @@ sb my-build.sb              # open a project
 sb my-build.sb export -o my-build.ldr
 ```
 
+**Windows** (PowerShell)
+
+```powershell
+py tools\install.py               # builds release, installs sb.exe, SuperBrick.exe and the share files
+py tools\release.py               # builds dist\SuperBrick-VERSION-Windows-x64.zip (with install.ps1)
+```
+
+The installer puts `sb.exe` on your user PATH, adds a Start Menu shortcut and registers the file
+types (see [Where files live](#where-files-live)). Open a new terminal afterwards, then:
+
+```powershell
+sb                          # start page
+sb model.ldr                # open plain LDraw
+sb --new my-build           # create my-build.sb
+sb my-build.sb              # open a project
+sb my-build.sb export -o my-build.ldr
+```
+
+`sb.exe` is a console program: use it for the command line and the MCP server. It also opens the
+GUI, from a terminal. `SuperBrick.exe` is a small launcher with no console window that starts
+`sb.exe` next to it with the same arguments; shortcuts and file associations use it.
+
+**Requirements to build (Windows):** Rust stable with the MSVC toolchain
+(`x86_64-pc-windows-msvc`); Visual Studio Build Tools with the **Desktop development with C++**
+workload, which provides `cl` (needed for `studio_rays.dll`, see
+[BUILD-STUDIO-RAYS.md](BUILD-STUDIO-RAYS.md), and for native crates); Python 3 with `numpy` and
+`Pillow`; plus the same search data and sibling folders as below. Run the installer from a
+Developer PowerShell so `cl` is on PATH.
+
 **Requirements to build:** Rust (stable), an LDraw parts library (LeoCAD's, `SB_LDRAW_ZIP`, or
 `sb setup --library`), Python 3 with `numpy` and `Pillow` (`SB_PYTHON` picks the interpreter, or
 `sb setup --python`), and the data the installer copies:
@@ -31,6 +62,8 @@ the part-search catalogue and models in `spikes/search/{out,models}` (not in git
 `../data-next` folders (connector shadow library).
 
 ## Where files live
+
+**macOS**
 
 | Path | What |
 |---|---|
@@ -42,9 +75,58 @@ the part-search catalogue and models in `spikes/search/{out,models}` (not in git
 | `~/Library/Caches/cad/publications/` | generated instructions and studio renders |
 | your `.sb` files | everything about a project: model, history, drafts, selections, assets. Keep them out of iCloud Drive and other syncing folders while open; syncing a live SQLite file can corrupt it. |
 
+**Windows**
+
+| Path | What |
+|---|---|
+| `%LOCALAPPDATA%\Programs\SuperBrick\bin\` | `sb.exe`, `sb-dev.exe` and `SuperBrick.exe`; this folder is on your user PATH |
+| `%LOCALAPPDATA%\Programs\SuperBrick\share\superbrick\` | search catalogue, connector helpers and `studio_rays.dll` |
+| `%APPDATA%\SuperBrick\` | downloaded LDraw library (`ldraw\complete.zip`), the app's own Python (`python\`), preferences (`prefs.json`) and crash recovery (`recovery\`) |
+| `%LOCALAPPDATA%\SuperBrick\Cache\` | generated instructions and studio renders (`publications\`), helper scripts (`helpers\`) and the bench cache |
+| Start Menu → SuperBrick | shortcut to `SuperBrick.exe` |
+| `.sb` files | SuperBrick owns the `.sb` type, so double-clicking a project opens it; it is also offered under **Open with** for `.ldr` and `.mpd`. |
+| your `.sb` files | everything about a project, as on macOS. Keep them out of OneDrive-synced folders and other syncing folders while open; syncing a live SQLite file can corrupt it. |
+
+Double-clicking a `.sb` file while SuperBrick is already open sends it to the running window
+instead of starting a second one.
+
 Environment overrides: `SB_LDRAW_ZIP` (or `BENCH_LDRAW_ZIP`) for the parts library,
 `SB_PYTHON` for the Python interpreter, `CAD_SEARCH_DATA` for search assets and
-`CAD_PUBLICATION_CACHE` for the publication cache.
+`CAD_PUBLICATION_CACHE` for the publication cache. They work the same on Windows; in PowerShell,
+for example, `$env:SB_PYTHON = "C:\Python312\python.exe"` (this session only).
+
+### Python on Windows
+
+SuperBrick looks for a Python that can import `numpy` and `Pillow`, in this order:
+
+1. `SB_PYTHON`
+2. the copy SuperBrick installed itself (`%APPDATA%\SuperBrick\python\python.exe`)
+3. whatever `py -3` launches
+4. python.org installs under `%LOCALAPPDATA%\Programs\Python\Python3*` (newest first)
+5. conda and miniforge in your home folder (`miniforge3`, `miniconda3`, `anaconda3`)
+6. scoop (`%USERPROFILE%\scoop\shims\python.exe`)
+7. `python.exe` on PATH
+
+The Microsoft Store `python.exe` alias (anything under `WindowsApps`) is a stub and is ignored.
+If none is usable, `sb setup --python` or the app's setup screen downloads and installs its own copy
+under `%APPDATA%\SuperBrick\python`.
+
+### Parts library on Windows
+
+SuperBrick uses `SB_LDRAW_ZIP` if set, else the copy it downloaded
+(`%APPDATA%\SuperBrick\ldraw\complete.zip`; `sb setup --library` or the setup screen fetches
+it), else LeoCAD's `C:\Program Files\LeoCAD\library.bin` (also checked under
+`Program Files (x86)`).
+
+### Windows support is new
+
+The Windows port is new. Known limitations:
+
+- No MCP hot reload on Windows. After reinstalling, restart the `sb mcp` server (for Claude
+  Code, restart the session or reconnect the server).
+- The installer is a zip plus a PowerShell script (`install.ps1`); there is no MSI yet.
+- The build is not code-signed, so SmartScreen warns on first run (**More info → Run anyway**).
+- x64 only. Windows on Arm is not built.
 
 ## Working with agents
 
@@ -60,7 +142,11 @@ sb my-build.sb --user claude edit '{"ops":[{"op":"place","from":"c1","pick":1}]}
 sb mcp --user claude                                  # the same tools as an MCP server (stdio)
 ```
 
-`.mcp.json` registers the MCP server for Claude Code. Details are in
+`.mcp.json` registers the MCP server for Claude Code. On Windows the same commands work from
+PowerShell; to register the server for Claude Code, run `sb mcp --user claude` through your
+client's MCP setup (for example `claude mcp add superbrick -- sb mcp --user claude`); `sb.exe` is
+on PATH after install. There is no hot reload on Windows: restart the MCP server after
+reinstalling. Details are in
 [Projects (.sb) and agents](#projects-sb-and-agents) below.
 
 ## Layout
@@ -133,7 +219,7 @@ The output directory must be new. Progress goes to stderr and the final result i
 
 Planning uses part-local frames for tilted stud assemblies, recursively splits trapped connected sections into independently buildable subbuilds, and checks their joining operation. Withdrawal starts from a nearby checked clear staging pose rather than unnecessarily travelling through the entire model to infinity. Clip/socket frame directions are considered in addition to joint axes. Independent connection components are documented separately, not falsely joined.
 
-Open **Panels → Instructions** or **Panels → Studio preview** (also `sb model.ldr --instructions` / `--studio`). **Generate…** now displays results directly in the app, without asking for a folder. Instructions have Previous/Next, a page slider, new-parts tray, colour/quantity labels and the action description. Studio images appear as each angle finishes. **Export / save a copy…** is optional and copies HTML/PNGs/plan into a fresh folder, excluding the private input snapshot/log. Internal results live in `~/Library/Caches/cad/publications` (`CAD_PUBLICATION_CACHE` override). Jobs never change the model and run in an independently cancellable process. Outputs are stamped to the snapshot and marked outdated after edits. Python needs NumPy and Pillow; installation includes the offline helpers and compiles a multithreaded native ray-query accelerator using clang++.
+Open **Panels → Instructions** or **Panels → Studio preview** (also `sb model.ldr --instructions` / `--studio`). **Generate…** now displays results directly in the app, without asking for a folder. Instructions have Previous/Next, a page slider, new-parts tray, colour/quantity labels and the action description. Studio images appear as each angle finishes. **Export / save a copy…** is optional and copies HTML/PNGs/plan into a fresh folder, excluding the private input snapshot/log. Internal results live in `~/Library/Caches/cad/publications` (`%LOCALAPPDATA%\SuperBrick\Cache\publications` on Windows) (`CAD_PUBLICATION_CACHE` override). Jobs never change the model and run in an independently cancellable process. Outputs are stamped to the snapshot and marked outdated after edits. Python needs NumPy and Pillow; installation includes the offline helpers and compiles a multithreaded native ray-query accelerator using clang++ (MSVC `cl` on Windows; see [BUILD-STUDIO-RAYS.md](BUILD-STUDIO-RAYS.md)).
 
 **Instructions:** connector-aware partitioning groups stud stacks in their own frame and treats side studs / articulated joints as candidate subbuild boundaries. Reverse disassembly checks sampled straight-line insertion paths against actual neighbouring geometry; obstructing groups are repartitioned where possible. Nearby/touching additions are preferred when valid, and later additions are moved into detached subbuild construction only after rechecking the larger join and affected paths. Independent repeated additions can share one quantity step while preserving their checked order; stacked additions do not merge. Single-piece subbuild setup pages collapse into normal attachment steps.
 
@@ -173,6 +259,13 @@ Quote paths containing spaces. The installed command is the GUI, not the develop
 The LeoCAD LDraw library is still required (or set `BENCH_LDRAW_ZIP` to your library archive).
 To rebuild/update your installed command, rerun `python3 tools/install.py --force`.
 `--prefix PATH` installs under a different prefix with the same `bin`/`share` layout.
+
+**Windows:** run `py tools\install.py` (it also updates an existing install). To remove
+SuperBrick, run `py tools\install.py --uninstall`, or `install.ps1 -Uninstall` from a release
+zip. It removes the program files, the PATH entry, the Start
+Menu shortcut and the file associations; your projects and the data in `%APPDATA%\SuperBrick`
+are kept. Reinstalling while SuperBrick runs is fine: the installer moves the running `sb.exe`
+aside first.
 
 ### Development
 
@@ -278,7 +371,7 @@ edits affect every instance. Saving writes MPD sections. Saves are atomic and re
 externally changed source; use Save As/reopen to resolve that situation.
 
 Dirty builds get **recovery autosaves every 15 seconds**, under
-`~/Library/Application Support/SuperBrick/recovery` (override `SB_RECOVERY_DIR`; `CAD_*` variables still work). These never overwrite your
+`~/Library/Application Support/SuperBrick/recovery` (`%APPDATA%\SuperBrick\recovery` on Windows; override `SB_RECOVERY_DIR`; `CAD_*` variables still work). These never overwrite your
 original or mark it saved. Use **Recover…** to open a recovery copy, then Save As. The last interval
 can still be lost on a crash; save normally before closing.
 

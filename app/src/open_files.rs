@@ -22,6 +22,7 @@ pub fn set_context(ctx: &egui::Context) {
     let _ = WAKE.set(ctx.clone());
 }
 
+#[cfg_attr(not(any(target_os = "macos", windows)), allow(dead_code))]
 fn push(paths: Vec<PathBuf>) {
     if paths.is_empty() {
         return;
@@ -32,6 +33,16 @@ fn push(paths: Vec<PathBuf>) {
     }
 }
 
+/// Windows: a second launch forwards its file here; open it and bring the window forward.
+#[cfg(windows)]
+fn on_forwarded(paths: Vec<PathBuf>) {
+    push(paths);
+    if let Some(ctx) = WAKE.get() {
+        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+    }
+}
+
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 /// Turns a `file://` URL into a path (percent-decoding, optional `localhost` host).
 fn url_to_path(url: &str) -> Option<PathBuf> {
     let rest = url.strip_prefix("file://")?;
@@ -189,6 +200,8 @@ mod mac {
 pub fn install() {
     #[cfg(target_os = "macos")]
     mac::install();
+    #[cfg(windows)]
+    ldraw::single_instance::serve(on_forwarded);
 }
 
 /// Call once the app is up (keeps the handler ours for later open requests).

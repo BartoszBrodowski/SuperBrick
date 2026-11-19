@@ -36,11 +36,11 @@ fn sb_binary() -> PathBuf {
         return PathBuf::from(p);
     }
     if let Ok(me) = std::env::current_exe() {
-        if me.file_name().is_some_and(|n| n == "sb") {
+        if me.file_stem().is_some_and(|n| n == "sb") {
             return me;
         }
     }
-    PathBuf::from("sb")
+    PathBuf::from(ldraw::platform::exe_name("sb"))
 }
 
 fn jobs_dir(s: &Session) -> PathBuf {
@@ -64,11 +64,8 @@ fn alive(pid: u64) -> bool {
             };
         }
     }
-    Command::new("kill")
-        .args(["-0", &pid.to_string()])
-        .stderr(Stdio::null())
-        .status()
-        .is_ok_and(|s| s.success())
+    // A pid that cannot be checked (no `kill`) counts as gone, so old jobs still resolve.
+    u32::try_from(pid).is_ok_and(|pid| ldraw::platform::pid_probe(pid).unwrap_or(false))
 }
 
 pub fn run(s: &mut Session, args: &Value) -> Result<Reply, String> {
@@ -121,6 +118,7 @@ pub fn run(s: &mut Session, args: &Value) -> Result<Reply, String> {
     if args.get("plan_only").and_then(Value::as_bool) == Some(true) {
         cmd.arg("--plan-only");
     }
+    ldraw::platform::no_window(&mut cmd);
     let child = cmd
         .stdin(Stdio::null())
         .stdout(log_file.try_clone().map_err(|e| e.to_string())?)

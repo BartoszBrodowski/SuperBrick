@@ -122,6 +122,17 @@ fn main() -> eframe::Result {
     }
     let started = Instant::now();
     let args = parse_args();
+    // Windows: opening a file from Explorer or a shortcut while SuperBrick runs hands it to that
+    // window instead of starting another (macOS does the same through Apple events). Those
+    // launches go through SuperBrick.exe, which sets SB_SHELL_LAUNCH; `sb FILE` typed in a
+    // terminal opens a new window, as on macOS. Headless runs never forward.
+    if let Some(file) = &args.file {
+        let headless = args.bench.is_some() || args.shot.is_some() || args.window_shot.is_some();
+        let shell = std::env::var_os("SB_SHELL_LAUNCH").is_some_and(|v| v == "1");
+        if cfg!(windows) && shell && !headless && ldraw::single_instance::forward(std::slice::from_ref(file)) {
+            return Ok(());
+        }
+    }
     let mut viewport = egui::ViewportBuilder::default();
     if let Some(icon) = brand::icon() {
         viewport = viewport.with_icon(icon);

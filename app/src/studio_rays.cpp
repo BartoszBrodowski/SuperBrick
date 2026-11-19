@@ -43,10 +43,15 @@ struct Scene {
   }return total;
  }
 };
+#if defined(_WIN32)
+#define CAD_EXPORT __declspec(dllexport)
+#else
+#define CAD_EXPORT __attribute__((visibility("default")))
+#endif
 extern "C" {
 // Orthographic z-buffer: retain only visible fragments, not the enormous
 // Python arrays of every overlapping triangle's bounding-box candidates.
-void cad_rasterize(const double*p,int count,int width,int height,double*depth,long long*ids){
+CAD_EXPORT void cad_rasterize(const double*p,int count,int width,int height,double*depth,long long*ids){
  struct Screen {double ax,ay,az,bx,by,bz,cx,cy,cz,area;int x0,x1,y0,y1,id;};
  std::vector<Screen> tris;tris.reserve(count);
  for(int i=0;i<count;i++){
@@ -72,19 +77,19 @@ void cad_rasterize(const double*p,int count,int width,int height,double*depth,lo
  unsigned threads=std::min(8u,std::max(1u,std::thread::hardware_concurrency()));std::vector<std::thread>pool;
  for(unsigned i=1;i<threads;i++)pool.emplace_back(work);work();for(auto&t:pool)t.join();
 }
-void* cad_rays_build(const double* p,int count){try{if(count<1)return nullptr;auto*s=new Scene;s->tris.reserve(count);for(int i=0;i<count;i++){
+CAD_EXPORT void* cad_rays_build(const double* p,int count){try{if(count<1)return nullptr;auto*s=new Scene;s->tris.reserve(count);for(int i=0;i<count;i++){
  V a{p[9*i],p[9*i+1],p[9*i+2]},b{p[9*i+3],p[9*i+4],p[9*i+5]},c{p[9*i+6],p[9*i+7],p[9*i+8]};
  s->tris.push_back({a,sub(b,a),sub(c,a),{std::min({a.x,b.x,c.x}),std::min({a.y,b.y,c.y}),std::min({a.z,b.z,c.z})},{std::max({a.x,b.x,c.x}),std::max({a.y,b.y,c.y}),std::max({a.z,b.z,c.z})},{(a.x+b.x+c.x)/3,(a.y+b.y+c.y)/3,(a.z+b.z+c.z)/3}});s->ids.push_back(i);
  }s->nodes.reserve(count*2);s->build(0,count);return s;}catch(...){return nullptr;}}
-void cad_rays_free(void* s){delete static_cast<Scene*>(s);}
-void cad_rays_inside(void* ptr,const double*points,int count,const double*directions,int rays,unsigned char*inside){
+CAD_EXPORT void cad_rays_free(void* s){delete static_cast<Scene*>(s);}
+CAD_EXPORT void cad_rays_inside(void* ptr,const double*points,int count,const double*directions,int rays,unsigned char*inside){
  auto*s=static_cast<Scene*>(ptr);for(int i=0;i<count;i++){
   V p{points[i*3],points[i*3+1],points[i*3+2]};int votes=0;
   for(int j=0;j<rays;j++)votes+=s->crossings(0,p,{directions[j*3],directions[j*3+1],directions[j*3+2]})%2;
   inside[i]=votes>rays/2;
  }
 }
-void cad_rays_cast(void* ptr,const double*o,const double*d,int count,double*best,long long*hit){
+CAD_EXPORT void cad_rays_cast(void* ptr,const double*o,const double*d,int count,double*best,long long*hit){
  auto*s=static_cast<Scene*>(ptr);std::atomic<int> next{0};auto work=[&](){for(;;){int start=next.fetch_add(256);if(start>=count)return;for(int i=start;i<std::min(start+256,count);i++){hit[i]=-1;s->ray(0,{o[i*3],o[i*3+1],o[i*3+2]},{d[i*3],d[i*3+1],d[i*3+2]},best[i],hit[i]);}}};
  unsigned threads=std::min(8u,std::max(1u,std::thread::hardware_concurrency()));if(count<2048)threads=1;std::vector<std::thread>pool;for(unsigned i=1;i<threads;i++)pool.emplace_back(work);work();for(auto&t:pool)t.join();
 }

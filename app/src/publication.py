@@ -7,6 +7,21 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 
+def native_library(path):
+    """Load the native ray library; on Windows make its folder searchable for dependent DLLs."""
+    if sys.platform=='win32':
+        folder=str(Path(path).resolve().parent)
+        if hasattr(os,'add_dll_directory'):
+            try:os.add_dll_directory(folder)
+            except OSError:pass
+        return ctypes.CDLL(str(path),winmode=0)
+    return ctypes.CDLL(path)
+
+
+def library_name():
+    return 'studio_rays.dll' if sys.platform=='win32' else 'studio_rays.dylib' if sys.platform=='darwin' else 'studio_rays.so'
+
+
 def progress(text):
     print(json.dumps({"progress": text}), flush=True)
 
@@ -23,7 +38,7 @@ class Rays:
         self.native=None;self.native_scene=None
         path=os.environ.get('CAD_RAY_LIBRARY')
         if path and Path(path).is_file():
-            dll=ctypes.CDLL(path);ptr=ctypes.POINTER(ctypes.c_double)
+            dll=native_library(path);ptr=ctypes.POINTER(ctypes.c_double)
             dll.cad_rays_build.argtypes=[ptr,ctypes.c_int];dll.cad_rays_build.restype=ctypes.c_void_p
             dll.cad_rays_cast.argtypes=[ctypes.c_void_p,ptr,ptr,ctypes.c_int,ptr,ctypes.POINTER(ctypes.c_longlong)]
             dll.cad_rays_free.argtypes=[ctypes.c_void_p]
@@ -815,7 +830,7 @@ def configure_render(high_quality=False):
     render._cad_high_quality=high_quality
     path=os.environ.get('CAD_RAY_LIBRARY','')
     if not Path(path).is_file():return False
-    dll=ctypes.CDLL(path)
+    dll=native_library(path)
     if not hasattr(dll,'cad_rasterize'):return False
     double=ctypes.POINTER(ctypes.c_double);integer=ctypes.POINTER(ctypes.c_longlong)
     dll.cad_rasterize.argtypes=[double,ctypes.c_int,ctypes.c_int,ctypes.c_int,double,integer]
@@ -1003,7 +1018,7 @@ def instructions(refs,lib,out,size,plan_only=False):
         steps=share_repeated_subbuilds(steps,refs,lib)
     (out/'plan.json').write_text(json.dumps(dict(steps=steps,issues=issues,warnings=warnings,groups=groups,
         final_pose_check_passed=bool(groups),assembly_path_found=not issues,
-        checks='Full final-pose relation; 4 LDU sampled straight withdrawal/insertion. No continuous swept-volume, hand access, gravity/stability or flexible hinge-path proof.'),indent=2))
+        checks='Full final-pose relation; 4 LDU sampled straight withdrawal/insertion. No continuous swept-volume, hand access, gravity/stability or flexible hinge-path proof.'),indent=2),encoding='utf-8')
     if issues:
         stage='Final-pose legality check failed. ' if not groups else 'Final-pose geometry checks passed, but the planner could not establish a buildable sequence. '
         raise ValueError(stage+'; '.join(issues[:6])+' See plan.json. Nothing has been labelled verified.')
@@ -1277,17 +1292,20 @@ def render_instructions(refs,lib,out,size,steps,groups,warnings):
         turn='<span class="turn">↻ Turn the model</span>' if turned else ''
         note=(f'<p class="angle">Subbuild tilt: {tilt:.0f}°</p>' if tilt is not None and tilt>.5 else '')+('<p>Placement needs a closer view — review this step.</p>' if visibility<.15 else '')+('<p>Set aside — connection not confirmed in the saved model.</p>' if loose else '')
         pages.append(f'<section><header><h1>{index}</h1>{badge}<small>{title}</small>{turn}</header><aside><img src="{trayname}"><b>{labels}</b></aside><img class="assembly" src="{name}">{note}</section>')
-    (out/'instructions.html').write_text('<!doctype html><meta charset="utf-8"><title>CAD build instructions</title><style>body{font:18px system-ui;background:#eee;margin:0}section{box-sizing:border-box;background:white;max-width:950px;min-height:100vh;margin:20px auto;padding:32px;break-after:page}header{display:flex;align-items:center;gap:24px}.times{font-size:30px;font-weight:700;color:white;background:#d22;border-radius:10px;padding:2px 14px}h1{font-size:58px;margin:0}small{color:#555}.turn{margin-left:auto}h2{font-size:23px}section>img{width:100%;max-height:72vh;object-fit:contain}aside{display:inline-flex;align-items:center;gap:24px;padding:8px 24px 8px 8px;background:#e3f0fa;border:1px solid #a5bdd0;border-radius:12px;margin-top:16px}aside img{width:140px}p{line-height:1.5}@media print{body{background:white}section{margin:0;min-height:0;height:98vh;padding:15mm}}</style>'+''.join(pages))
+    (out/'instructions.html').write_text('<!doctype html><meta charset="utf-8"><title>CAD build instructions</title><style>body{font:18px system-ui;background:#eee;margin:0}section{box-sizing:border-box;background:white;max-width:950px;min-height:100vh;margin:20px auto;padding:32px;break-after:page}header{display:flex;align-items:center;gap:24px}.times{font-size:30px;font-weight:700;color:white;background:#d22;border-radius:10px;padding:2px 14px}h1{font-size:58px;margin:0}small{color:#555}.turn{margin-left:auto}h2{font-size:23px}section>img{width:100%;max-height:72vh;object-fit:contain}aside{display:inline-flex;align-items:center;gap:24px;padding:8px 24px 8px 8px;background:#e3f0fa;border:1px solid #a5bdd0;border-radius:12px;margin-top:16px}aside img{width:140px}p{line-height:1.5}@media print{body{background:white}section{margin:0;min-height:0;height:98vh;padding:15mm}}</style>'+''.join(pages),encoding='utf-8')
     return dict(images=['cover.png'],document='instructions.html',pages=page_info,steps=len(steps),groups=len(groups),warnings=warnings,status='Draft generated after final-pose and sampled insertion checks. Review access/stability; sampled checks are not a continuous physical proof.')
 
 
 def main():
+    for stream in (sys.stdin,sys.stdout):
+        try:stream.reconfigure(encoding='utf-8')
+        except (AttributeError,ValueError):pass
     job=json.load(sys.stdin);out=Path(job['out'])
     sys.path.insert(0,job['bench'])
     sys.path.insert(0,str(Path(job['bench']).parent/'cad/app/src'))
     import os
     os.environ.setdefault('BENCH_SHADOW',job['shadow'])
-    os.environ.setdefault('CAD_RAY_LIBRARY',str(Path(job['bench']).parent/'studio_rays.dylib'))
+    os.environ.setdefault('CAD_RAY_LIBRARY',str(Path(job['bench']).parent/library_name()))
     import ldraw,snaps,physics
     # Same five-ray, same-tolerance triangle parity test as the oracle, using
     # cached native BVHs instead of allocating point-by-triangle tensors.

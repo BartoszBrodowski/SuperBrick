@@ -122,7 +122,11 @@ impl Setup {
     fn relaunch(&mut self, ctx: &egui::Context) {
         let mut argv = self.argv.clone();
         argv.extend(crate::open_files::take().iter().map(|p| p.display().to_string()));
-        match std::env::current_exe().and_then(|exe| std::process::Command::new(exe).args(&argv).spawn()) {
+        // The restarted app must open the file itself: with SB_SHELL_LAUNCH it would hand the file
+        // to this setup window (which owns the single-instance pipe) just as it closes.
+        match std::env::current_exe()
+            .and_then(|exe| std::process::Command::new(exe).args(&argv).env_remove("SB_SHELL_LAUNCH").spawn())
+        {
             Ok(_) => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
             Err(e) => self.error = Some(format!("could not restart SuperBrick: {e}")),
         }
@@ -270,9 +274,20 @@ impl PythonOffer {
                     }
                     return;
                 }
-                ui.label("Connect, Hinge, instruction booklets and studio renders run small Python helpers that need NumPy and Pillow. No such Python was found on this Mac.");
+                ui.label(if cfg!(target_os = "macos") {
+                    "Connect, Hinge, instruction booklets and studio renders run small Python helpers that need NumPy and Pillow. No such Python was found on this Mac."
+                } else {
+                    "Connect, Hinge, instruction booklets and studio renders run small Python helpers that need NumPy and Pillow. No such Python was found on this computer."
+                });
                 ui.add_space(6.0);
-                ui.label("SuperBrick can install its own copy into Application Support (about 50 MB to download, 220 MB on disk, a minute or two). Nothing else on your Mac changes.");
+                ui.label(if cfg!(target_os = "macos") {
+                    "SuperBrick can install its own copy into Application Support (about 50 MB to download, 220 MB on disk, a minute or two). Nothing else on your Mac changes.".to_string()
+                } else {
+                    format!(
+                        "SuperBrick can install its own copy into {} (about 50 MB to download, 220 MB on disk, a minute or two). Nothing else on your computer changes.",
+                        ldraw::runtime::support_dir().display()
+                    )
+                });
                 ui.add_space(10.0);
                 ui.horizontal(|ui| {
                     if ui.button("Install Python components").clicked() {

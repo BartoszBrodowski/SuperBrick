@@ -948,7 +948,7 @@ pub fn history(st: &mut State, ui: &mut egui::Ui) {
         return;
     };
     ui.horizontal(|ui| {
-        if ui.button("Save version").on_hover_text("Write a named version now (⌘S)").clicked() {
+        if ui.button("Save version").on_hover_text(if cfg!(target_os = "macos") { "Write a named version now (⌘S)" } else { "Write a named version now (Ctrl+S)" }).clicked() {
             link.publish(&st.snapshot);
             link.commit("save", "saved");
         }

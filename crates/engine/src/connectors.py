@@ -5,6 +5,9 @@ are edited. All writes remain native engine transactions.
 """
 import json, os, sys, traceback
 from pathlib import Path
+for _s in (sys.stdin, sys.stdout):  # JSON exchanged with Rust is UTF-8, not the locale encoding
+    if hasattr(_s, 'reconfigure'):
+        _s.reconfigure(encoding='utf-8')
 sys.path.insert(0, sys.argv[1])
 if not os.environ.get('BENCH_SHADOW') and Path(sys.argv[2]).is_dir():
     os.environ['BENCH_SHADOW'] = sys.argv[2]
@@ -488,8 +491,9 @@ for line in sys.stdin:
     try: reply=dict(result=run(json.loads(line)))
     except Exception as e: reply=dict(error=f'{type(e).__name__}: {e}')
     try: print(json.dumps(reply),flush=True)
-    except (BrokenPipeError,ConnectionResetError):
-        # Native parent quit/terminated: don't report over the broken pipe.
+    except OSError:
+        # Native parent quit/terminated: don't report over the broken pipe. (Unix raises
+        # BrokenPipeError/ConnectionResetError; Windows raises OSError EINVAL on a closed pipe.)
         fd=os.open(os.devnull,os.O_WRONLY)
         os.dup2(fd,sys.stdout.fileno());os.close(fd)
         break

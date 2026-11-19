@@ -408,8 +408,8 @@ pub mod prefs {
     }
     /// Put `path` at the top of the recent list (recovery copies are not remembered).
     pub fn touch_recent(path: &Path) {
-        let path = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-        if std::fs::canonicalize(crate::autosave::directory()).is_ok_and(|d| path.starts_with(d)) {
+        let path = ldraw::platform::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+        if ldraw::platform::canonicalize(&crate::autosave::directory()).is_ok_and(|d| path.starts_with(d)) {
             return;
         }
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
