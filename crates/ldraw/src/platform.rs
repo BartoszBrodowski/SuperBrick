@@ -121,29 +121,38 @@ pub fn no_window(cmd: &mut Command) -> &mut Command {
     }
 }
 
-/// Whether a process with this id is running. Unix: `kill -0` (true if `kill` cannot be run).
-/// Windows: `OpenProcess` plus `GetExitCodeProcess == STILL_ACTIVE`; access denied counts as alive.
+/// Whether a process with this id is running; true when that cannot be checked (see [`pid_probe`]).
 pub fn pid_alive(pid: u32) -> bool {
+    pid_probe(pid).unwrap_or(true)
+}
+
+/// Whether a process with this id is running, or `None` when that cannot be checked.
+/// Unix: `kill -0` (`None` if `kill` cannot be run). Windows: `OpenProcess`, then
+/// `WaitForSingleObject(…, 0)` (an exit code of 259 cannot be mistaken for "still running");
+/// access denied counts as alive.
+pub fn pid_probe(pid: u32) -> Option<bool> {
     if pid == std::process::id() {
-        return true;
+        return Some(true);
     }
     #[cfg(windows)]
     {
-        use windows_sys::Win32::Foundation::{CloseHandle, ERROR_ACCESS_DENIED, GetLastError};
+        use windows_sys::Win32::Foundation::{CloseHandle, ERROR_ACCESS_DENIED, GetLastError, WAIT_OBJECT_0, WAIT_TIMEOUT};
         use windows_sys::Win32::System::Threading::{
-            GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+            OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, WaitForSingleObject,
         };
-        const STILL_ACTIVE: u32 = 259;
         // SAFETY: plain Win32 calls; the handle is closed before returning.
         unsafe {
-            let h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+            let h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE, 0, pid);
             if h.is_null() {
-                return GetLastError() == ERROR_ACCESS_DENIED;
+                return Some(GetLastError() == ERROR_ACCESS_DENIED);
             }
-            let mut code = 0u32;
-            let ok = GetExitCodeProcess(h, &mut code);
+            let state = WaitForSingleObject(h, 0);
             CloseHandle(h);
-            ok == 0 || code == STILL_ACTIVE
+            match state {
+                WAIT_TIMEOUT => Some(true),
+                WAIT_OBJECT_0 => Some(false),
+                _ => None,
+            }
         }
     }
     #[cfg(not(windows))]
@@ -152,8 +161,29 @@ pub fn pid_alive(pid: u32) -> bool {
             .args(["-0", &pid.to_string()])
             .stderr(std::process::Stdio::null())
             .status()
+            .ok()
             .map(|s| s.success())
-            .unwrap_or(true)
+    }
+}
+
+/// `std::fs::canonicalize`, without the `\\?\` verbatim prefix Windows adds when the plain form
+/// means the same (`\\?\C:\x` → `C:\x`, `\\?\UNC\srv\share` → `\\srv\share`), so paths shown to
+/// people and handed to Explorer or other programs look as usual. Unchanged elsewhere.
+pub fn canonicalize(path: &Path) -> io::Result<PathBuf> {
+    std::fs::canonicalize(path).map(|p| strip_verbatim(&p))
+}
+
+/// Removes a `\\?\` / `\\?\UNC\` prefix from a drive or UNC path; other paths are returned as is.
+pub fn strip_verbatim(path: &Path) -> PathBuf {
+    let Some(s) = path.to_str() else { return path.to_path_buf() };
+    if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+        return PathBuf::from(format!(r"\\{rest}"));
+    }
+    match s.strip_prefix(r"\\?\") {
+        Some(rest) if rest.as_bytes().get(1) == Some(&b':') && rest.as_bytes()[0].is_ascii_alphabetic() => {
+            PathBuf::from(rest)
+        }
+        _ => path.to_path_buf(),
     }
 }
 
@@ -205,6 +235,15 @@ mod tests {
     #[test]
     fn own_pid_is_alive() {
         assert!(pid_alive(std::process::id()));
+        assert_eq!(pid_probe(std::process::id()), Some(true));
+    }
+
+    #[test]
+    fn verbatim_prefix_is_stripped() {
+        assert_eq!(strip_verbatim(Path::new(r"\\?\C:\Users\me\x.sb")), PathBuf::from(r"C:\Users\me\x.sb"));
+        assert_eq!(strip_verbatim(Path::new(r"\\?\UNC\srv\share\x.sb")), PathBuf::from(r"\\srv\share\x.sb"));
+        assert_eq!(strip_verbatim(Path::new(r"\\?\Volume{1}\x")), PathBuf::from(r"\\?\Volume{1}\x"));
+        assert_eq!(strip_verbatim(Path::new("/Users/me/x.sb")), PathBuf::from("/Users/me/x.sb"));
     }
 
     #[cfg(not(windows))]

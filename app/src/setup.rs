@@ -122,7 +122,11 @@ impl Setup {
     fn relaunch(&mut self, ctx: &egui::Context) {
         let mut argv = self.argv.clone();
         argv.extend(crate::open_files::take().iter().map(|p| p.display().to_string()));
-        match std::env::current_exe().and_then(|exe| std::process::Command::new(exe).args(&argv).spawn()) {
+        // The restarted app must open the file itself: with SB_SHELL_LAUNCH it would hand the file
+        // to this setup window (which owns the single-instance pipe) just as it closes.
+        match std::env::current_exe()
+            .and_then(|exe| std::process::Command::new(exe).args(&argv).env_remove("SB_SHELL_LAUNCH").spawn())
+        {
             Ok(_) => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
             Err(e) => self.error = Some(format!("could not restart SuperBrick: {e}")),
         }

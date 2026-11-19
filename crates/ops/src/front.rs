@@ -385,11 +385,11 @@ impl Server {
     }
 
     fn open(&self, user: &str, path: &Path, create: bool, import: Option<&Path>) -> Result<PathBuf, String> {
-        let key = match path.canonicalize() {
+        let key = match ldraw::platform::canonicalize(path) {
             Ok(p) => p,
             Err(_) => {
                 let parent = path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
-                let parent = parent.canonicalize().map_err(|e| format!("{}: {e}", parent.display()))?;
+                let parent = ldraw::platform::canonicalize(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
                 parent.join(path.file_name().ok_or("open needs a file path")?)
             }
         };

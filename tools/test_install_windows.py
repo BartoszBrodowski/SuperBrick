@@ -65,6 +65,10 @@ class FakeWinreg:
     def DeleteKey(self, root, path):
         del self.keys[path.lower()]
 
+    def QueryInfoKey(self, key):
+        kids = {k for k in self.keys if k.startswith(key.path + "\\")}
+        return len(kids), len(self.keys[key.path]), 0
+
 
 class PathTests(unittest.TestCase):
     def test_merge(self):
@@ -116,6 +120,16 @@ class RegistryTests(unittest.TestCase):
         winsetup.unregister_associations()
         self.assertFalse([p for p in k if "superbrick" in p or p.endswith(".sb")])
         self.assertNotIn("SuperBrick.LDraw", k[r"software\classes\.ldr\openwithprogids"])
+
+    def test_previous_owner_is_restored_and_other_entries_kept(self):
+        self.fake.CreateKeyEx("HKCU", r"Software\Classes\.sb\OpenWithProgids", 0, 0)
+        self.fake.keys[r"software\classes\.sb"][""] = ("Other.App", 1)
+        self.fake.keys[r"software\classes\.sb\openwithprogids"]["Other.App"] = ("", 1)
+        winsetup.register_associations("C:\\P\\bin")
+        self.assertEqual(self.fake.keys[r"software\classes\.sb"][""][0], "SuperBrick.Project")
+        winsetup.unregister_associations()
+        self.assertEqual(self.fake.keys[r"software\classes\.sb"], {"": ("Other.App", 1)})
+        self.assertIn("Other.App", self.fake.keys[r"software\classes\.sb\openwithprogids"])
 
     def test_sb_kept_if_not_ours(self):
         winsetup.register_associations("C:\\P\\bin")

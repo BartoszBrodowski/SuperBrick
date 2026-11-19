@@ -64,7 +64,8 @@ fn alive(pid: u64) -> bool {
             };
         }
     }
-    u32::try_from(pid).is_ok_and(ldraw::platform::pid_alive)
+    // A pid that cannot be checked (no `kill`) counts as gone, so old jobs still resolve.
+    u32::try_from(pid).is_ok_and(|pid| ldraw::platform::pid_probe(pid).unwrap_or(false))
 }
 
 pub fn run(s: &mut Session, args: &Value) -> Result<Reply, String> {

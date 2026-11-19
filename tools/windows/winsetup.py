@@ -126,8 +126,30 @@ def delete_tree(root, path):
     winreg.DeleteKey(root, path)
 
 
+# Under .sb: the program that owned .sb before SuperBrick, restored on uninstall.
+PREVIOUS = "SuperBrick.Previous"
+
+
+def _sb_values():
+    """(default, previous) of HKCU\\Software\\Classes\\.sb; None where missing."""
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, rf"{CLASSES}\.sb", 0, winreg.KEY_READ) as key:
+            def get(name):
+                try:
+                    return winreg.QueryValueEx(key, name)[0]
+                except FileNotFoundError:
+                    return None
+            return get(""), get(PREVIOUS)
+    except FileNotFoundError:
+        return None, None
+
+
 def register_associations(bin_dir):
     _require_winreg()
+    default, previous = _sb_values()
+    if default and default != PROGID_PROJECT and previous is None:
+        with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, rf"{CLASSES}\.sb", 0, winreg.KEY_SET_VALUE) as key:
+            winreg.SetValueEx(key, PREVIOUS, 0, winreg.REG_SZ, default)
     for subkey, name, value in association_entries(bin_dir):
         with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, subkey, 0, winreg.KEY_SET_VALUE) as key:
             winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)
@@ -139,11 +161,21 @@ def unregister_associations():
     hk = winreg.HKEY_CURRENT_USER
     for path in OWNED_KEYS:
         delete_tree(hk, path)
-    try:  # .sb: remove only if we own the default
-        with winreg.OpenKey(hk, rf"{CLASSES}\.sb", 0, winreg.KEY_READ) as key:
-            owned = winreg.QueryValueEx(key, "")[0] == PROGID_PROJECT
-        if owned:
-            delete_tree(hk, rf"{CLASSES}\.sb")
+    # .sb: give the default back to its previous owner (or clear it) only if it is still ours,
+    # drop our own value, and remove the key only when nothing else (other apps' entries) is left.
+    default, previous = _sb_values()
+    try:
+        with winreg.OpenKey(hk, rf"{CLASSES}\.sb", 0, winreg.KEY_ALL_ACCESS) as key:
+            if default == PROGID_PROJECT:
+                if previous:
+                    winreg.SetValueEx(key, "", 0, winreg.REG_SZ, previous)
+                else:
+                    winreg.DeleteValue(key, "")
+            if previous is not None:
+                winreg.DeleteValue(key, PREVIOUS)
+            subkeys, values, _ = winreg.QueryInfoKey(key)
+        if subkeys == 0 and values == 0:
+            winreg.DeleteKey(hk, rf"{CLASSES}\.sb")
     except FileNotFoundError:
         pass
     for ext in (".ldr", ".mpd"):

@@ -158,9 +158,8 @@ pub fn generate_cli(args: &[String]) -> Result<(), String> {
         return Err("Image size must be 128–1600".into());
     }
     let source = file
-        .ok_or("Usage: sb MODEL --generate-instructions [--studio-render] [--output NEW_DIRECTORY]")?
-        .canonicalize()
-        .map_err(|e| e.to_string())?;
+        .ok_or_else(|| "Usage: sb MODEL --generate-instructions [--studio-render] [--output NEW_DIRECTORY]".to_string())
+        .and_then(|f| ldraw::platform::canonicalize(&f).map_err(|e| e.to_string()))?;
     let bytes = std::fs::read(&source).map_err(|e| e.to_string())?;
     let doc = ldraw::Document::load(&source).map_err(|e| e.to_string())?;
     let flat = doc.flatten(source.parent());
@@ -178,7 +177,7 @@ pub fn generate_cli(args: &[String]) -> Result<(), String> {
         ))
     });
     std::fs::create_dir(&out).map_err(|e| format!("Output must be a new directory: {e}"))?;
-    let out = out.canonicalize().map_err(|e| e.to_string())?;
+    let out = ldraw::platform::canonicalize(&out).map_err(|e| e.to_string())?;
     let (bench, shadow) = resources();
     let parts: Vec<_> = flat.iter().map(|p| serde_json::json!({"name":p.name,"color":p.color.0,"pos":p.pos.to_array(),"rot":p.rot.to_cols_array()})).collect();
     let kind = if studio { "studio" } else { "instructions" };

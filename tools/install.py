@@ -116,7 +116,12 @@ def main_windows(args, parser, root):
     metadata = json.loads(subprocess.check_output(
         ["cargo", "metadata", "--no-deps", "--format-version", "1"], cwd=root))
     share = prefix / "share/superbrick"
-    stage_share(root, share)
+    try:
+        stage_share(root, share)
+    except PermissionError as e:
+        # Windows will not replace a file another process has open (studio_rays.dll during a render).
+        parser.error(f"{e.filename or share} is in use; close SuperBrick (and any instruction or studio "
+                     "render it is running), then run the installer again")
     release = Path(metadata["target_directory"]) / "release"
     bin_dir, link, path_changed = winsetup.install_windows(
         release, share, prefix, pin_python=pinned if args.pin_python else None)

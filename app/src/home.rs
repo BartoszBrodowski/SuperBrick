@@ -181,7 +181,10 @@ fn tilde(path: &Path) -> String {
     } else {
         s.starts_with(&h)
     };
-    if matches { format!("~{}", &s[h.len()..]) } else { s }
+    // Only at a folder boundary: home `/Users/bob` must not shorten `/Users/bobby/x`.
+    let rest = s.get(h.len()..).unwrap_or("");
+    let boundary = rest.is_empty() || rest.starts_with('/') || (cfg!(windows) && rest.starts_with('\\'));
+    if matches && boundary { format!("~{rest}") } else { s }
 }
 
 /// The start page. `current` names the model that is open behind it, if any.

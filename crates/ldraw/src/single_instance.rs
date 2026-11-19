@@ -161,19 +161,34 @@ mod win {
         let name = name();
         // The running window may take the foreground from us only if we allow it.
         unsafe { AllowSetForegroundWindow(ASFW_ANY) };
+        enum Stage {
+            Written,
+            Done(bool),
+        }
         let (tx, rx) = std::sync::mpsc::channel();
         // A std File cannot time out, so the exchange runs on its own thread.
         std::thread::spawn(move || {
             let ok = (|| {
                 let mut pipe = open_pipe(&name)?;
                 pipe.write_all(message.as_bytes()).ok()?;
+                let _ = tx.send(Stage::Written);
                 let mut ack = [0u8; 1];
                 pipe.read_exact(&mut ack).ok()?;
                 (ack[0] == b'+').then_some(())
             })();
-            let _ = tx.send(ok.is_some());
+            let _ = tx.send(Stage::Done(ok.is_some()));
         });
-        rx.recv_timeout(Duration::from_secs(2)).unwrap_or(false)
+        // Fail only if the running instance could not be reached; once it has the message it will
+        // open the file even if its answer is slow, and opening it here too would make two windows.
+        match rx.recv_timeout(Duration::from_secs(2)) {
+            Ok(Stage::Written) => {}
+            Ok(Stage::Done(ok)) => return ok,
+            Err(_) => return false,
+        }
+        match rx.recv_timeout(Duration::from_secs(10)) {
+            Ok(Stage::Done(ok)) => ok,
+            _ => true,
+        }
     }
 
     fn create_instance(name: &[u16], first: bool) -> Result<File, u32> {
@@ -233,16 +248,21 @@ mod win {
                 let raw = std::os::windows::io::AsRawHandle::as_raw_handle(&pipe) as HANDLE;
                 let connected = unsafe { ConnectNamedPipe(raw, std::ptr::null_mut()) } != 0
                     || unsafe { GetLastError() } == ERROR_PIPE_CONNECTED;
-                // Open the next instance before serving this one so clients never see a gap.
-                let next = create_instance(&name, false);
                 if connected {
                     let cb = on_paths.clone();
                     let _ = std::thread::spawn(move || handle_client(pipe, &*cb));
                 }
-                match next {
-                    Ok(f) => pipe = f,
-                    Err(_) => return,
-                }
+                // The next instance; a failure (handle quota, a closing instance) is retried rather
+                // than ending the server, which would make later launches open extra windows.
+                pipe = loop {
+                    match create_instance(&name, false) {
+                        Ok(f) => break f,
+                        Err(code) => {
+                            eprintln!("single instance: could not create the next pipe instance (error {code}); retrying");
+                            std::thread::sleep(Duration::from_millis(500));
+                        }
+                    }
+                };
             }
         });
     }

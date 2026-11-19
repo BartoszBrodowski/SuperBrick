@@ -49,9 +49,19 @@ if ($Uninstall) {
     foreach ($k in 'SuperBrick.Project', 'SuperBrick.LDraw', 'Applications\SuperBrick.exe') {
         Remove-Item -LiteralPath "HKCU:\Software\Classes\$k" -Recurse -Force -ErrorAction SilentlyContinue
     }
+    # .sb: give the default back to its previous owner (or clear it) only if it is still ours,
+    # drop our value, and remove the key only when nothing else (other apps' entries) is left.
     $sb = 'HKCU:\Software\Classes\.sb'
-    if ((Test-Path -LiteralPath $sb) -and ((Get-Item -LiteralPath $sb).GetValue('') -eq 'SuperBrick.Project')) {
-        Remove-Item -LiteralPath $sb -Recurse -Force
+    if (Test-Path -LiteralPath $sb) {
+        $key = Get-Item -LiteralPath $sb
+        $previous = $key.GetValue('SuperBrick.Previous')
+        if ($key.GetValue('') -eq 'SuperBrick.Project') {
+            if ($previous) { Set-Item -LiteralPath $sb -Value $previous }
+            else { Remove-ItemProperty -LiteralPath $sb -Name '(default)' -ErrorAction SilentlyContinue }
+        }
+        Remove-ItemProperty -LiteralPath $sb -Name 'SuperBrick.Previous' -ErrorAction SilentlyContinue
+        $key = Get-Item -LiteralPath $sb
+        if ($key.SubKeyCount -eq 0 -and $key.ValueCount -eq 0) { Remove-Item -LiteralPath $sb -Force }
     }
     foreach ($e in '.ldr', '.mpd') {
         Remove-ItemProperty -LiteralPath "HKCU:\Software\Classes\$e\OpenWithProgids" -Name 'SuperBrick.LDraw' -ErrorAction SilentlyContinue
@@ -88,6 +98,14 @@ if ((Norm $source) -ne (Norm $Prefix)) {
 
 $exe = Join-Path $bin 'SuperBrick.exe'
 $command = '"' + $exe + '" "%1"'
+# Remember who owned .sb before us, so uninstall can give it back.
+$sbKey = 'HKCU:\Software\Classes\.sb'
+if (Test-Path -LiteralPath $sbKey) {
+    $owner = (Get-Item -LiteralPath $sbKey).GetValue('')
+    if ($owner -and $owner -ne 'SuperBrick.Project' -and $null -eq (Get-Item -LiteralPath $sbKey).GetValue('SuperBrick.Previous')) {
+        Set-RegValue '.sb' 'SuperBrick.Previous' $owner
+    }
+}
 Set-RegValue 'SuperBrick.Project' '' 'SuperBrick Project'
 Set-RegValue 'SuperBrick.Project' 'FriendlyTypeName' 'SuperBrick Project'
 Set-RegValue 'SuperBrick.Project\DefaultIcon' '' "$exe,0"
