@@ -51,18 +51,20 @@ if ($Uninstall) {
     }
     # .sb: give the default back to its previous owner (or clear it) only if it is still ours,
     # drop our value, and remove the key only when nothing else (other apps' entries) is left.
-    $sb = 'HKCU:\Software\Classes\.sb'
-    if (Test-Path -LiteralPath $sb) {
-        $key = Get-Item -LiteralPath $sb
-        $previous = $key.GetValue('SuperBrick.Previous')
-        if ($key.GetValue('') -eq 'SuperBrick.Project') {
-            if ($previous) { Set-Item -LiteralPath $sb -Value $previous }
-            else { Remove-ItemProperty -LiteralPath $sb -Name '(default)' -ErrorAction SilentlyContinue }
+    # The .NET registry API, because the PowerShell provider cannot reliably delete a default value.
+    $classes = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Classes', $true)
+    $sb = if ($classes) { $classes.OpenSubKey('.sb', $true) } else { $null }
+    if ($sb) {
+        $previous = $sb.GetValue('SuperBrick.Previous')
+        if ($sb.GetValue('') -eq 'SuperBrick.Project') {
+            if ($previous) { $sb.SetValue('', $previous) } else { $sb.DeleteValue('', $false) }
         }
-        Remove-ItemProperty -LiteralPath $sb -Name 'SuperBrick.Previous' -ErrorAction SilentlyContinue
-        $key = Get-Item -LiteralPath $sb
-        if ($key.SubKeyCount -eq 0 -and $key.ValueCount -eq 0) { Remove-Item -LiteralPath $sb -Force }
+        $sb.DeleteValue('SuperBrick.Previous', $false)
+        $empty = $sb.SubKeyCount -eq 0 -and $sb.ValueCount -eq 0
+        $sb.Close()
+        if ($empty) { $classes.DeleteSubKey('.sb', $false) }
     }
+    if ($classes) { $classes.Close() }
     foreach ($e in '.ldr', '.mpd') {
         Remove-ItemProperty -LiteralPath "HKCU:\Software\Classes\$e\OpenWithProgids" -Name 'SuperBrick.LDraw' -ErrorAction SilentlyContinue
     }
