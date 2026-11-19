@@ -135,7 +135,9 @@ def main_windows(args, parser, root):
 SEARCH_ASSETS = ["out/catalog.json", "out/emb-potion-base-8m.bin", "out/sets.bin"] + [
     f"models/potion-base-8m/{name}" for name in ["config.json", "model.safetensors", "tokenizer.json"]
 ]
-BENCH_FILES = ["physics.py", "snaps.py", "ldraw.py", "raster.py", "render.py", "validate.py", "scene.py", "orient.py"]
+BENCH_FILES = ["physics.py", "snaps.py", "ldraw.py", "raster.py", "render.py", "orient.py"]
+# SuperBrick's own modules staged next to the bench helpers (the checker and its scene among them).
+OWN_BENCH_FILES = ["cad_contact_policy.py", "cad_snap_rules.py", "cad_validate.py", "cad_scene.py"]
 
 
 def sources(root):
@@ -187,8 +189,8 @@ def stage_share(root, share, min_macos=None):
         atomic_copy(library, connector_target / library.name)
     for name in BENCH_FILES:
         atomic_copy(found["bench"] / name, connector_target / "bench" / name)
-    atomic_copy(root / "app/src/cad_contact_policy.py", connector_target / "bench/cad_contact_policy.py")
-    atomic_copy(root / "app/src/cad_snap_rules.py", connector_target / "bench/cad_snap_rules.py")
+    for name in OWN_BENCH_FILES:
+        atomic_copy(root / "app/src" / name, connector_target / "bench" / name)
     for folder, destination in [(found["bench"] / "shadow_extra", connector_target / "bench/shadow_extra"), (found["shadow"], connector_target / "shadow")]:
         for path in folder.rglob("*"):
             if path.is_file() and ".git" not in path.parts and "__pycache__" not in path.parts:

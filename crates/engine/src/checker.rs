@@ -1,4 +1,5 @@
-//! The checker: the bench validator (`validate.py`) run inside the bundled connector service.
+//! The checker: `app/src/cad_validate.py` (SuperBrick's own, on the bench's `physics.relation`)
+//! run inside the bundled connector service.
 //!
 //! It knows every connector family the bench knows (studs, side studs, pins, axles, clips, bars,
 //! hinges, balls, gears, compliance) and reports per piece OK / COLLISION / CONFLICT / FLOATING /

@@ -13,8 +13,11 @@ if not os.environ.get('BENCH_SHADOW') and Path(sys.argv[2]).is_dir():
     os.environ['BENCH_SHADOW'] = sys.argv[2]
 import numpy as np
 import physics, snaps
-_policy_dev=Path(sys.argv[1]).resolve().parent/'cad/app/src'
-if _policy_dev.is_dir():sys.path.insert(0,str(_policy_dev))
+# SuperBrick's own modules (cad_*): from the source checkout when the native side names it,
+# else from the old dev layout, else the copies staged in the bench folder.
+for _policy_dev in (os.environ.get('SB_APP_SRC'), Path(sys.argv[1]).resolve().parent/'cad/app/src'):
+    if _policy_dev and Path(_policy_dev).is_dir():
+        sys.path.insert(0,str(_policy_dev));break
 from cad_contact_policy import curved_clip_matches
 from functools import lru_cache
 
@@ -168,8 +171,8 @@ cad_snap_rules.apply(snaps)
 # it changed (and their new neighbours); everything else comes from this cache.
 from collections import OrderedDict
 import re as _re
-import validate as _bench_validate
-from scene import Scene as _Scene, make_body as _make_body
+import cad_validate as _bench_validate
+from cad_scene import Scene as _Scene, make_body as _make_body
 _RELATIONS = OrderedDict()
 _RELATIONS_MAX = 250000
 
@@ -192,7 +195,7 @@ def _cached_relation(p, q, nb, ob):
 
 @lru_cache(maxsize=32768)
 def _checker_body(uid, part, color, pos, rot):
-    from scene import Placed
+    from cad_scene import Placed
     return _make_body(Placed(uid, part, color, list(pos), list(rot)))
 
 class _CheckScene(_Scene):

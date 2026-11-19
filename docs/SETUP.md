@@ -61,6 +61,21 @@ the part-search catalogue and models in `spikes/search/{out,models}` (not in git
 [spikes/search/FINDINGS.md](../spikes/search/FINDINGS.md)) plus the sibling `../bench-next` and
 `../data-next` folders (connector shadow library).
 
+### Connector data for a source build (without bench-next)
+
+Connect, Hinge and the checker need the connector helpers and the LDCad shadow library. A source
+build finds them, in this order, in `SB_CONNECTOR_DATA`, `<bin>/../share/superbrick/connectors`,
+`<support folder>/connectors`, then `../superbrick-data/connectors` next to the checkout, and
+last `../bench-next` with `../data-next`. A folder is used only if it contains `bench/snaps.py`.
+
+Without `bench-next`, fill `../superbrick-data/connectors` from a release bundle:
+`bench/` takes `physics.py`, `snaps.py`, `ldraw.py`, `raster.py`, `render.py` and `shadow_extra/`
+from the bundle's `share/superbrick/connectors/bench`, and `shadow/` takes its `shadow` folder.
+SuperBrick's own modules (`cad_validate.py`, `cad_scene.py`, the contact policy and snap rules)
+are not copied: a source build loads them from `app/src`. Keep this folder outside `target/`
+(`cargo clean` deletes it) and, on Windows, set it up from your own terminal: files a sandboxed
+(MSIX-packaged) app writes under `AppData` are hidden from other programs.
+
 ## Where files live
 
 **macOS**

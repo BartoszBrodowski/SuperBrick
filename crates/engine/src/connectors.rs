@@ -67,13 +67,25 @@ impl Drop for Backend {
 }
 fn start() -> Result<Backend> {
     let installed = ldraw::installed_share("connectors");
+    // $SB_CONNECTOR_DATA, else the installed share folder, else the support folder
+    // (`%APPDATA%\SuperBrick\connectors`, next to the downloaded library and Python).
+    let support = ldraw::runtime::support_dir().join("connectors");
+    // Each candidate must really hold the helpers: a stale variable (or one a sandboxed parent
+    // such as an MSIX-packaged app redirected) must not hide data that is present elsewhere.
+    let has_helpers = |p: &PathBuf| p.join("bench/snaps.py").is_file();
+    // A source build also looks next to its checkout: `../superbrick-data/connectors` (same
+    // layout as an installed share folder), then the original `../bench-next` + `../data-next`.
+    let checkout = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let root = checkout.join("..");
     let data = ldraw::app_env("CONNECTOR_DATA")
         .map(PathBuf::from)
-        .or_else(|| installed.filter(|p| p.join("bench/snaps.py").is_file()));
+        .filter(has_helpers)
+        .or_else(|| installed.filter(has_helpers))
+        .or_else(|| Some(support).filter(has_helpers))
+        .or_else(|| Some(root.join("superbrick-data/connectors")).filter(has_helpers));
     let (bench, shadow) = if let Some(data) = data {
         (data.join("bench"), data.join("shadow"))
     } else {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..");
         (
             root.join("bench-next"),
             root.join("data-next/ldcad_shadow/LDCadShadowLibrary-main"),
@@ -82,6 +94,12 @@ fn start() -> Result<Backend> {
     let script = ldraw::runtime::helper_script("connectors", include_str!("connectors.py"))?;
     let mut command = ldraw::runtime::python_command()?;
     ldraw::platform::no_window(&mut command);
+    // In a source build, SuperBrick's own Python modules (cad_validate, cad_scene, the contact
+    // policy) come straight from the checkout, ahead of any staged copies.
+    let app_src = checkout.join("app/src");
+    if app_src.join("cad_validate.py").is_file() {
+        command.env("SB_APP_SRC", &app_src);
+    }
     let mut child = command
         .arg("-u")
         .arg(script)
