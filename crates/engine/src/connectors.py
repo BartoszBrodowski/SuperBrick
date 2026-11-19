@@ -491,8 +491,9 @@ for line in sys.stdin:
     try: reply=dict(result=run(json.loads(line)))
     except Exception as e: reply=dict(error=f'{type(e).__name__}: {e}')
     try: print(json.dumps(reply),flush=True)
-    except (BrokenPipeError,ConnectionResetError):
-        # Native parent quit/terminated: don't report over the broken pipe.
+    except OSError:
+        # Native parent quit/terminated: don't report over the broken pipe. (Unix raises
+        # BrokenPipeError/ConnectionResetError; Windows raises OSError EINVAL on a closed pipe.)
         fd=os.open(os.devnull,os.O_WRONLY)
         os.dup2(fd,sys.stdout.fileno());os.close(fd)
         break
