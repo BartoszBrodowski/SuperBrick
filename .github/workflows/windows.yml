@@ -156,11 +156,14 @@ jobs:
       - name: Rust tests that need no external data
         id: datafree
         if: needs.plan.outputs.tests == 'true'
+        # A failure here must not skip the package and runtime checks; the last step fails the job.
+        continue-on-error: true
         shell: cmd  # not bash: Git Bash's /usr/bin/link shadows MSVC's link.exe
+        # render's service tests are not here: they skip without a GPU but need the parts library
+        # when there is one (WARP on the runners); the full suite runs them with the library.
         run: |
           cargo test --locked -p ldraw -p cad-cli -p physics || exit /b 1
-          cargo test --locked -p engine -p store --lib || exit /b 1
-          cargo test --locked -p render --lib --test service || exit /b 1
+          cargo test --locked -p engine -p store -p render --lib || exit /b 1
 
       - name: Binary checks (subsystem, icon, system DLLs only, studio_rays.dll exports)
         id: binaries
@@ -220,6 +223,10 @@ jobs:
             target/release/sb-dev.exe
             target/release/SuperBrick.exe
           if-no-files-found: error
+
+      - name: Fail if the data-free tests failed
+        if: always() && steps.datafree.outcome == 'failure'
+        run: exit 1
 
   full-tests:
     name: Full test suite with the release data (expected failures allowed)
