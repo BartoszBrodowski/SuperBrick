@@ -190,7 +190,7 @@ jobs:
         run: |
           python tools/test_install_windows.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -m py_compile app/src/publication.py crates/engine/src/connectors.py app/src/cad_contact_policy.py app/src/cad_snap_rules.py tools/install.py tools/release.py tools/windows/winsetup.py
+          python -m py_compile app/src/publication.py crates/engine/src/connectors.py app/src/cad_contact_policy.py app/src/cad_snap_rules.py app/src/cad_validate.py app/src/cad_scene.py tools/install.py tools/release.py tools/windows/winsetup.py
 
       - name: Single instance hand-over
         id: instance

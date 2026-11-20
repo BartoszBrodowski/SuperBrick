@@ -123,6 +123,15 @@ pub fn parts(st: &mut State, ui: &mut egui::Ui) {
     }
     st.refresh_search();
     let Some(search) = st.search.clone() else {
+        if let Some(e) = &st.search_error {
+            ui.colored_label(ui.visuals().error_fg_color, "Local search unavailable");
+            ui.small(format!(
+                "{e}\nLooked in {}. Set SB_SEARCH_DATA to a folder with out/catalog.json \
+                 (see docs/SETUP.md, Local search).",
+                search::data_dir().display()
+            ));
+            return;
+        }
         ui.spinner();
         ui.label("Loading local search…");
         return;

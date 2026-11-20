@@ -61,6 +61,8 @@ pub struct State {
     pub mirror_job: Option<mpsc::Receiver<Result<Option<Vec<engine::PartSpec>>, String>>>,
     pub message: String,
     pub search: Option<Arc<search::Searcher>>,
+    /// Why the search index could not load (the panel shows it instead of spinning forever).
+    pub search_error: Option<String>,
     pub search_rx: mpsc::Receiver<Result<search::Searcher, String>>,
     pub query: String,
     pub filters: search::Filters,
@@ -735,6 +737,7 @@ impl App {
             mirror_job: None,
             message,
             search: None,
+            search_error: None,
             search_rx,
             query: String::new(),
             filters: search::Filters {
@@ -960,7 +963,10 @@ impl App {
                     self.st.search = Some(Arc::new(s));
                     self.st.refresh_search();
                 }
-                Err(e) => self.st.message = format!("Search unavailable: {e}"),
+                Err(e) => {
+                    self.st.message = format!("Search unavailable: {e}");
+                    self.st.search_error = Some(e);
+                }
             }
         }
         while let Ok((key, result)) = self.st.thumb_rx.try_recv() {

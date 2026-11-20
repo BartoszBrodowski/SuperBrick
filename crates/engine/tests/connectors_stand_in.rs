@@ -1,6 +1,6 @@
 //! The connector backend's transport, with stand-in helper modules instead of `bench-next`.
 //!
-//! The real physics/snaps/validate/scene helpers are not in this repository (and the published
+//! The real physics/snaps helpers are not in this repository (and the published
 //! release predates some of them), but everything the native side does with the helper is: find
 //! Python, write the embedded `connectors.py` to the cache and start it from there (Windows caps a
 //! `-c` command line at 32 KB), hide its console window, exchange JSON lines over its pipes in
@@ -46,18 +46,6 @@ def mate(local, world, angle, flip):
     return []
 "#;
 
-const VALIDATE: &str = "# stand-in: imported by the checker, unused by these requests\n";
-
-const SCENE: &str = r#"
-class Scene:
-    pass
-class Placed:
-    def __init__(self, *args):
-        self.args = args
-def make_body(placed):
-    return None
-"#;
-
 /// Two parts, one with non-ASCII in its name.
 const MODEL: &[u8] = "1 4 0 0 0 1 0 0 0 1 0 0 0 1 3005.dat\n1 1 100 0 0 1 0 0 0 1 0 0 0 1 brique-é✓.dat\n".as_bytes();
 
@@ -68,10 +56,10 @@ fn stand_in_data() -> PathBuf {
     std::fs::create_dir_all(&bench).unwrap();
     std::fs::create_dir_all(root.join("shadow")).unwrap();
     let app = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../app/src");
-    for (name, text) in [("physics.py", PHYSICS), ("snaps.py", SNAPS), ("validate.py", VALIDATE), ("scene.py", SCENE)] {
+    for (name, text) in [("physics.py", PHYSICS), ("snaps.py", SNAPS)] {
         std::fs::write(bench.join(name), text).unwrap();
     }
-    for name in ["cad_contact_policy.py", "cad_snap_rules.py"] {
+    for name in ["cad_contact_policy.py", "cad_snap_rules.py", "cad_validate.py", "cad_scene.py"] {
         std::fs::copy(app.join(name), bench.join(name)).unwrap();
     }
     root
